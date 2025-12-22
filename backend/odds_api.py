@@ -4,10 +4,15 @@ Fetches real betting lines from The Odds API
 """
 
 import requests
+import os
 from typing import Dict, List, Optional
 from datetime import datetime
 import sys
 import io
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Force UTF-8 output
 if not isinstance(sys.stdout, io.TextIOWrapper) or sys.stdout.encoding != 'utf-8':
@@ -17,7 +22,7 @@ if not isinstance(sys.stdout, io.TextIOWrapper) or sys.stdout.encoding != 'utf-8
         pass  # Already wrapped or can't wrap
 
 # API Configuration
-API_KEY = "5ffd1a867973dd45f4be1118e7233de7"
+API_KEY = os.getenv('ODDS_API_KEY', '5ffd1a867973dd45f4be1118e7233de7')  # Fallback to hardcoded key
 BASE_URL = "https://api.the-odds-api.com/v4"
 
 # Sport key for NBA
