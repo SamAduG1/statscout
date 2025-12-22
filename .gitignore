@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.output
+
+# Node modules (frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Build files
+frontend/build/
+*.min.js
+*.min.css
+
+# Test files (optional - you might want to keep these)
+backend/test_*.py
+backend/check_*.py
+backend/verify_*.py
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+temp/
+tmp/
+
+# API Keys (if you have any config files with keys)
+config.json
+secrets.json
+credentials.json
