@@ -197,6 +197,158 @@ const mockPlayers = [
   }
 ];
 
+// Team Quarter Insights Component - Displays team quarter analytics
+const TeamQuarterInsights = ({ team1, team2 }) => {
+  const [quarterData, setQuarterData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (team1 && team2) {
+      fetchQuarterData();
+    }
+  }, [team1, team2]);
+
+  const fetchQuarterData = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/quarters/matchup?team1=${team1}&team2=${team2}&season=2025-26`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setQuarterData(data.matchup);
+      }
+    } catch (err) {
+      console.error('Error fetching quarter data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!quarterData || loading) return null;
+
+  const { team1: t1Data, team2: t2Data, insights } = quarterData;
+
+  return (
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow-lg p-6 mb-8">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        <TrendingUp className="w-6 h-6 text-blue-600" />
+        Quarter Performance Insights
+      </h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Team 1 */}
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 shadow">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t1Data.team}</h3>
+
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q1</div>
+              <div className="text-xl font-bold text-blue-600">{t1Data.q1_avg}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q2</div>
+              <div className="text-xl font-bold text-blue-600">{t1Data.q2_avg}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q3</div>
+              <div className="text-xl font-bold text-blue-600">{t1Data.q3_avg}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q4</div>
+              <div className="text-xl font-bold text-blue-600">{t1Data.q4_avg}</div>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">First Half Avg:</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{t1Data.first_half_avg} pts</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Second Half Avg:</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{t1Data.second_half_avg} pts</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Through 3Q:</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{t1Data.three_quarter_avg} pts</span>
+            </div>
+            <div className="flex justify-between border-t pt-2 mt-2 border-gray-200 dark:border-gray-700">
+              <span className="text-gray-600 dark:text-gray-400">Reach 100+ by Q3:</span>
+              <span className={`font-bold ${t1Data.reached_100_by_q3_pct >= 50 ? 'text-green-600' : 'text-orange-600'}`}>
+                {t1Data.reached_100_by_q3_pct}% ({t1Data.reached_100_by_q3_count}/{t1Data.total_games})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Team 2 */}
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 shadow">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t2Data.team}</h3>
+
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q1</div>
+              <div className="text-xl font-bold text-purple-600">{t2Data.q1_avg}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q2</div>
+              <div className="text-xl font-bold text-purple-600">{t2Data.q2_avg}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q3</div>
+              <div className="text-xl font-bold text-purple-600">{t2Data.q3_avg}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Q4</div>
+              <div className="text-xl font-bold text-purple-600">{t2Data.q4_avg}</div>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">First Half Avg:</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{t2Data.first_half_avg} pts</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Second Half Avg:</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{t2Data.second_half_avg} pts</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Through 3Q:</span>
+              <span className="font-semibold text-gray-900 dark:text-white">{t2Data.three_quarter_avg} pts</span>
+            </div>
+            <div className="flex justify-between border-t pt-2 mt-2 border-gray-200 dark:border-gray-700">
+              <span className="text-gray-600 dark:text-gray-400">Reach 100+ by Q3:</span>
+              <span className={`font-bold ${t2Data.reached_100_by_q3_pct >= 50 ? 'text-green-600' : 'text-orange-600'}`}>
+                {t2Data.reached_100_by_q3_pct}% ({t2Data.reached_100_by_q3_count}/{t2Data.total_games})
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Insights */}
+      {insights && insights.length > 0 && (
+        <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-4">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            <Flame className="w-4 h-4 text-orange-500" />
+            Key Insights
+          </h4>
+          <ul className="space-y-1">
+            {insights.map((insight, idx) => (
+              <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                • {insight}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Bookmaker Selector Component - Clean dropdown for sportsbook lines
 const BookmakerSelector = ({ bookmakerLines }) => {
   const [selectedBookmaker, setSelectedBookmaker] = useState(0);
@@ -997,6 +1149,15 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               </div>
             </div>
           </div>
+
+          {/* Team Quarter Insights - Show when teams are present in filtered data */}
+          {(() => {
+            const filteredTeams = [...new Set(filteredAndSortedPlayers.map(p => p.team))];
+            if (filteredTeams.length >= 2) {
+              return <TeamQuarterInsights team1={filteredTeams[0]} team2={filteredTeams[1]} />;
+            }
+            return null;
+          })()}
 
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 transition-colors">

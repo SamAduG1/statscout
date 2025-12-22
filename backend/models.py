@@ -29,13 +29,13 @@ class Player(Base):
 class Game(Base):
     """Individual game statistics table"""
     __tablename__ = 'games'
-    
+
     id = Column(Integer, primary_key=True)
     player_id = Column(Integer, ForeignKey('players.id'), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     opponent = Column(String, nullable=False)
     is_home = Column(Boolean, nullable=False)
-    
+
     # Statistics
     points = Column(Integer, nullable=False)
     rebounds = Column(Integer, nullable=False)
@@ -43,12 +43,69 @@ class Game(Base):
     steals = Column(Integer, nullable=False)
     blocks = Column(Integer, nullable=False)
     three_pm = Column(Integer, nullable=False)
-    
+
     # Relationship to player
     player = relationship("Player", back_populates="games")
-    
+
     def __repr__(self):
         return f"<Game(player_id={self.player_id}, date='{self.date}', opponent='{self.opponent}')>"
+
+
+class TeamGame(Base):
+    """Team game with quarter-by-quarter scoring"""
+    __tablename__ = 'team_games'
+
+    id = Column(Integer, primary_key=True)
+    game_id = Column(String, unique=True, nullable=False, index=True)  # NBA API game ID
+    team = Column(String, nullable=False, index=True)  # Team abbreviation (e.g., "LAL")
+    opponent = Column(String, nullable=False)  # Opponent abbreviation
+    date = Column(Date, nullable=False, index=True)
+    is_home = Column(Boolean, nullable=False)
+    season = Column(String, nullable=False)  # e.g., "2025-26"
+
+    # Quarter scoring
+    q1_points = Column(Integer, nullable=True)
+    q2_points = Column(Integer, nullable=True)
+    q3_points = Column(Integer, nullable=True)
+    q4_points = Column(Integer, nullable=True)
+    ot_points = Column(Integer, nullable=True, default=0)  # Overtime total
+
+    # Game totals
+    total_points = Column(Integer, nullable=False)
+    opponent_points = Column(Integer, nullable=False)
+    won = Column(Boolean, nullable=False)  # True if won, False if lost
+
+    def __repr__(self):
+        return f"<TeamGame(team='{self.team}', opponent='{self.opponent}', date='{self.date}')>"
+
+    @property
+    def first_half_points(self):
+        """Calculate first half points (Q1 + Q2)"""
+        if self.q1_points is not None and self.q2_points is not None:
+            return self.q1_points + self.q2_points
+        return None
+
+    @property
+    def second_half_points(self):
+        """Calculate second half points (Q3 + Q4)"""
+        if self.q3_points is not None and self.q4_points is not None:
+            return self.q3_points + self.q4_points
+        return None
+
+    @property
+    def three_quarter_points(self):
+        """Calculate points through 3 quarters (Q1 + Q2 + Q3)"""
+        if self.q1_points is not None and self.q2_points is not None and self.q3_points is not None:
+            return self.q1_points + self.q2_points + self.q3_points
+        return None
+
+    @property
+    def reached_100_by_q3(self):
+        """Check if team reached 100+ points by end of Q3"""
+        three_q = self.three_quarter_points
+        if three_q is not None:
+            return three_q >= 100
+        return None
 
 
 # Database connection and session management

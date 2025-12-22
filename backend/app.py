@@ -9,17 +9,19 @@ from calculator import StatScoutCalculator
 from db_loader import DatabaseLoader as DataLoader
 from odds_api import OddsAPIClient
 from nba_schedule_fetcher import NBAScheduleFetcher
+from team_quarter_analytics import TeamQuarterAnalytics
 from datetime import datetime, timedelta
 import random
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
 
-# Initialize calculator, data loader, odds API client, and schedule fetcher
+# Initialize calculator, data loader, odds API client, schedule fetcher, and quarter analytics
 calc = StatScoutCalculator()
 loader = DataLoader()
 odds_client = OddsAPIClient()
 schedule_fetcher = NBAScheduleFetcher()
+quarter_analytics = TeamQuarterAnalytics()
 
 # Initialize background scheduler for automated updates
 from scheduler import init_scheduler
@@ -535,6 +537,75 @@ def trigger_update():
         result = update_all_players()
 
         return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ========== TEAM QUARTER ANALYTICS ENDPOINTS ==========
+
+@app.route('/api/quarters/team/<team_abbr>', methods=['GET'])
+def get_team_quarter_stats(team_abbr):
+    """Get quarter statistics for a specific team"""
+    try:
+        season = request.args.get('season', '2025-26')
+
+        # Get quarter averages
+        averages = quarter_analytics.get_team_quarter_averages(team_abbr, season)
+
+        if not averages:
+            return jsonify({
+                "success": False,
+                "error": f"No data found for team {team_abbr}"
+            }), 404
+
+        # Get win correlation
+        correlation = quarter_analytics.get_quarter_win_correlation(team_abbr, season)
+
+        return jsonify({
+            "success": True,
+            "team": team_abbr,
+            "season": season,
+            "averages": averages,
+            "win_correlation": correlation
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/quarters/matchup', methods=['GET'])
+def get_matchup_quarter_analysis():
+    """Get quarter analysis for a team vs team matchup"""
+    try:
+        team1 = request.args.get('team1')
+        team2 = request.args.get('team2')
+        season = request.args.get('season', '2025-26')
+
+        if not team1 or not team2:
+            return jsonify({
+                "success": False,
+                "error": "Both team1 and team2 parameters are required"
+            }), 400
+
+        analysis = quarter_analytics.get_matchup_quarter_analysis(team1, team2, season)
+
+        if not analysis:
+            return jsonify({
+                "success": False,
+                "error": f"No data found for matchup {team1} vs {team2}"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "matchup": analysis
+        })
 
     except Exception as e:
         return jsonify({
