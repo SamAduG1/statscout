@@ -170,16 +170,44 @@ class ParlayBuilder:
             List of valid parlay combinations
         """
         valid_parlays = []
-        all_tested_parlays = []  # Track all parlays with their odds distance
+        closest_parlays = []  # Track top 10 closest for fallback
 
-        # Try different parlay sizes
-        for num_legs in range(min_legs, max_legs + 1):
-            # Generate all combinations of this size
-            combinations = list(itertools.combinations(props, num_legs))
+        # More flexible tolerance: ±100 for lower odds, ±200 for higher odds
+        tolerance = 100 if target_odds < 500 else 200
 
-            # Limit combinations to avoid performance issues
-            if len(combinations) > max_combinations:
-                combinations = random.sample(combinations, max_combinations)
+        # Try different parlay sizes (start from target, work outward for efficiency)
+        # Estimate best leg count based on average odds
+        avg_american_odds = sum(p.get('american_odds', -110) for p in props[:10]) / min(10, len(props))
+        estimated_legs = max(min_legs, min(max_legs, int(target_odds / max(abs(avg_american_odds) - 100, 50))))
+
+        # Try estimated size first, then expand
+        leg_order = [estimated_legs]
+        for offset in range(1, max(estimated_legs - min_legs, max_legs - estimated_legs) + 1):
+            if estimated_legs - offset >= min_legs:
+                leg_order.append(estimated_legs - offset)
+            if estimated_legs + offset <= max_legs:
+                leg_order.append(estimated_legs + offset)
+
+        for num_legs in leg_order:
+            if num_legs < min_legs or num_legs > max_legs:
+                continue
+
+            # Early exit if we have enough valid parlays
+            if len(valid_parlays) >= 20:
+                break
+
+            # Generate combinations - use iterator for memory efficiency
+            total_combos = len(list(itertools.combinations(range(len(props)), num_legs)))
+
+            # Limit samples based on leg count to avoid timeout
+            sample_limit = min(max_combinations // max(1, num_legs - 2), total_combos)
+
+            if total_combos > sample_limit:
+                # Random sampling for large combo sets
+                indices_list = random.sample(list(itertools.combinations(range(len(props)), num_legs)), sample_limit)
+                combinations = [[props[i] for i in indices] for indices in indices_list]
+            else:
+                combinations = list(itertools.combinations(props, num_legs))
 
             # Check each combination
             for combo in combinations:
@@ -187,18 +215,20 @@ class ParlayBuilder:
                 parlay_odds = self.calculate_parlay_odds(combo_list)
                 odds_distance = abs(parlay_odds - target_odds)
 
-                # Track all parlays
-                all_tested_parlays.append((combo_list, odds_distance))
-
-                # More flexible tolerance: ±100 for lower odds, ±200 for higher odds
-                tolerance = 100 if target_odds < 500 else 200
                 if odds_distance <= tolerance:
                     valid_parlays.append(combo_list)
+                else:
+                    # Track closest parlays for fallback (keep only top 10)
+                    if len(closest_parlays) < 10:
+                        closest_parlays.append((combo_list, odds_distance))
+                        closest_parlays.sort(key=lambda x: x[1])
+                    elif odds_distance < closest_parlays[-1][1]:
+                        closest_parlays[-1] = (combo_list, odds_distance)
+                        closest_parlays.sort(key=lambda x: x[1])
 
         # If no parlays found within tolerance, return closest 5
-        if not valid_parlays and all_tested_parlays:
-            all_tested_parlays.sort(key=lambda x: x[1])  # Sort by distance
-            valid_parlays = [p[0] for p in all_tested_parlays[:5]]
+        if not valid_parlays and closest_parlays:
+            valid_parlays = [p[0] for p in closest_parlays[:5]]
 
         return valid_parlays
 
