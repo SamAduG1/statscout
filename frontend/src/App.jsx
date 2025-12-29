@@ -2,7 +2,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : 'http://localhost:5000/api';
 
 // Keeping mock data as fallback
 const mockPlayers = [
