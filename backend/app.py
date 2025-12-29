@@ -295,6 +295,8 @@ def get_all_players():
                     game_time = "TBD"
 
                 # Calculate all analytics
+                # TEMPORARY: Skip teammate boost to reduce memory usage on free tier
+                # TODO: Re-enable after optimizing or upgrading to paid tier
                 analysis = calc.analyze_player_prop(
                     player_name=player_name,
                     team=team,
@@ -304,7 +306,7 @@ def get_all_players():
                     opponent=opponent,
                     opponent_rank=opponent_rank,
                     is_home=is_home,
-                    db_loader=loader
+                    db_loader=None  # Temporarily disabled for memory
                 )
                 
                 # Format for frontend
