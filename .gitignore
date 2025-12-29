@@ -12,10 +12,10 @@ ENV/
 .coverage
 htmlcov/
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Database (temporarily allowing statscout.db for deployment)
+# *.db
+# *.sqlite
+# *.sqlite3
 
 # Environment variables
 .env
