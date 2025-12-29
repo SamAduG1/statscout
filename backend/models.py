@@ -43,6 +43,7 @@ class Game(Base):
     steals = Column(Integer, nullable=False)
     blocks = Column(Integer, nullable=False)
     three_pm = Column(Integer, nullable=False)
+    minutes = Column(Float, nullable=True)  # Minutes played (can be null for older data)
 
     # Relationship to player
     player = relationship("Player", back_populates="games")

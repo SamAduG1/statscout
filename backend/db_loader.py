@@ -29,25 +29,34 @@ class DatabaseLoader:
     def get_player_info(self, player_name: str) -> Dict[str, Any]:
         """
         Get basic info about a player
-        
+
         Args:
             player_name: Player's name
-            
+
         Returns:
             Dictionary with player info
         """
         player = self.session.query(Player).filter(Player.name == player_name).first()
-        
+
         if not player:
             return None
-        
+
         game_count = self.session.query(Game).filter(Game.player_id == player.id).count()
-        
+
+        # Calculate average minutes per game
+        avg_minutes_result = self.session.query(func.avg(Game.minutes)).filter(
+            Game.player_id == player.id,
+            Game.minutes.isnot(None)
+        ).scalar()
+
+        avg_minutes = round(avg_minutes_result, 1) if avg_minutes_result else 0.0
+
         return {
             "name": player.name,
             "team": player.team,
             "position": player.position,
-            "games_played": game_count
+            "games_played": game_count,
+            "avg_minutes": avg_minutes
         }
     
     def get_player_stat_history(
@@ -131,39 +140,112 @@ class DatabaseLoader:
     def get_all_available_stats(self, player_name: str) -> Dict[str, List[float]]:
         """
         Get all stat types available for a player
-        
+
         Args:
             player_name: Player's name
-            
+
         Returns:
             Dictionary mapping stat names to value lists
         """
         player = self.session.query(Player).filter(Player.name == player_name).first()
-        
+
         if not player:
             return {}
-        
+
         # Query all games for this player
         games = self.session.query(Game).filter(
             Game.player_id == player.id
         ).order_by(Game.date).all()
-        
+
         stats_dict = {}
-        
+
         # Individual stats
         stat_columns = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'three_pm']
-        
+
         for col in stat_columns:
             stats_dict[col] = [getattr(game, col) for game in games]
-        
+
         # Combined stats
         stats_dict['PRA'] = [game.points + game.rebounds + game.assists for game in games]
         stats_dict['PA'] = [game.points + game.assists for game in games]
         stats_dict['PR'] = [game.points + game.rebounds for game in games]
         stats_dict['RA'] = [game.rebounds + game.assists for game in games]
-        
+
         return stats_dict
-    
+
+    def get_matchup_history(self, player_name: str, opponent: str) -> Dict[str, Any]:
+        """
+        Get a player's performance history against a specific opponent
+
+        Args:
+            player_name: Player's name
+            opponent: Opponent team abbreviation
+
+        Returns:
+            Dictionary with matchup stats and game history
+        """
+        player = self.session.query(Player).filter(Player.name == player_name).first()
+
+        if not player:
+            return None
+
+        # Get all games against this opponent
+        games = self.session.query(Game).filter(
+            Game.player_id == player.id,
+            Game.opponent == opponent
+        ).order_by(Game.date).all()
+
+        if not games:
+            return {
+                "player": player_name,
+                "opponent": opponent,
+                "games_played": 0,
+                "games": [],
+                "averages": {}
+            }
+
+        # Calculate averages
+        total_points = sum(g.points for g in games)
+        total_rebounds = sum(g.rebounds for g in games)
+        total_assists = sum(g.assists for g in games)
+        total_steals = sum(g.steals for g in games)
+        total_blocks = sum(g.blocks for g in games)
+        total_three_pm = sum(g.three_pm for g in games)
+
+        games_count = len(games)
+
+        # Build game history
+        game_history = []
+        for game in games:
+            game_history.append({
+                "date": game.date.strftime('%Y-%m-%d'),
+                "is_home": game.is_home,
+                "points": game.points,
+                "rebounds": game.rebounds,
+                "assists": game.assists,
+                "steals": game.steals,
+                "blocks": game.blocks,
+                "three_pm": game.three_pm,
+                "minutes": game.minutes,
+                "PRA": game.points + game.rebounds + game.assists
+            })
+
+        return {
+            "player": player_name,
+            "opponent": opponent,
+            "games_played": games_count,
+            "games": game_history,
+            "averages": {
+                "points": round(total_points / games_count, 1),
+                "rebounds": round(total_rebounds / games_count, 1),
+                "assists": round(total_assists / games_count, 1),
+                "steals": round(total_steals / games_count, 1),
+                "blocks": round(total_blocks / games_count, 1),
+                "three_pm": round(total_three_pm / games_count, 1),
+                "PRA": round((total_points + total_rebounds + total_assists) / games_count, 1)
+            }
+        }
+
     def close(self):
         """Close the database session"""
         self.session.close()

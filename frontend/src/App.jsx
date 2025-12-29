@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 // Keeping mock data as fallback
 const mockPlayers = [
@@ -198,21 +198,31 @@ const mockPlayers = [
 ];
 
 // Team Quarter Insights Component - Displays team quarter analytics
-const TeamQuarterInsights = ({ team1, team2 }) => {
+const TeamQuarterInsights = ({ allTeams }) => {
   const [quarterData, setQuarterData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectedTeam1, setSelectedTeam1] = useState('');
+  const [selectedTeam2, setSelectedTeam2] = useState('');
+
+  // Set default teams when component mounts
+  useEffect(() => {
+    if (allTeams && allTeams.length >= 2 && !selectedTeam1 && !selectedTeam2) {
+      setSelectedTeam1(allTeams[0]);
+      setSelectedTeam2(allTeams[1]);
+    }
+  }, [allTeams]);
 
   useEffect(() => {
-    if (team1 && team2) {
+    if (selectedTeam1 && selectedTeam2 && selectedTeam1 !== selectedTeam2) {
       fetchQuarterData();
     }
-  }, [team1, team2]);
+  }, [selectedTeam1, selectedTeam2]);
 
   const fetchQuarterData = async () => {
     setLoading(true);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/quarters/matchup?team1=${team1}&team2=${team2}&season=2025-26`
+        `${API_BASE_URL}/quarters/matchup?team1=${selectedTeam1}&team2=${selectedTeam2}&season=2025-26`
       );
       const data = await response.json();
 
@@ -226,21 +236,69 @@ const TeamQuarterInsights = ({ team1, team2 }) => {
     }
   };
 
-  if (!quarterData || loading) return null;
+  if (!allTeams || allTeams.length < 2) return null;
 
-  const { team1: t1Data, team2: t2Data, insights } = quarterData;
+  const { team1: t1Data, team2: t2Data, insights } = quarterData || {};
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow-lg p-6 mb-8">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-        <TrendingUp className="w-6 h-6 text-blue-600" />
-        Quarter Performance Insights
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <TrendingUp className="w-6 h-6 text-blue-600" />
+          Quarter Performance Insights
+        </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Team 1 */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 shadow">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t1Data.team}</h3>
+        {/* Team Selectors */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Team 1:</label>
+            <select
+              value={selectedTeam1}
+              onChange={(e) => setSelectedTeam1(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            >
+              {allTeams.map(team => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
+
+          <span className="text-gray-500 dark:text-gray-400 font-bold">VS</span>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Team 2:</label>
+            <select
+              value={selectedTeam2}
+              onChange={(e) => setSelectedTeam2(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            >
+              {allTeams.map(team => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="text-center py-8">
+          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Loading quarter data...</p>
+        </div>
+      )}
+
+      {!loading && !quarterData && (
+        <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+          No quarter data available for this matchup
+        </div>
+      )}
+
+      {!loading && quarterData && t1Data && t2Data && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Team 1 */}
+            <div className="bg-white dark:bg-gray-900 rounded-lg p-4 shadow">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t1Data.team}</h3>
 
           <div className="grid grid-cols-4 gap-2 mb-4">
             <div className="text-center">
@@ -329,21 +387,23 @@ const TeamQuarterInsights = ({ team1, team2 }) => {
         </div>
       </div>
 
-      {/* Insights */}
-      {insights && insights.length > 0 && (
-        <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-            <Flame className="w-4 h-4 text-orange-500" />
-            Key Insights
-          </h4>
-          <ul className="space-y-1">
-            {insights.map((insight, idx) => (
-              <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
-                • {insight}
-              </li>
-            ))}
-          </ul>
-        </div>
+          {/* Insights */}
+          {insights && insights.length > 0 && (
+            <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-orange-500" />
+                Key Insights
+              </h4>
+              <ul className="space-y-1">
+                {insights.map((insight, idx) => (
+                  <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
+                    • {insight}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -444,6 +504,32 @@ const BookmakerSelector = ({ bookmakerLines }) => {
 // Player Detail Modal Component - Full analysis page
 const PlayerDetailModal = ({ player, onClose }) => {
   if (!player) return null;
+
+  const [matchupHistory, setMatchupHistory] = React.useState(null);
+  const [loadingMatchup, setLoadingMatchup] = React.useState(false);
+
+  // Load matchup history when modal opens
+  React.useEffect(() => {
+    if (player && player.opponent) {
+      loadMatchupHistory();
+    }
+  }, [player]);
+
+  const loadMatchupHistory = async () => {
+    setLoadingMatchup(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/matchup/${encodeURIComponent(player.name)}/${player.opponent}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setMatchupHistory(data.matchup);
+      }
+    } catch (error) {
+      console.error('Error loading matchup history:', error);
+    } finally {
+      setLoadingMatchup(false);
+    }
+  };
 
   // Calculate some stats
   const last5Avg = player.last5Games && player.last5Games.length > 0
@@ -686,6 +772,145 @@ const PlayerDetailModal = ({ player, onClose }) => {
             </div>
           )}
 
+          {/* Matchup History vs Opponent */}
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Matchup History vs {player.opponent}
+            </h3>
+
+            {loadingMatchup && (
+              <div className="text-center py-8">
+                <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading matchup history...</p>
+              </div>
+            )}
+
+            {!loadingMatchup && matchupHistory && matchupHistory.games_played > 0 && (
+              <div>
+                {/* Matchup Averages */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Games Played</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{matchupHistory.games_played}</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg {player.statType}</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {(() => {
+                        const statMap = {
+                          'Points': matchupHistory.averages.points,
+                          'Rebounds': matchupHistory.averages.rebounds,
+                          'Assists': matchupHistory.averages.assists,
+                          'Steals': matchupHistory.averages.steals,
+                          'Blocks': matchupHistory.averages.blocks,
+                          '3PM': matchupHistory.averages.three_pm,
+                          'PRA': matchupHistory.averages.PRA,
+                          'PA': matchupHistory.averages.PA,
+                          'PR': matchupHistory.averages.PR
+                        };
+                        return statMap[player.statType] || 0;
+                      })()}
+                    </div>
+                    <div className={`text-sm font-semibold ${(() => {
+                      const statMap = {
+                        'Points': matchupHistory.averages.points,
+                        'Rebounds': matchupHistory.averages.rebounds,
+                        'Assists': matchupHistory.averages.assists,
+                        'Steals': matchupHistory.averages.steals,
+                        'Blocks': matchupHistory.averages.blocks,
+                        '3PM': matchupHistory.averages.three_pm,
+                        'PRA': matchupHistory.averages.PRA,
+                        'PA': matchupHistory.averages.PA,
+                        'PR': matchupHistory.averages.PR
+                      };
+                      return (statMap[player.statType] || 0) > player.line ? 'text-green-600' : 'text-red-600';
+                    })()}`}>
+                      vs Line {player.line}
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg PRA</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{matchupHistory.averages.PRA}</div>
+                  </div>
+                </div>
+
+                {/* All Stats */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-6 gap-3">
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">PTS</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{matchupHistory.averages.points}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">REB</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{matchupHistory.averages.rebounds}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">AST</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{matchupHistory.averages.assists}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">STL</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{matchupHistory.averages.steals}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">BLK</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{matchupHistory.averages.blocks}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">3PM</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{matchupHistory.averages.three_pm}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Game by Game Breakdown */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-200 dark:bg-gray-600">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Date</th>
+                        <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300">H/A</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">PTS</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">REB</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">AST</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">PRA</th>
+                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">MIN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matchupHistory.games.map((game, idx) => (
+                        <tr key={idx} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600">
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{game.date}</td>
+                          <td className="px-4 py-2 text-center text-sm">
+                            {game.is_home ? <Home className="w-4 h-4 mx-auto text-gray-600 dark:text-gray-400" /> : <Plane className="w-4 h-4 mx-auto text-gray-600 dark:text-gray-400" />}
+                          </td>
+                          <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{game.points}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{game.rebounds}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{game.assists}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold text-blue-600 dark:text-blue-400">{game.PRA}</td>
+                          <td className="px-4 py-2 text-right text-sm text-gray-600 dark:text-gray-400">{game.minutes ? game.minutes.toFixed(1) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!loadingMatchup && matchupHistory && matchupHistory.games_played === 0 && (
+              <div className="text-center py-8 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                No previous games found against {player.opponent} this season
+              </div>
+            )}
+
+            {!loadingMatchup && !matchupHistory && (
+              <div className="text-center py-8 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                Unable to load matchup history
+              </div>
+            )}
+          </div>
+
           {/* Upcoming Game */}
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Next Game</h3>
@@ -722,7 +947,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick }) => {
   
   setIsAdjusting(true);
   try {
-    const response = await fetch('http://localhost:5000/api/calculate', {
+    const response = await fetch(`${API_BASE_URL}/calculate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -798,7 +1023,22 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick }) => {
             style={{ backgroundColor: player.teamColor }}
           />
           <div>
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white">{player.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white">{player.name}</h3>
+              {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                  player.injuryStatus === 'OUT'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 border border-red-300'
+                    : player.injuryStatus === 'QUESTIONABLE'
+                    ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 border border-yellow-300'
+                    : player.injuryStatus === 'DOUBTFUL'
+                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 border border-orange-300'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 border border-blue-300'
+                }`}>
+                  {player.injuryStatus}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
               {player.team} • {player.position}
               {player.isHome ? <Home className="w-3 h-3" /> : <Plane className="w-3 h-3" />}
@@ -944,9 +1184,469 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick }) => {
   );
 };
 
+// Parlay Builder Component
+const ParlayBuilder = ({ darkMode }) => {
+  const [targetOdds, setTargetOdds] = useState(400);
+  const [safetyLevel, setSafetyLevel] = useState('moderate');
+  const [gameFilter, setGameFilter] = useState('any');
+  const [numSuggestions, setNumSuggestions] = useState(3);
+  const [minLegs, setMinLegs] = useState(2);
+  const [maxLegs, setMaxLegs] = useState(6);
+  const [parlays, setParlays] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [availableGames, setAvailableGames] = useState([]);
+  const [selectedGames, setSelectedGames] = useState([]);
+  const [bannedPlayers, setBannedPlayers] = useState([]);
+  const [banInput, setBanInput] = useState('');
+
+  // Fetch available games on component mount
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/players`);
+        const data = await response.json();
+
+        if (data.success && data.players) {
+          // Extract unique games from players
+          const gamesSet = new Set();
+          data.players.forEach(player => {
+            if (player.opponent) {
+              const gameId = `${player.team}_vs_${player.opponent}`;
+              gamesSet.add(gameId);
+            }
+          });
+
+          // Convert to array and format for display
+          const gamesList = Array.from(gamesSet).map(gameId => {
+            const [team1, team2] = gameId.split('_vs_');
+            return {
+              id: gameId,
+              display: `${team1} vs ${team2}`
+            };
+          }).sort((a, b) => a.display.localeCompare(b.display));
+
+          setAvailableGames(gamesList);
+        }
+      } catch (err) {
+        console.error('Error fetching games:', err);
+      }
+    };
+
+    fetchGames();
+  }, []);
+
+  const toggleGameSelection = (gameId) => {
+    setSelectedGames(prev =>
+      prev.includes(gameId)
+        ? prev.filter(id => id !== gameId)
+        : [...prev, gameId]
+    );
+  };
+
+  const addBannedPlayer = () => {
+    const trimmed = banInput.trim();
+    if (trimmed && !bannedPlayers.includes(trimmed)) {
+      setBannedPlayers([...bannedPlayers, trimmed]);
+      setBanInput('');
+    }
+  };
+
+  const removeBannedPlayer = (playerName) => {
+    setBannedPlayers(bannedPlayers.filter(p => p !== playerName));
+  };
+
+  const handleBanKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      addBannedPlayer();
+    }
+  };
+
+  const generateParlays = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/parlay/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          target_odds: targetOdds,
+          safety_level: safetyLevel,
+          game_filter: gameFilter,
+          selected_games: selectedGames,
+          num_suggestions: numSuggestions,
+          min_legs: minLegs,
+          max_legs: maxLegs,
+          banned_players: bannedPlayers
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setParlays(data.suggestions);
+      } else {
+        setError(data.error || 'Failed to generate parlays');
+      }
+    } catch (err) {
+      console.error('Error generating parlays:', err);
+      setError('Failed to connect to server');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Parlay Builder Controls */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Build Your Parlay</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Target Odds */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Target Odds
+            </label>
+            <select
+              value={targetOdds}
+              onChange={(e) => setTargetOdds(Number(e.target.value))}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value={200}>+200</option>
+              <option value={300}>+300</option>
+              <option value={400}>+400</option>
+              <option value={500}>+500</option>
+              <option value={600}>+600</option>
+              <option value={800}>+800</option>
+              <option value={1000}>+1000</option>
+              <option value={1500}>+1500</option>
+              <option value={2000}>+2000</option>
+            </select>
+          </div>
+
+          {/* Safety Level */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Safety Level
+            </label>
+            <select
+              value={safetyLevel}
+              onChange={(e) => setSafetyLevel(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="conservative">Conservative (70%+ trust)</option>
+              <option value="moderate">Moderate (60%+ trust)</option>
+              <option value="aggressive">Aggressive (50%+ trust)</option>
+            </select>
+          </div>
+
+          {/* Game Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Game Selection
+            </label>
+            <select
+              value={gameFilter}
+              onChange={(e) => {
+                setGameFilter(e.target.value);
+                // Clear selected games when changing filter type
+                if (e.target.value !== 'specific') {
+                  setSelectedGames([]);
+                }
+              }}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="any">Different Games (avoid correlation)</option>
+              <option value="single">Same Game Parlay ⚠️</option>
+              <option value="specific">Specific Games</option>
+            </select>
+          </div>
+
+          {/* Number of Suggestions */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Suggestions
+            </label>
+            <select
+              value={numSuggestions}
+              onChange={(e) => setNumSuggestions(Number(e.target.value))}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value={1}>1 parlay</option>
+              <option value={3}>3 parlays</option>
+              <option value={5}>5 parlays</option>
+              <option value={10}>10 parlays</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Leg Count Selection */}
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Number of Legs
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                Minimum Legs
+              </label>
+              <select
+                value={minLegs}
+                onChange={(e) => {
+                  const newMin = Number(e.target.value);
+                  setMinLegs(newMin);
+                  // Ensure max is always >= min
+                  if (newMin > maxLegs) {
+                    setMaxLegs(newMin);
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value={2}>2 legs</option>
+                <option value={3}>3 legs</option>
+                <option value={4}>4 legs</option>
+                <option value={5}>5 legs</option>
+                <option value={6}>6 legs</option>
+                <option value={7}>7 legs</option>
+                <option value={8}>8 legs</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                Maximum Legs
+              </label>
+              <select
+                value={maxLegs}
+                onChange={(e) => {
+                  const newMax = Number(e.target.value);
+                  setMaxLegs(newMax);
+                  // Ensure min is always <= max
+                  if (newMax < minLegs) {
+                    setMinLegs(newMax);
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value={2}>2 legs</option>
+                <option value={3}>3 legs</option>
+                <option value={4}>4 legs</option>
+                <option value={5}>5 legs</option>
+                <option value={6}>6 legs</option>
+                <option value={7}>7 legs</option>
+                <option value={8}>8 legs</option>
+                <option value={9}>9 legs</option>
+                <option value={10}>10 legs</option>
+              </select>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            More legs = higher odds, but lower probability of winning
+          </p>
+        </div>
+
+        {/* Player Ban List */}
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Banned Players ({bannedPlayers.length})
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={banInput}
+              onChange={(e) => setBanInput(e.target.value)}
+              onKeyPress={handleBanKeyPress}
+              placeholder="Type player name and press Enter..."
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+            <button
+              onClick={addBannedPlayer}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 text-white font-semibold rounded-lg transition-colors"
+            >
+              Ban
+            </button>
+          </div>
+          {bannedPlayers.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {bannedPlayers.map((player, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-sm"
+                >
+                  {player}
+                  <button
+                    onClick={() => removeBannedPlayer(player)}
+                    className="hover:text-red-600 dark:hover:text-red-400"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Props from banned players will not appear in parlay suggestions
+          </p>
+        </div>
+
+        {/* Game Selection (shown when gameFilter is 'specific') */}
+        {gameFilter === 'specific' && availableGames.length > 0 && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Select Games ({selectedGames.length} selected)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-600">
+              {availableGames.map(game => (
+                <label
+                  key={game.id}
+                  className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedGames.includes(game.id)}
+                    onChange={() => toggleGameSelection(game.id)}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {game.display}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Generate Button */}
+        <button
+          onClick={generateParlays}
+          disabled={loading || (gameFilter === 'specific' && selectedGames.length === 0)}
+          className="mt-6 w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Generating Parlays...' : 'Generate Parlays'}
+        </button>
+
+        {gameFilter === 'specific' && selectedGames.length === 0 && (
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 text-center">
+            Please select at least one game to generate parlays
+          </p>
+        )}
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg">
+          <p className="font-semibold">Error</p>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* Parlay Suggestions */}
+      {parlays.length > 0 && (
+        <div className="space-y-6">
+          {/* Regenerate Button */}
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              Parlay Suggestions
+            </h3>
+            <button
+              onClick={generateParlays}
+              disabled={loading}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+              </svg>
+              {loading ? 'Generating...' : 'Regenerate'}
+            </button>
+          </div>
+
+          {parlays.map((parlay, index) => {
+            // Handle error parlays
+            if (parlay.error) {
+              return (
+                <div key={index} className="bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 px-6 py-4 rounded-lg">
+                  <p className="font-semibold">{parlay.error}</p>
+                  <p className="text-sm mt-1">{parlay.suggestion}</p>
+                  {parlay.available_props && (
+                    <p className="text-sm mt-1">Available props: {parlay.available_props}</p>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                {/* Parlay Header */}
+                <div className="bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 text-white px-6 py-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold">Parlay #{index + 1}</h3>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">{parlay.parlay_odds_display}</div>
+                      <div className="text-sm opacity-90">{parlay.num_legs} legs • ${parlay.payout_per_dollar.toFixed(2)} per $1</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mt-3">
+                    <div className="bg-white/20 rounded px-3 py-1">
+                      <div className="text-xs opacity-75">Avg Trust</div>
+                      <div className="font-semibold">{parlay.avg_trust}%</div>
+                    </div>
+                    <div className="bg-white/20 rounded px-3 py-1">
+                      <div className="text-xs opacity-75">True Win Rate</div>
+                      <div className="font-semibold">{parlay.true_win_rate}%</div>
+                    </div>
+                    <div className="bg-white/20 rounded px-3 py-1">
+                      <div className="text-xs opacity-75">Safety</div>
+                      <div className="font-semibold capitalize">{parlay.safety_level}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parlay Legs */}
+                <div className="p-6 space-y-3">
+                  {parlay.legs.map((leg, legIndex) => (
+                    <div key={legIndex} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{leg.player_name}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          {leg.team} vs {leg.opponent} • {leg.stat_type} O{leg.line}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900 dark:text-white">
+                          {leg.odds > 0 ? `+${leg.odds}` : leg.odds}
+                        </div>
+                        <div className="text-sm">
+                          <span className={`font-medium ${
+                            leg.trust_score >= 70 ? 'text-green-600 dark:text-green-400' :
+                            leg.trust_score >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
+                            'text-red-600 dark:text-red-400'
+                          }`}>
+                            {leg.trust_score}% trust
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function StatScoutDashboard() {
+  const [currentView, setCurrentView] = useState('props'); // 'props' or 'parlay'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
+  const [selectedTeams, setSelectedTeams] = useState([]); // Multi-select teams
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const teamDropdownRef = React.useRef(null);
   const [selectedStat, setSelectedStat] = useState('all');
   const [minTrustScore, setMinTrustScore] = useState(0);
   const [sortBy, setSortBy] = useState('trustScore');
@@ -961,6 +1661,7 @@ export default function StatScoutDashboard() {
   const [showHighConfidenceOnly, setShowHighConfidenceOnly] = useState(false);
   const [showGamesTodayOnly, setShowGamesTodayOnly] = useState(false);
   const [showLiveOddsOnly, setShowLiveOddsOnly] = useState(false);
+  const [minMinutes, setMinMinutes] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
 // Handle line adjustment
@@ -987,6 +1688,22 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     return updated;
   });
 };
+
+  // Handle click outside team dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(event.target)) {
+        setTeamDropdownOpen(false);
+      }
+    };
+
+    if (teamDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [teamDropdownOpen]);
 
   // Fetch players from API
   useEffect(() => {
@@ -1030,7 +1747,9 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   const filteredAndSortedPlayers = useMemo(() => {
     let filtered = players.filter(player => {
       const matchesSearch = player.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesTeam = selectedTeam === 'all' || player.team === selectedTeam;
+      const matchesTeam = selectedTeam === 'all' ||
+                          (selectedTeams.length === 0 && player.team === selectedTeam) ||
+                          (selectedTeams.length > 0 && selectedTeams.includes(player.team));
       const matchesStat = selectedStat === 'all' || player.statType === selectedStat;
       const matchesTrust = player.trustScore >= minTrustScore;
       const matchesHomeAway = homeAwayFilter === 'all' ||
@@ -1049,7 +1768,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
       // Check if has live odds
       const matchesLiveOdds = !showLiveOddsOnly || player.isRealLine;
 
-      return matchesSearch && matchesTeam && matchesStat && matchesTrust && matchesHomeAway && matchesHighConfidence && matchesGamesToday && matchesLiveOdds;
+      // Check minutes played filter
+      const matchesMinutes = (player.avgMinutes || 0) >= minMinutes;
+
+      return matchesSearch && matchesTeam && matchesStat && matchesTrust && matchesHomeAway && matchesHighConfidence && matchesGamesToday && matchesLiveOdds && matchesMinutes;
     });
 
     filtered.sort((a, b) => {
@@ -1060,7 +1782,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     });
 
     return filtered;
-  }, [searchTerm, selectedTeam, selectedStat, minTrustScore, sortBy, homeAwayFilter, showHighConfidenceOnly, showGamesTodayOnly, showLiveOddsOnly, players]);
+  }, [searchTerm, selectedTeam, selectedTeams, selectedStat, minTrustScore, sortBy, homeAwayFilter, showHighConfidenceOnly, showGamesTodayOnly, showLiveOddsOnly, minMinutes, players]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedPlayers.length / itemsPerPage);
@@ -1073,14 +1795,14 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedTeam, selectedStat, minTrustScore, homeAwayFilter, showHighConfidenceOnly, showGamesTodayOnly, showLiveOddsOnly]);
+  }, [searchTerm, selectedTeam, selectedTeams, selectedStat, minTrustScore, homeAwayFilter, showHighConfidenceOnly, showGamesTodayOnly, showLiveOddsOnly, minMinutes]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 dark:from-blue-800 dark:to-blue-950 text-white shadow-lg">
           <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center mb-6">
               <div>
                 <h1 className="text-4xl font-bold mb-2">StatScout</h1>
                 <p className="text-blue-100">Data-Backed Player Props • NBA</p>
@@ -1091,6 +1813,30 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 aria-label="Toggle dark mode"
               >
                 {darkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+              </button>
+            </div>
+
+            {/* View Tabs */}
+            <div className="flex gap-4">
+              <button
+                onClick={() => setCurrentView('props')}
+                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                  currentView === 'props'
+                    ? 'bg-white text-blue-600'
+                    : 'bg-blue-700 text-white hover:bg-blue-600'
+                }`}
+              >
+                Player Props
+              </button>
+              <button
+                onClick={() => setCurrentView('parlay')}
+                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                  currentView === 'parlay'
+                    ? 'bg-white text-blue-600'
+                    : 'bg-blue-700 text-white hover:bg-blue-600'
+                }`}
+              >
+                Parlay Builder
               </button>
             </div>
           </div>
@@ -1112,7 +1858,13 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             </div>
           )}
 
-          {!loading && (
+          {/* Parlay Builder View */}
+          {currentView === 'parlay' && (
+            <ParlayBuilder darkMode={darkMode} />
+          )}
+
+          {/* Player Props View */}
+          {currentView === 'props' && !loading && (
             <>
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -1152,9 +1904,9 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
           {/* Team Quarter Insights - Show when teams are present in filtered data */}
           {(() => {
-            const filteredTeams = [...new Set(filteredAndSortedPlayers.map(p => p.team))];
-            if (filteredTeams.length >= 2) {
-              return <TeamQuarterInsights team1={filteredTeams[0]} team2={filteredTeams[1]} />;
+            const allTeamsInData = [...new Set(players.map(p => p.team))].sort();
+            if (allTeamsInData.length >= 2) {
+              return <TeamQuarterInsights allTeams={allTeamsInData} />;
             }
             return null;
           })()}
@@ -1181,17 +1933,108 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Team</label>
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              <div className="relative" ref={teamDropdownRef}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Team {selectedTeams.length > 0 && `(${selectedTeams.length} selected)`}
+                </label>
+
+                {/* Dropdown Button */}
+                <button
+                  onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left flex items-center justify-between"
                 >
-                  {teams.map(team => (
-                    <option key={team} value={team}>{team === 'all' ? 'All Teams' : team}</option>
-                  ))}
-                </select>
+                  <span>
+                    {selectedTeams.length === 0
+                      ? 'All Teams'
+                      : `${selectedTeams.length} team${selectedTeams.length > 1 ? 's' : ''} selected`}
+                  </span>
+                  <svg
+                    className={`w-5 h-5 transition-transform ${teamDropdownOpen ? 'transform rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Dropdown Menu */}
+                {teamDropdownOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg">
+                    {/* Selected teams pills */}
+                    {selectedTeams.length > 0 && (
+                      <div className="p-3 border-b border-gray-200 dark:border-gray-600">
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {selectedTeams.map(team => (
+                            <button
+                              key={team}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTeams(selectedTeams.filter(t => t !== team));
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500 text-white rounded-full text-xs font-medium hover:bg-blue-600"
+                            >
+                              {team}
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => setSelectedTeams([])}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Team selection grid */}
+                    <div className="max-h-64 overflow-y-auto p-3">
+                      <button
+                        onClick={() => {
+                          setSelectedTeams([]);
+                          setSelectedTeam('all');
+                          setTeamDropdownOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 mb-2 text-left rounded-lg ${
+                          selectedTeams.length === 0 && selectedTeam === 'all'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500'
+                        }`}
+                      >
+                        All Teams
+                      </button>
+
+                      <div className="grid grid-cols-3 gap-1">
+                        {teams.filter(team => team !== 'all').map(team => {
+                          const isSelected = selectedTeams.includes(team);
+                          return (
+                            <button
+                              key={team}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedTeams(selectedTeams.filter(t => t !== team));
+                                } else {
+                                  setSelectedTeams([...selectedTeams, team]);
+                                  setSelectedTeam('');
+                                }
+                              }}
+                              className={`px-2 py-1.5 text-xs rounded ${
+                                isSelected
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-500'
+                              }`}
+                            >
+                              {team}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1247,18 +2090,34 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Min Trust Score: {minTrustScore}+
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={minTrustScore}
-                onChange={(e) => setMinTrustScore(parseInt(e.target.value))}
-                className="w-full"
-              />
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Min Trust Score: {minTrustScore}+
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={minTrustScore}
+                  onChange={(e) => setMinTrustScore(parseInt(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Min Minutes Per Game: {minMinutes}+ {minMinutes === 0 && '(All Players)'}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="35"
+                  step="5"
+                  value={minMinutes}
+                  onChange={(e) => setMinMinutes(parseInt(e.target.value))}
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
 

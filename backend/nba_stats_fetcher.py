@@ -135,6 +135,15 @@ class NBAStatsFetcher:
         except:
             game_date = game_date_str
 
+        # Parse minutes (can be a string like "32:15" or just a number)
+        minutes_raw = game_row.get('MIN', 0)
+        if isinstance(minutes_raw, str) and ':' in minutes_raw:
+            # Format is "MM:SS", convert to decimal minutes
+            parts = minutes_raw.split(':')
+            minutes_played = float(parts[0]) + (float(parts[1]) / 60) if len(parts) == 2 else 0.0
+        else:
+            minutes_played = float(minutes_raw) if minutes_raw else 0.0
+
         return {
             'player_name': player_name,
             'team': team,
@@ -147,7 +156,8 @@ class NBAStatsFetcher:
             'assists': int(game_row.get('AST', 0) or 0),
             'steals': int(game_row.get('STL', 0) or 0),
             'blocks': int(game_row.get('BLK', 0) or 0),
-            'three_pm': int(game_row.get('FG3M', 0) or 0)
+            'three_pm': int(game_row.get('FG3M', 0) or 0),
+            'minutes': minutes_played
         }
 
     def fetch_player_season(

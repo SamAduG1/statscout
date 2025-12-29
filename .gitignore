@@ -63,3 +63,7 @@ tmp/
 config.json
 secrets.json
 credentials.json
+
+# Windows temp files
+nul
+search_output.txt

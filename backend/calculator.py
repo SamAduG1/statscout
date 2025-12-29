@@ -5,17 +5,30 @@ Handles all calculations for hit rates, trust scores, and player analytics
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class StatScoutCalculator:
     """Main calculator class for player prop analytics"""
 
-    def __init__(self):
-        """Initialize the calculator with default weights"""
-        self.hit_rate_weight = 0.50      # 50% weight for historical hit rate
-        self.recent_form_weight = 0.30   # 30% weight for recent performance
-        self.opponent_weight = 0.20      # 20% weight for opponent difficulty
+    def __init__(self, injury_tracker=None):
+        """
+        Initialize the calculator with default weights
+
+        Args:
+            injury_tracker: Optional ESPNInjuryTracker instance for teammate injury boosts
+        """
+        # Original weights (adjusted to make room for teammate boost)
+        self.hit_rate_weight = 0.45      # 45% weight for historical hit rate
+        self.recent_form_weight = 0.25   # 25% weight for recent performance
+        self.opponent_weight = 0.15      # 15% weight for opponent difficulty
+        self.teammate_weight = 0.15      # 15% weight for teammate injury boost
+
+        # Injury tracker for detecting out players
+        self.injury_tracker = injury_tracker
+
+        # Star player thresholds (points per game to be considered a "star")
+        self.star_threshold_ppg = 20.0  # Players averaging 20+ PPG are "stars"
 
     def calculate_hit_rate(self, player_stats: List[float], line: float) -> float:
         """
@@ -117,23 +130,149 @@ class StatScoutCalculator:
         difficulty_score = ((total_teams - opponent_rank) / (total_teams - 1)) * 100
         
         return round(difficulty_score, 1)
-    
+
+    def is_star_player(self, player_stats: List[float], stat_type: str) -> bool:
+        """
+        Determine if a player is a "star" based on their stats
+
+        Args:
+            player_stats: List of player's recent stat values
+            stat_type: Type of stat being analyzed (Points, Rebounds, etc.)
+
+        Returns:
+            True if player is a star, False otherwise
+        """
+        if not player_stats or len(player_stats) < 5:
+            return False
+
+        avg_stat = np.mean(player_stats[-10:]) if len(player_stats) >= 10 else np.mean(player_stats)
+
+        # For points, use PPG threshold
+        if stat_type.lower() == "points":
+            return avg_stat >= self.star_threshold_ppg
+
+        # For other stats, use relative thresholds
+        # Assists: 7+ APG, Rebounds: 10+ RPG, PRA: 35+
+        thresholds = {
+            "assists": 7.0,
+            "rebounds": 10.0,
+            "pra": 35.0,
+            "pa": 27.0,
+            "pr": 30.0,
+        }
+
+        threshold = thresholds.get(stat_type.lower(), float('inf'))
+        return avg_stat >= threshold
+
+    def calculate_teammate_boost(
+        self,
+        player_name: str,
+        team: str,
+        stat_type: str,
+        db_loader=None
+    ) -> float:
+        """
+        Calculate boost to trust score based on injured teammates
+
+        When a star player is out, teammates get a boost because they'll absorb extra usage.
+        This was critical in cases like Jalen Brunson out → KAT 40pts, Tyler Kolek 20pts.
+
+        Args:
+            player_name: Name of player being analyzed
+            team: Player's team abbreviation
+            stat_type: Type of stat (Points, Rebounds, Assists, etc.)
+            db_loader: DatabaseLoader instance to check teammate stats
+
+        Returns:
+            Boost score (0-100), where 0 = no boost, 100 = max boost
+        """
+        # If no injury tracker or db_loader, can't calculate boost
+        if not self.injury_tracker or not db_loader:
+            return 50.0  # Neutral score
+
+        try:
+            # Get all current injuries
+            injuries = self.injury_tracker.get_all_injuries()
+
+            # Find injured teammates on same team
+            injured_teammates = []
+            for injured_player, injury_info in injuries.items():
+                # Skip if it's the player being analyzed
+                if injured_player == player_name:
+                    continue
+
+                # Check if they're on the same team and actually OUT
+                if (injury_info['team'] == team and
+                    injury_info['status'] in ['OUT', 'DOUBTFUL']):
+                    injured_teammates.append({
+                        'name': injured_player,
+                        'status': injury_info['status'],
+                        'injury': injury_info['injury']
+                    })
+
+            # If no injured teammates, return neutral
+            if not injured_teammates:
+                return 50.0
+
+            # Calculate boost based on injured teammates
+            boost_score = 50.0  # Start neutral
+            max_boost_per_player = 25.0  # Max +25 points per star player out
+
+            for teammate in injured_teammates:
+                # Check if injured teammate is a star
+                try:
+                    # Get the injured teammate's stats
+                    teammate_stats = db_loader.get_player_stat_history(
+                        teammate['name'],
+                        'points',  # Use points to determine if they're a star
+                        num_games=15
+                    )
+
+                    if teammate_stats and len(teammate_stats) >= 5:
+                        # Check if they're a star scorer
+                        if self.is_star_player(teammate_stats, "points"):
+                            # Star player is out - boost the trust score
+                            if teammate['status'] == 'OUT':
+                                boost_score += max_boost_per_player
+                            elif teammate['status'] == 'DOUBTFUL':
+                                boost_score += max_boost_per_player * 0.5  # Half boost for doubtful
+
+                            print(f"  [Teammate Boost] {teammate['name']} ({teammate['status']}) is out - boosting {player_name}'s trust score")
+                except Exception as e:
+                    # If we can't get teammate stats, skip them
+                    continue
+
+            # Cap boost at 100
+            return min(100.0, boost_score)
+
+        except Exception as e:
+            print(f"  [Warning] Could not calculate teammate boost: {e}")
+            return 50.0  # Neutral on error
+
     def calculate_trust_score(
-        self, 
-        player_stats: List[float], 
+        self,
+        player_stats: List[float],
         line: float,
         opponent_rank: int,
-        is_home: bool = True
+        is_home: bool = True,
+        player_name: str = None,
+        team: str = None,
+        stat_type: str = "Points",
+        db_loader=None
     ) -> float:
         """
         Calculate overall trust score for a player prop
-        
+
         Args:
             player_stats: List of player's recent stat values
             line: The over/under betting line
             opponent_rank: Defensive rank of opponent
             is_home: Whether player is playing at home
-            
+            player_name: Player's name (for teammate boost calculation)
+            team: Player's team (for teammate boost calculation)
+            stat_type: Type of stat being analyzed (for teammate boost)
+            db_loader: DatabaseLoader instance (for teammate boost)
+
         Returns:
             Trust score (0-100)
         """
@@ -141,18 +280,26 @@ class StatScoutCalculator:
         hit_rate = self.calculate_hit_rate(player_stats, line)
         recent_form = self.calculate_recent_form(player_stats, line)
         opponent_diff = self.calculate_opponent_difficulty(opponent_rank)
-        
-        # Weighted average
+
+        # Calculate teammate injury boost if we have the required info
+        teammate_boost = 50.0  # Default neutral
+        if player_name and team and self.injury_tracker:
+            teammate_boost = self.calculate_teammate_boost(
+                player_name, team, stat_type, db_loader
+            )
+
+        # Weighted average with teammate boost
         trust_score = (
             (hit_rate * self.hit_rate_weight) +
             (recent_form * self.recent_form_weight) +
-            (opponent_diff * self.opponent_weight)
+            (opponent_diff * self.opponent_weight) +
+            (teammate_boost * self.teammate_weight)
         )
-        
+
         # Home court advantage boost (+5 points if at home)
         if is_home:
             trust_score = min(100, trust_score + 5)
-        
+
         return round(trust_score, 1)
     
     def detect_streak(self, player_stats: List[float], line: float) -> Dict[str, Any]:
@@ -204,7 +351,8 @@ class StatScoutCalculator:
         line: float,
         opponent: str,
         opponent_rank: int,
-        is_home: bool = True
+        is_home: bool = True,
+        db_loader=None
     ) -> Dict[str, Any]:
         """
         Complete analysis of a player prop
@@ -218,13 +366,17 @@ class StatScoutCalculator:
             opponent: Opponent team abbreviation
             opponent_rank: Opponent's defensive rank
             is_home: Whether playing at home
+            db_loader: DatabaseLoader instance for teammate boost calculation
 
         Returns:
             Complete analysis dictionary
         """
         hit_rate = self.calculate_hit_rate(player_stats, line)
         recent_hit_rate_info = self.calculate_recent_hit_rate(player_stats, line, recent_n=10)
-        trust_score = self.calculate_trust_score(player_stats, line, opponent_rank, is_home)
+        trust_score = self.calculate_trust_score(
+            player_stats, line, opponent_rank, is_home,
+            player_name=player_name, team=team, stat_type=stat_type, db_loader=db_loader
+        )
         streak_info = self.detect_streak(player_stats, line)
 
         # Calculate averages for different time ranges

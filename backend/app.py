@@ -10,18 +10,24 @@ from db_loader import DatabaseLoader as DataLoader
 from odds_api import OddsAPIClient
 from nba_schedule_fetcher import NBAScheduleFetcher
 from team_quarter_analytics import TeamQuarterAnalytics
+from espn_injury_tracker import ESPNInjuryTracker
+from parlay_builder import ParlayBuilder
 from datetime import datetime, timedelta
 import random
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
 
-# Initialize calculator, data loader, odds API client, schedule fetcher, and quarter analytics
-calc = StatScoutCalculator()
+# Initialize injury tracker first (needed by calculator)
+injury_tracker = ESPNInjuryTracker()
+
+# Initialize calculator with injury tracker, data loader, odds API client, schedule fetcher, and quarter analytics
+calc = StatScoutCalculator(injury_tracker=injury_tracker)
 loader = DataLoader()
 odds_client = OddsAPIClient()
 schedule_fetcher = NBAScheduleFetcher()
 quarter_analytics = TeamQuarterAnalytics()
+parlay_builder = ParlayBuilder()
 
 # Initialize background scheduler for automated updates
 from scheduler import init_scheduler
@@ -207,6 +213,10 @@ def get_all_players():
         # Get list of all teams for opponent selection
         all_teams = loader.get_teams()
 
+        # CRITICAL PERFORMANCE FIX: Pre-fetch injuries ONCE for the entire request
+        # This prevents calling ESPN API hundreds of times (one per player+stat combination)!
+        injury_tracker.get_all_injuries()
+
         # Cache game info by team to avoid repeated lookups
         team_game_cache = {}
 
@@ -293,7 +303,8 @@ def get_all_players():
                     line=line,
                     opponent=opponent,
                     opponent_rank=opponent_rank,
-                    is_home=is_home
+                    is_home=is_home,
+                    db_loader=loader
                 )
                 
                 # Format for frontend
@@ -326,12 +337,23 @@ def get_all_players():
                     "isHome": is_home,
                     "avgLastN": analysis["avg_last_10"],
                     "streak": analysis["streak"],
-                    "streakType": analysis["streak_type"]
+                    "streakType": analysis["streak_type"],
+                    "avgMinutes": player_info.get("avg_minutes", 0)
                 }
                 
                 players_list.append(player_prop)
                 player_id += 1
-        
+
+        # Get injury status for all players in batch
+        all_player_names = list(set([p["name"] for p in players_list]))
+        injury_statuses = injury_tracker.get_batch_status(all_player_names)
+
+        # Add injury status to each player
+        for player in players_list:
+            player_status = injury_statuses.get(player["name"], {"status": "ACTIVE", "source": "default"})
+            player["injuryStatus"] = player_status["status"]
+            player["injurySource"] = player_status.get("source", "default")
+
         return jsonify({
             "success": True,
             "count": len(players_list),
@@ -381,7 +403,8 @@ def get_player(player_name):
                 line=line,
                 opponent=opponent,
                 opponent_rank=random.randint(5, 25),
-                is_home=random.choice([True, False])
+                is_home=random.choice([True, False]),
+                db_loader=loader
             )
             
             props.append(analysis)
@@ -422,11 +445,17 @@ def calculate_custom():
             
             # Map display stat type back to internal stat type
             stat_type_lower = stat_type.lower()
-            
+
+            # Special case for 3PM -> three_pm
+            if stat_type == '3PM' or stat_type_lower == '3pm':
+                stat_type_internal = 'three_pm'
+            else:
+                stat_type_internal = stat_type_lower
+
             # Find matching stat in all_stats
             matched_stat = None
             for key in all_stats.keys():
-                if key.lower() == stat_type_lower or key.upper() == stat_type:
+                if key.lower() == stat_type_internal or key.lower() == stat_type_lower:
                     matched_stat = key
                     break
             
@@ -451,7 +480,8 @@ def calculate_custom():
                 line=custom_line,
                 opponent=opponent,
                 opponent_rank=opponent_rank,
-                is_home=is_home
+                is_home=is_home,
+                db_loader=loader
             )
             
             # Generate game info
@@ -512,7 +542,8 @@ def calculate_custom():
             line=data['line'],
             opponent=data.get('opponent', 'N/A'),
             opponent_rank=data['opponent_rank'],
-            is_home=data.get('is_home', True)
+            is_home=data.get('is_home', True),
+            db_loader=loader
         )
         
         return jsonify({
@@ -537,6 +568,107 @@ def trigger_update():
         result = update_all_players()
 
         return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ========== INJURY & STATUS ENDPOINTS ==========
+
+@app.route('/api/injuries/player/<player_name>', methods=['GET'])
+def get_player_injury_status(player_name):
+    """Get injury status for a specific player"""
+    try:
+        status = injury_tracker.get_player_status(player_name)
+
+        return jsonify({
+            "success": True,
+            "player": player_name,
+            "injury_status": status
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/injuries/batch', methods=['POST'])
+def get_batch_injury_status():
+    """Get injury status for multiple players at once"""
+    try:
+        data = request.json
+        player_names = data.get('players', [])
+
+        if not player_names:
+            return jsonify({
+                "success": False,
+                "error": "No player names provided"
+            }), 400
+
+        statuses = injury_tracker.get_batch_status(player_names)
+
+        return jsonify({
+            "success": True,
+            "count": len(statuses),
+            "statuses": statuses
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/injuries/set', methods=['POST'])
+def set_manual_injury_status():
+    """Manually set a player's injury status (for testing/demo)"""
+    try:
+        data = request.json
+        player_name = data.get('player')
+        status = data.get('status')
+
+        if not player_name or not status:
+            return jsonify({
+                "success": False,
+                "error": "Both 'player' and 'status' are required"
+            }), 400
+
+        injury_tracker.set_manual_status(player_name, status)
+
+        return jsonify({
+            "success": True,
+            "message": f"Set {player_name} status to {status}"
+        })
+
+    except ValueError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/injuries/refresh', methods=['POST'])
+def refresh_injury_data():
+    """Force refresh of NBA injury data"""
+    try:
+        inactive_players = injury_tracker.refresh_nba_data()
+
+        return jsonify({
+            "success": True,
+            "message": "Injury data refreshed",
+            "inactive_count": len(inactive_players)
+        })
 
     except Exception as e:
         return jsonify({
@@ -611,6 +743,206 @@ def get_matchup_quarter_analysis():
         return jsonify({
             "success": False,
             "error": str(e)
+        }), 500
+
+
+# ========== MATCHUP HISTORY ENDPOINTS ==========
+
+@app.route('/api/matchup/<player_name>/<opponent>', methods=['GET'])
+def get_player_matchup_history(player_name, opponent):
+    """Get a player's performance history against a specific opponent"""
+    try:
+        matchup_data = loader.get_matchup_history(player_name, opponent)
+
+        if matchup_data is None:
+            return jsonify({
+                "success": False,
+                "error": f"Player '{player_name}' not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "matchup": matchup_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# ========== PARLAY BUILDER ENDPOINTS ==========
+
+@app.route('/api/parlay/generate', methods=['POST'])
+def generate_parlay():
+    """Generate parlay suggestions based on user criteria"""
+    try:
+        data = request.get_json()
+
+        # Get parameters with defaults
+        target_odds = data.get('target_odds', 400)
+        safety_level = data.get('safety_level', 'moderate')
+        game_filter = data.get('game_filter', 'any')
+        selected_games = data.get('selected_games', [])
+        num_suggestions = data.get('num_suggestions', 3)
+        min_legs = data.get('min_legs', 2)
+        max_legs = data.get('max_legs', 6)
+        banned_players = data.get('banned_players', [])
+
+        # Validate safety level
+        if safety_level not in ['conservative', 'moderate', 'aggressive']:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid safety_level: {safety_level}. Must be 'conservative', 'moderate', or 'aggressive'"
+            }), 400
+
+        # Validate game filter
+        if game_filter not in ['any', 'single', 'specific']:
+            return jsonify({
+                "success": False,
+                "error": f"Invalid game_filter: {game_filter}. Must be 'any', 'single', or 'specific'"
+            }), 400
+
+        # Get all available props by calling the get_all_players logic
+        # This reuses the same data pipeline as the /api/players endpoint
+        all_props = []
+
+        # Helper function for case and accent-insensitive name matching
+        import unicodedata
+        def normalize_name(name):
+            """Remove accents and convert to lowercase for comparison"""
+            # Remove accents (é -> e, ñ -> n, etc.)
+            nfd = unicodedata.normalize('NFD', name)
+            without_accents = ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+            return without_accents.lower().strip()
+
+        # Normalize banned player names for comparison
+        normalized_banned = [normalize_name(p) for p in banned_players]
+
+        player_names = loader.get_player_names()
+
+        # Pre-fetch injuries once for performance
+        injury_tracker.get_all_injuries()
+
+        # Cache game info by team
+        team_game_cache = {}
+
+        for player_name in player_names:
+            # Check if player is banned (case and accent insensitive)
+            if normalize_name(player_name) in normalized_banned:
+                continue  # Skip banned players
+            player_info = loader.get_player_info(player_name)
+
+            if not player_info:
+                continue
+
+            team = player_info["team"]
+            all_stats = loader.get_all_available_stats(player_name)
+
+            # Process each stat type
+            for stat_type, stat_values in all_stats.items():
+                # Format stat type for display
+                if stat_type == 'three_pm':
+                    display_stat_type = '3PM'
+                elif len(stat_type) <= 3:
+                    display_stat_type = stat_type.upper()
+                else:
+                    display_stat_type = stat_type.title()
+
+                if len(stat_values) < 5:
+                    continue
+
+                avg_stat = sum(stat_values) / len(stat_values)
+
+                # Get real betting lines
+                cached_odds = get_cached_odds()
+                odds_key = f"{player_name}_{display_stat_type}"
+
+                # Try to use real odds, fallback to calculated lines
+                line = None
+                odds = -110  # Default odds
+
+                if odds_key in cached_odds and cached_odds[odds_key]:
+                    # Use real betting lines from bookmaker
+                    bookmaker_lines = cached_odds[odds_key]
+                    if bookmaker_lines:
+                        first_bookmaker = bookmaker_lines[0]
+                        line = first_bookmaker.get("line")
+                        odds = first_bookmaker.get("over_odds", -110)
+
+                # Fallback to calculated line if no real odds
+                if line is None:
+                    line = STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
+
+                # Get game matchup
+                if team not in team_game_cache:
+                    team_game_cache[team] = schedule_fetcher.get_player_next_game(team)
+
+                next_game = team_game_cache[team]
+                if not next_game:
+                    continue  # Skip props without scheduled games
+
+                opponent = next_game['opponent']
+                is_home = next_game['is_home']
+
+                # Calculate trust score using full analysis
+                analysis = calc.analyze_player_prop(
+                    player_name=player_name,
+                    team=team,
+                    stat_type=display_stat_type,
+                    player_stats=stat_values,
+                    line=line,
+                    opponent=opponent,
+                    opponent_rank=15,  # Default middle-of-pack
+                    is_home=is_home,
+                    db_loader=loader
+                )
+
+                # Check injury status - skip injured/questionable players
+                injury_status = injury_tracker.get_player_status(player_name)
+                if injury_status:
+                    status = injury_status.get('status', '')
+                    # Skip OUT and QUESTIONABLE players from parlays
+                    if status in ['OUT', 'QUESTIONABLE', 'DOUBTFUL']:
+                        continue  # Don't include injured players in parlay pool
+
+                # Add to available props for parlay building
+                all_props.append({
+                    'player_name': player_name,
+                    'team': team,
+                    'opponent': opponent,
+                    'stat_type': display_stat_type,
+                    'line': line,
+                    'odds': odds,
+                    'trust_score': analysis['trust_score'],
+                    'is_home': is_home
+                })
+
+        # Generate parlays
+        suggestions = parlay_builder.generate_parlay(
+            all_props=all_props,
+            target_odds=target_odds,
+            safety_level=safety_level,
+            game_filter=game_filter,
+            selected_games=selected_games,
+            num_suggestions=num_suggestions,
+            min_legs=min_legs,
+            max_legs=max_legs
+        )
+
+        return jsonify({
+            "success": True,
+            "suggestions": suggestions,
+            "total_props_available": len(all_props)
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
         }), 500
 
 
