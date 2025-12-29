@@ -170,6 +170,7 @@ class ParlayBuilder:
             List of valid parlay combinations
         """
         valid_parlays = []
+        all_tested_parlays = []  # Track all parlays with their odds distance
 
         # Try different parlay sizes
         for num_legs in range(min_legs, max_legs + 1):
@@ -184,10 +185,20 @@ class ParlayBuilder:
             for combo in combinations:
                 combo_list = list(combo)
                 parlay_odds = self.calculate_parlay_odds(combo_list)
+                odds_distance = abs(parlay_odds - target_odds)
 
-                # Check if within acceptable range (±50 of target)
-                if abs(parlay_odds - target_odds) <= 50:
+                # Track all parlays
+                all_tested_parlays.append((combo_list, odds_distance))
+
+                # More flexible tolerance: ±100 for lower odds, ±200 for higher odds
+                tolerance = 100 if target_odds < 500 else 200
+                if odds_distance <= tolerance:
                     valid_parlays.append(combo_list)
+
+        # If no parlays found within tolerance, return closest 5
+        if not valid_parlays and all_tested_parlays:
+            all_tested_parlays.sort(key=lambda x: x[1])  # Sort by distance
+            valid_parlays = [p[0] for p in all_tested_parlays[:5]]
 
         return valid_parlays
 
