@@ -1,6 +1,6 @@
-# React + Vite
+# StatScout Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Built with React + Vite for NBA player props analytics.
 
 Currently, two official plugins are available:
 
