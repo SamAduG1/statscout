@@ -311,16 +311,28 @@ class ParlayBuilder:
             reverse=True
         )
 
-        # Randomize selection from top parlays to give variety
-        # Take from top 50% of parlays to maintain quality but add variety
-        selection_pool_size = max(num_suggestions * 3, min(len(valid_parlays), 20))
-        selection_pool = valid_parlays[:selection_pool_size]
+        # Select diverse parlays (avoid too much overlap)
+        selected_parlays = []
+        for parlay in valid_parlays:
+            if len(selected_parlays) >= num_suggestions:
+                break
 
-        # Randomly select from the pool
-        if len(selection_pool) > num_suggestions:
-            selected_parlays = random.sample(selection_pool, num_suggestions)
-        else:
-            selected_parlays = selection_pool
+            # Check diversity - ensure this parlay is sufficiently different
+            is_diverse = True
+            for existing_parlay in selected_parlays:
+                # Count how many props are shared
+                existing_props = set(p['player_name'] + p['stat_type'] for p in existing_parlay)
+                new_props = set(p['player_name'] + p['stat_type'] for p in parlay)
+                overlap = len(existing_props & new_props)
+                overlap_pct = overlap / max(len(existing_props), len(new_props))
+
+                # If more than 60% overlap, skip this parlay
+                if overlap_pct > 0.6:
+                    is_diverse = False
+                    break
+
+            if is_diverse:
+                selected_parlays.append(parlay)
 
         # Build suggestions
         suggestions = []
