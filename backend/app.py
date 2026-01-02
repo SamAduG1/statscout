@@ -33,21 +33,44 @@ parlay_builder = ParlayBuilder()
 from scheduler import init_scheduler
 scheduler = init_scheduler()
 
-# Cache for odds data (refresh every 30 minutes)
+# Cache for odds data (optimized to conserve API quota)
 odds_cache = {
     "data": {},
     "last_updated": None
 }
 
+# Cache configuration (in seconds)
+CACHE_DURATION = 4 * 60 * 60  # 4 hours (was 30 minutes)
+ACTIVE_HOURS_START = 6  # 6 AM
+ACTIVE_HOURS_END = 23   # 11 PM
+
+def is_active_hours():
+    """Check if current time is during active hours (when odds should refresh)"""
+    now = datetime.now()
+    current_hour = now.hour
+    return ACTIVE_HOURS_START <= current_hour < ACTIVE_HOURS_END
+
 def get_cached_odds():
-    """Get odds from cache or fetch new ones"""
+    """
+    Get odds from cache or fetch new ones
+
+    Optimization features:
+    - 4-hour cache duration (reduced from 30 min)
+    - Only refreshes during active hours (6 AM - 11 PM)
+    - Saves ~75% of API requests
+    """
     now = datetime.now()
 
-    # Check if cache is expired (30 minutes)
-    if (odds_cache["last_updated"] is None or
-        (now - odds_cache["last_updated"]).seconds > 1800):
+    # Check if cache is expired
+    cache_expired = (odds_cache["last_updated"] is None or
+                     (now - odds_cache["last_updated"]).total_seconds() > CACHE_DURATION)
 
+    # Only fetch if cache is expired AND we're in active hours
+    # This prevents unnecessary API calls during late night/early morning
+    if cache_expired and is_active_hours():
         print("[INFO] Fetching fresh odds from API...")
+        print(f"[INFO] Cache age: {(now - odds_cache['last_updated']).total_seconds() / 3600:.1f} hours" if odds_cache["last_updated"] else "[INFO] First fetch")
+
         response = odds_client.get_all_player_props(
             markets="player_points,player_rebounds,player_assists,player_threes,player_steals,player_blocks"
         )
@@ -73,8 +96,14 @@ def get_cached_odds():
 
             odds_cache["last_updated"] = now
             print(f"[SUCCESS] Cached {len(parsed_props)} odds from {len(set(p['bookmaker'] for p in parsed_props))} bookmakers")
+            print(f"[INFO] Next refresh after: {(now + timedelta(seconds=CACHE_DURATION)).strftime('%I:%M %p')}")
         else:
             print(f"[WARNING] Could not fetch odds: {response.get('error')}")
+    elif cache_expired and not is_active_hours():
+        print(f"[INFO] Cache expired but outside active hours ({ACTIVE_HOURS_START}:00-{ACTIVE_HOURS_END}:00). Using stale cache.")
+    else:
+        cache_age = (now - odds_cache["last_updated"]).total_seconds() / 3600 if odds_cache["last_updated"] else 0
+        print(f"[INFO] Using cached odds (age: {cache_age:.1f} hours)")
 
     return odds_cache["data"]
 
@@ -156,13 +185,27 @@ def get_opponent_def_stat(stat_type: str) -> str:
 def odds_status():
     """Check odds API status and cache info"""
     usage = odds_client.check_usage()
-    
+
+    now = datetime.now()
+    cache_age_hours = None
+    next_refresh = None
+
+    if odds_cache["last_updated"]:
+        cache_age_hours = (now - odds_cache["last_updated"]).total_seconds() / 3600
+        next_refresh_time = odds_cache["last_updated"] + timedelta(seconds=CACHE_DURATION)
+        next_refresh = next_refresh_time.isoformat()
+
     return jsonify({
         "success": True,
         "api_status": usage,
         "cache": {
             "props_cached": len(odds_cache["data"]),
-            "last_updated": odds_cache["last_updated"].isoformat() if odds_cache["last_updated"] else None
+            "last_updated": odds_cache["last_updated"].isoformat() if odds_cache["last_updated"] else None,
+            "cache_age_hours": round(cache_age_hours, 2) if cache_age_hours else None,
+            "next_refresh": next_refresh,
+            "cache_duration_hours": CACHE_DURATION / 3600,
+            "active_hours": f"{ACTIVE_HOURS_START}:00 - {ACTIVE_HOURS_END}:00",
+            "is_active_hours": is_active_hours()
         }
     })
 
