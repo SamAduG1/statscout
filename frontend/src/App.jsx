@@ -1761,10 +1761,18 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
       // Check if game is today
       const matchesGamesToday = !showGamesTodayOnly || (() => {
+        if (!player.gameDate || player.gameDate === 'TBD') return false;
+
         const today = new Date();
         const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        // gameDate format is "Dec 18, 2025" - compare just month and day
-        return player.gameDate && player.gameDate.startsWith(todayStr.substring(0, 6)); // "Dec 18"
+
+        // Normalize both dates by removing padding zeros for comparison
+        // Backend: "Jan 02, 2026" Frontend: "Jan 2, 2026"
+        const normalizeDate = (dateStr) => {
+          return dateStr.replace(/(\w+)\s+0(\d),/, '$1 $2,'); // Remove leading zero from day
+        };
+
+        return normalizeDate(player.gameDate) === normalizeDate(todayStr);
       })();
 
       // Check if has live odds
