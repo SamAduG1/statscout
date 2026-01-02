@@ -4,7 +4,7 @@ Handles loading and processing player data from SQLite database
 """
 
 from models import get_engine, get_session, Player, Game
-from sqlalchemy import func
+from sqlalchemy import func, text
 from typing import Dict, List, Any
 
 
@@ -20,7 +20,7 @@ class DatabaseLoader:
         """Ensure session is valid, rollback if needed"""
         try:
             # Test if session is still valid
-            self.session.execute("SELECT 1")
+            self.session.execute(text("SELECT 1"))
         except Exception as e:
             print(f"[WARNING] Session invalid, rolling back: {e}")
             try:
