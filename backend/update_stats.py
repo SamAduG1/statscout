@@ -243,10 +243,9 @@ def update_all_players(season="2025-26", use_espn_supplement=True):
     fetcher = NBAStatsFetcher()
 
     try:
-        # Get all players from database
-        players = session.query(Player).all()
-
-        print(f"\n[INFO] Found {len(players)} players in database")
+        # Get player count first
+        player_count = session.query(Player).count()
+        print(f"\n[INFO] Found {player_count} players in database")
 
         total_new_games = 0
         players_updated = 0
@@ -256,29 +255,41 @@ def update_all_players(season="2025-26", use_espn_supplement=True):
         print("PHASE 1: NBA API UPDATE")
         print("=" * 60)
 
-        for idx, player in enumerate(players, 1):
-            print(f"\n[{idx}/{len(players)}] Processing {player.name}...")
+        # Process players in batches to reduce memory usage
+        batch_size = 20
+        for batch_start in range(0, player_count, batch_size):
+            # Get a batch of players
+            players_batch = session.query(Player).offset(batch_start).limit(batch_size).all()
 
-            try:
-                # Respect API rate limits
-                time.sleep(0.6)
+            print(f"\n[BATCH] Processing players {batch_start+1} to {min(batch_start+batch_size, player_count)}")
 
-                new_games = update_player_stats(
-                    session,
-                    fetcher,
-                    player.name,
-                    player.team,
-                    player.position,
-                    season
-                )
+            for idx, player in enumerate(players_batch, batch_start + 1):
+                print(f"\n[{idx}/{player_count}] Processing {player.name}...")
 
-                if new_games > 0:
-                    total_new_games += new_games
-                    players_updated += 1
+                try:
+                    # Respect API rate limits
+                    time.sleep(0.6)
 
-            except Exception as e:
-                print(f"  [ERROR] Failed to update {player.name}: {e}")
-                continue
+                    new_games = update_player_stats(
+                        session,
+                        fetcher,
+                        player.name,
+                        player.team,
+                        player.position,
+                        season
+                    )
+
+                    if new_games > 0:
+                        total_new_games += new_games
+                        players_updated += 1
+
+                except Exception as e:
+                    print(f"  [ERROR] Failed to update {player.name}: {e}")
+                    continue
+
+            # Clear session after each batch to free memory
+            session.expunge_all()
+            print(f"[BATCH COMPLETE] Cleared session cache")
 
         # Step 2: Supplement with ESPN recent games
         espn_games_added = 0
@@ -290,7 +301,7 @@ def update_all_players(season="2025-26", use_espn_supplement=True):
         print("\n" + "=" * 60)
         print("FINAL UPDATE SUMMARY")
         print("=" * 60)
-        print(f"Players checked: {len(players)}")
+        print(f"Players checked: {player_count}")
         print(f"Players with new games (NBA API): {players_updated}")
         print(f"New games from NBA API: {total_new_games - espn_games_added}")
         print(f"New games from ESPN: {espn_games_added}")
@@ -303,7 +314,7 @@ def update_all_players(season="2025-26", use_espn_supplement=True):
 
         return {
             "success": True,
-            "players_checked": len(players),
+            "players_checked": player_count,
             "players_updated": players_updated,
             "new_games": total_new_games,
             "espn_games": espn_games_added,
