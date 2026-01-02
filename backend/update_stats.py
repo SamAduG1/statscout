@@ -113,13 +113,15 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
     return games_added
 
 
-def add_espn_recent_games(session, days_back=30):
+def add_espn_recent_games(session, days_back=7):
     """
     Add recent games from ESPN to supplement nba_api data
 
+    Note: Reduced to 7 days to avoid memory issues on free tier
+
     Args:
         session: Database session
-        days_back: How many days to look back (default 30)
+        days_back: How many days to look back (default 7)
 
     Returns:
         Number of games added from ESPN
@@ -131,6 +133,8 @@ def add_espn_recent_games(session, days_back=30):
 
     espn_client = ESPNAPIClient()
     total_added = 0
+    games_batch = []
+    batch_size = 50  # Commit in smaller batches to reduce memory
 
     try:
         # Fetch player stats for each day
@@ -151,7 +155,7 @@ def add_espn_recent_games(session, days_back=30):
 
             print(f"  Found {len(player_stats)} player performances")
 
-            # Add each player's game to database
+            # Process each player's stats
             for stat in player_stats:
                 try:
                     # Find player in database
@@ -173,7 +177,7 @@ def add_espn_recent_games(session, days_back=30):
                         # Game already in database
                         continue
 
-                    # Add new game
+                    # Add new game to batch
                     new_game = Game(
                         player_id=player.id,
                         date=game_date,
@@ -186,19 +190,33 @@ def add_espn_recent_games(session, days_back=30):
                         blocks=int(stat['blocks']),
                         three_pm=int(stat['three_pm'])
                     )
-                    session.add(new_game)
+                    games_batch.append(new_game)
                     total_added += 1
+
+                    # Commit in batches to reduce memory usage
+                    if len(games_batch) >= batch_size:
+                        session.bulk_save_objects(games_batch)
+                        session.commit()
+                        games_batch = []  # Clear batch
+                        print(f"  [COMMIT] Saved batch of {batch_size} games")
 
                 except Exception as e:
                     print(f"  [WARNING] Failed to add game for {stat.get('player_name')}: {e}")
                     continue
 
-            # Commit after each day
-            if total_added > 0:
+            # Commit remaining games after each day
+            if games_batch:
+                session.bulk_save_objects(games_batch)
                 session.commit()
+                games_batch = []
 
             # Rate limiting
             time.sleep(0.5)
+
+        # Final commit for any remaining games
+        if games_batch:
+            session.bulk_save_objects(games_batch)
+            session.commit()
 
         print("\n" + "=" * 60)
         print(f"[SUCCESS] Added {total_added} new games from ESPN")
@@ -265,7 +283,7 @@ def update_all_players(season="2025-26", use_espn_supplement=True):
         # Step 2: Supplement with ESPN recent games
         espn_games_added = 0
         if use_espn_supplement:
-            espn_games_added = add_espn_recent_games(session, days_back=30)
+            espn_games_added = add_espn_recent_games(session, days_back=7)
             total_new_games += espn_games_added
 
         # Summary
