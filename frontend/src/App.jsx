@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake } from 'lucide-react';
+import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake, Plus, X, Save, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -938,7 +938,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
   );
 };
 
-const PlayerCard = ({ player, timeRange, onLineAdjust, onClick }) => {
+const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
   const [customLine, setCustomLine] = React.useState(player.line);
   const [isAdjusting, setIsAdjusting] = React.useState(false);
 
@@ -1182,6 +1182,20 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick }) => {
           <span>Most Recent</span>
         </div>
       </div>
+
+      {/* Add to Parlay Button */}
+      {onAddToParlay && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToParlay(player);
+          }}
+          className="mt-4 w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add to Custom Parlay
+        </button>
+      )}
     </div>
   );
 };
@@ -1666,6 +1680,31 @@ export default function StatScoutDashboard() {
   const [minMinutes, setMinMinutes] = useState(0);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
+  // Custom Parlay Builder State
+  const [customParlayLegs, setCustomParlayLegs] = useState([]);
+  const [isParlaySidebarOpen, setIsParlaySidebarOpen] = useState(false);
+  const [savedParlays, setSavedParlays] = useState([]);
+  const [currentParlayName, setCurrentParlayName] = useState('');
+
+  // Load saved parlays from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('statscout_saved_parlays');
+    if (saved) {
+      try {
+        setSavedParlays(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load saved parlays:', e);
+      }
+    }
+  }, []);
+
+  // Save parlays to localStorage whenever they change
+  useEffect(() => {
+    if (savedParlays.length > 0) {
+      localStorage.setItem('statscout_saved_parlays', JSON.stringify(savedParlays));
+    }
+  }, [savedParlays]);
+
 // Handle line adjustment
 const handleLineAdjust = (playerId, playerName, statType, newData) => {
   console.log('handleLineAdjust called with:', {playerId, playerName, statType, newData});
@@ -1690,6 +1729,152 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     return updated;
   });
 };
+
+  // Custom Parlay Helper Functions
+  const addToCustomParlay = (player) => {
+    const legId = `${player.name}-${player.statType}-${Date.now()}`;
+    const newLeg = {
+      id: legId,
+      playerName: player.name,
+      team: player.team,
+      opponent: player.opponent,
+      statType: player.statType,
+      line: player.line,
+      originalLine: player.line,
+      trustScore: player.trustScore,
+      hitRate: player.hitRate,
+      odds: player.bookmakerLines?.[0]?.over_odds || -110,
+      gameDate: player.gameDate,
+      gameTime: player.gameTime,
+      isHome: player.isHome
+    };
+
+    setCustomParlayLegs(prev => [...prev, newLeg]);
+    setIsParlaySidebarOpen(true);
+  };
+
+  const removeFromCustomParlay = (legId) => {
+    setCustomParlayLegs(prev => prev.filter(leg => leg.id !== legId));
+  };
+
+  const updateCustomParlayLeg = async (legId, newLine) => {
+    const leg = customParlayLegs.find(l => l.id === legId);
+    if (!leg) return;
+
+    try {
+      // Call API to recalculate trust score with new line
+      const response = await fetch(`${API_BASE_URL}/calculate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_name: leg.playerName,
+          stat_type: leg.statType,
+          custom_line: parseFloat(newLine),
+          opponent: leg.opponent,
+          is_home: leg.isHome
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCustomParlayLegs(prev => prev.map(l =>
+          l.id === legId
+            ? {
+                ...l,
+                line: parseFloat(newLine),
+                trustScore: data.analysis.trustScore,
+                hitRate: data.analysis.hitRate
+              }
+            : l
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to update leg:', error);
+    }
+  };
+
+  const clearCustomParlay = () => {
+    setCustomParlayLegs([]);
+    setCurrentParlayName('');
+  };
+
+  const saveCustomParlay = () => {
+    if (customParlayLegs.length === 0) return;
+
+    const parlayName = currentParlayName || `Parlay ${savedParlays.length + 1}`;
+    const newParlay = {
+      id: Date.now(),
+      name: parlayName,
+      legs: customParlayLegs,
+      created: new Date().toISOString()
+    };
+
+    setSavedParlays(prev => [...prev, newParlay]);
+    clearCustomParlay();
+  };
+
+  const loadSavedParlay = (parlayId) => {
+    const parlay = savedParlays.find(p => p.id === parlayId);
+    if (parlay) {
+      setCustomParlayLegs(parlay.legs);
+      setCurrentParlayName(parlay.name);
+      setIsParlaySidebarOpen(true);
+    }
+  };
+
+  const deleteSavedParlay = (parlayId) => {
+    setSavedParlays(prev => prev.filter(p => p.id !== parlayId));
+  };
+
+  // Calculate parlay metrics
+  const calculateParlayMetrics = () => {
+    if (customParlayLegs.length === 0) {
+      return { avgTrust: 0, minTrust: 0, weightedTrust: 0, totalOdds: 0, payout: 0 };
+    }
+
+    const avgTrust = customParlayLegs.reduce((sum, leg) => sum + leg.trustScore, 0) / customParlayLegs.length;
+    const minTrust = Math.min(...customParlayLegs.map(leg => leg.trustScore));
+
+    // Weighted trust - higher odds props have more weight
+    const totalWeight = customParlayLegs.reduce((sum, leg) => sum + Math.abs(leg.odds), 0);
+    const weightedTrust = customParlayLegs.reduce((sum, leg) => {
+      const weight = Math.abs(leg.odds) / totalWeight;
+      return sum + (leg.trustScore * weight);
+    }, 0);
+
+    // Calculate total American odds
+    let totalOdds = customParlayLegs[0]?.odds || -110;
+    for (let i = 1; i < customParlayLegs.length; i++) {
+      totalOdds = combineTwoAmericanOdds(totalOdds, customParlayLegs[i].odds);
+    }
+
+    // Calculate payout for $10 bet
+    const payout = calculatePayout(10, totalOdds);
+
+    return { avgTrust, minTrust, weightedTrust, totalOdds, payout };
+  };
+
+  // Helper: Combine two American odds
+  const combineTwoAmericanOdds = (odds1, odds2) => {
+    const decimal1 = odds1 > 0 ? (odds1 / 100) + 1 : (100 / Math.abs(odds1)) + 1;
+    const decimal2 = odds2 > 0 ? (odds2 / 100) + 1 : (100 / Math.abs(odds2)) + 1;
+    const combinedDecimal = decimal1 * decimal2;
+
+    if (combinedDecimal >= 2.0) {
+      return Math.round((combinedDecimal - 1) * 100);
+    } else {
+      return Math.round(-100 / (combinedDecimal - 1));
+    }
+  };
+
+  // Helper: Calculate payout from American odds
+  const calculatePayout = (stake, odds) => {
+    if (odds > 0) {
+      return stake + (stake * (odds / 100));
+    } else {
+      return stake + (stake * (100 / Math.abs(odds)));
+    }
+  };
 
   // Handle click outside team dropdown to close it
   useEffect(() => {
@@ -2172,6 +2357,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   timeRange={timeRange}
                   onLineAdjust={handleLineAdjust}
                   onClick={() => setSelectedPlayer(player)}
+                  onAddToParlay={addToCustomParlay}
                 />
               ))}
             </div>
@@ -2240,6 +2426,214 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             </>
           )}
         </div>
+
+        {/* Custom Parlay Builder Sidebar */}
+        {currentView === 'props' && (
+          <>
+            {/* Floating Toggle Button (when sidebar is closed) */}
+            {!isParlaySidebarOpen && customParlayLegs.length > 0 && (
+              <button
+                onClick={() => setIsParlaySidebarOpen(true)}
+                className="fixed right-0 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-4 rounded-l-lg shadow-lg flex items-center gap-2 z-40 transition-all"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-semibold">Parlay</span>
+                  <span className="bg-white text-blue-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    {customParlayLegs.length}
+                  </span>
+                </div>
+              </button>
+            )}
+
+            {/* Sidebar Panel */}
+            <div className={`fixed right-0 top-0 h-full w-96 bg-white dark:bg-gray-800 shadow-2xl transform transition-transform duration-300 z-50 ${
+              isParlaySidebarOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}>
+              <div className="h-full flex flex-col">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex justify-between items-center">
+                  <h2 className="text-xl font-bold">Custom Parlay</h2>
+                  <button
+                    onClick={() => setIsParlaySidebarOpen(false)}
+                    className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {customParlayLegs.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center p-6 text-center text-gray-500 dark:text-gray-400">
+                    <div>
+                      <Plus className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-semibold mb-2">No legs added yet</p>
+                      <p className="text-sm">Click "Add to Custom Parlay" on any player card to get started</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Parlay Stats Summary */}
+                    <div className="p-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                      {(() => {
+                        const metrics = calculateParlayMetrics();
+                        return (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Avg Trust</div>
+                                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                                  {Math.round(metrics.avgTrust)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Min Trust</div>
+                                <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                                  {Math.round(metrics.minTrust)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Weighted</div>
+                                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                                  {Math.round(metrics.weightedTrust)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-3">
+                              <div className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-1">
+                                Total Parlay Odds
+                              </div>
+                              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                                {metrics.totalOdds > 0 ? '+' : ''}{metrics.totalOdds}
+                              </div>
+                              <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                $10 → ${metrics.payout.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Parlay Legs List */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {customParlayLegs.map((leg, index) => (
+                        <div key={leg.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-900 dark:text-white">{leg.playerName}</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400">
+                                {leg.team} vs {leg.opponent}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => removeFromCustomParlay(leg.id)}
+                              className="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                            >
+                              <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{leg.statType}</span>
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                              Trust: {leg.trustScore}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600 dark:text-gray-400">Line:</label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={leg.line}
+                              onChange={(e) => updateCustomParlayLeg(leg.id, e.target.value)}
+                              className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded focus:ring-2 focus:ring-blue-500"
+                            />
+                            <input
+                              type="range"
+                              min={Math.max(0.5, leg.originalLine - 10)}
+                              max={leg.originalLine + 10}
+                              step="0.5"
+                              value={leg.line}
+                              onChange={(e) => updateCustomParlayLeg(leg.id, e.target.value)}
+                              className="flex-1"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Actions Footer */}
+                    <div className="p-4 border-t border-gray-200 dark:border-gray-600 space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Parlay Name (optional)"
+                        value={currentParlayName}
+                        onChange={(e) => setCurrentParlayName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={saveCustomParlay}
+                          className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save
+                        </button>
+                        <button
+                          onClick={clearCustomParlay}
+                          className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Clear
+                        </button>
+                      </div>
+
+                      {/* Saved Parlays */}
+                      {savedParlays.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                          <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                            Saved Parlays ({savedParlays.length})
+                          </div>
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {savedParlays.map(parlay => (
+                              <div key={parlay.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-600 p-2 rounded">
+                                <button
+                                  onClick={() => loadSavedParlay(parlay.id)}
+                                  className="flex-1 text-left text-sm hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                >
+                                  <div className="font-medium">{parlay.name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {parlay.legs.length} legs
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => deleteSavedParlay(parlay.id)}
+                                  className="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Overlay (click to close sidebar) */}
+            {isParlaySidebarOpen && (
+              <div
+                onClick={() => setIsParlaySidebarOpen(false)}
+                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+              />
+            )}
+          </>
+        )}
       </div>
   );
 }
