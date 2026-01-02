@@ -22,8 +22,12 @@ if not isinstance(sys.stdout, io.TextIOWrapper) or sys.stdout.encoding != 'utf-8
         pass  # Already wrapped or can't wrap
 
 # API Configuration
-API_KEY = os.getenv('ODDS_API_KEY', '5ffd1a867973dd45f4be1118e7233de7')  # Fallback to hardcoded key
+API_KEY = os.getenv('ODDS_API_KEY')  # Loaded from environment variable
 BASE_URL = "https://api.the-odds-api.com/v4"
+
+if not API_KEY:
+    print("[WARNING] ODDS_API_KEY environment variable not set!")
+    print("[WARNING] Odds functionality will be limited to calculated lines")
 
 # Sport key for NBA
 SPORT_KEY = "basketball_nba"
