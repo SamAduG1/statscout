@@ -110,8 +110,28 @@ class TeamGame(Base):
 
 
 # Database connection and session management
-def get_engine(db_path='sqlite:///statscout.db'):
-    """Create and return database engine"""
+def get_engine(db_path=None):
+    """
+    Create and return database engine
+    Uses DATABASE_URL environment variable if available (for PostgreSQL in production)
+    Falls back to SQLite for local development
+    """
+    import os
+
+    if db_path is None:
+        # Check for DATABASE_URL (Render PostgreSQL)
+        db_path = os.environ.get('DATABASE_URL')
+
+        if db_path:
+            # Render uses postgres://, but SQLAlchemy needs postgresql://
+            if db_path.startswith('postgres://'):
+                db_path = db_path.replace('postgres://', 'postgresql://', 1)
+            print(f"[INFO] Using PostgreSQL database")
+        else:
+            # Fallback to SQLite for local development
+            db_path = 'sqlite:///statscout.db'
+            print(f"[INFO] Using SQLite database: {db_path}")
+
     return create_engine(db_path, echo=False)
 
 
