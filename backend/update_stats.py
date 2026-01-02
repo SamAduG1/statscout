@@ -1,11 +1,13 @@
 """
 Automated Stats Update Script
 Fetches new games for existing players and updates the database
+Uses hybrid approach: nba_api for historical data + ESPN for recent games
 """
 import sys
 import io
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from nba_stats_fetcher import NBAStatsFetcher
+from espn_recent_games_scraper import ESPNAPIClient
 from models import get_engine, get_session, Player, Game
 import time
 
@@ -111,7 +113,107 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
     return games_added
 
 
-def update_all_players(season="2025-26"):
+def add_espn_recent_games(session, days_back=30):
+    """
+    Add recent games from ESPN to supplement nba_api data
+
+    Args:
+        session: Database session
+        days_back: How many days to look back (default 30)
+
+    Returns:
+        Number of games added from ESPN
+    """
+    print("\n" + "=" * 60)
+    print("ESPN RECENT GAMES SUPPLEMENT")
+    print("=" * 60)
+    print(f"[INFO] Fetching last {days_back} days of games from ESPN...")
+
+    espn_client = ESPNAPIClient()
+    total_added = 0
+
+    try:
+        # Fetch player stats for each day
+        today = datetime.now()
+
+        for days_ago in range(days_back):
+            date_to_fetch = today - timedelta(days=days_ago)
+            date_str = date_to_fetch.strftime("%Y%m%d")
+
+            print(f"\n[INFO] Fetching {date_str}...")
+
+            # Get all player stats from this date
+            player_stats = espn_client.get_player_stats_from_date(date_str)
+
+            if not player_stats:
+                print(f"  No games found")
+                continue
+
+            print(f"  Found {len(player_stats)} player performances")
+
+            # Add each player's game to database
+            for stat in player_stats:
+                try:
+                    # Find player in database
+                    player = session.query(Player).filter_by(name=stat['player_name']).first()
+
+                    if not player:
+                        # Skip players not in our database
+                        continue
+
+                    # Check if game already exists
+                    game_date = datetime.strptime(stat['date'], '%Y-%m-%d').date()
+                    existing = session.query(Game).filter_by(
+                        player_id=player.id,
+                        date=game_date,
+                        opponent=stat['opponent']
+                    ).first()
+
+                    if existing:
+                        # Game already in database
+                        continue
+
+                    # Add new game
+                    new_game = Game(
+                        player_id=player.id,
+                        date=game_date,
+                        opponent=stat['opponent'],
+                        is_home=bool(stat['is_home']),
+                        points=int(stat['points']),
+                        rebounds=int(stat['rebounds']),
+                        assists=int(stat['assists']),
+                        steals=int(stat['steals']),
+                        blocks=int(stat['blocks']),
+                        three_pm=int(stat['three_pm'])
+                    )
+                    session.add(new_game)
+                    total_added += 1
+
+                except Exception as e:
+                    print(f"  [WARNING] Failed to add game for {stat.get('player_name')}: {e}")
+                    continue
+
+            # Commit after each day
+            if total_added > 0:
+                session.commit()
+
+            # Rate limiting
+            time.sleep(0.5)
+
+        print("\n" + "=" * 60)
+        print(f"[SUCCESS] Added {total_added} new games from ESPN")
+        print("=" * 60)
+
+        return total_added
+
+    except Exception as e:
+        print(f"\n[ERROR] ESPN supplement failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
+
+def update_all_players(season="2025-26", use_espn_supplement=True):
     """Update stats for all players in the database"""
 
     print("=" * 60)
@@ -130,6 +232,11 @@ def update_all_players(season="2025-26"):
 
         total_new_games = 0
         players_updated = 0
+
+        # Step 1: Update from NBA API (historical data)
+        print("\n" + "=" * 60)
+        print("PHASE 1: NBA API UPDATE")
+        print("=" * 60)
 
         for idx, player in enumerate(players, 1):
             print(f"\n[{idx}/{len(players)}] Processing {player.name}...")
@@ -155,12 +262,20 @@ def update_all_players(season="2025-26"):
                 print(f"  [ERROR] Failed to update {player.name}: {e}")
                 continue
 
+        # Step 2: Supplement with ESPN recent games
+        espn_games_added = 0
+        if use_espn_supplement:
+            espn_games_added = add_espn_recent_games(session, days_back=30)
+            total_new_games += espn_games_added
+
         # Summary
         print("\n" + "=" * 60)
-        print("UPDATE SUMMARY")
+        print("FINAL UPDATE SUMMARY")
         print("=" * 60)
         print(f"Players checked: {len(players)}")
-        print(f"Players with new games: {players_updated}")
+        print(f"Players with new games (NBA API): {players_updated}")
+        print(f"New games from NBA API: {total_new_games - espn_games_added}")
+        print(f"New games from ESPN: {espn_games_added}")
         print(f"Total new games added: {total_new_games}")
 
         # Get updated totals
@@ -173,6 +288,7 @@ def update_all_players(season="2025-26"):
             "players_checked": len(players),
             "players_updated": players_updated,
             "new_games": total_new_games,
+            "espn_games": espn_games_added,
             "total_games": total_games
         }
 
