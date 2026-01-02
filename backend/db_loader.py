@@ -10,22 +10,52 @@ from typing import Dict, List, Any
 
 class DatabaseLoader:
     """Load and process player statistics from database"""
-    
+
     def __init__(self):
         """Initialize the database loader"""
         self.engine = get_engine()
         self.session = get_session(self.engine)
-        
+
+    def _ensure_session(self):
+        """Ensure session is valid, rollback if needed"""
+        try:
+            # Test if session is still valid
+            self.session.execute("SELECT 1")
+        except Exception as e:
+            print(f"[WARNING] Session invalid, rolling back: {e}")
+            try:
+                self.session.rollback()
+            except:
+                pass
+            # Create new session if rollback fails
+            try:
+                self.session.close()
+                self.session = get_session(self.engine)
+            except:
+                pass
+
     def get_player_names(self) -> List[str]:
         """Get list of all unique player names"""
-        players = self.session.query(Player.name).order_by(Player.name).all()
-        return [p.name for p in players]
+        self._ensure_session()
+        try:
+            players = self.session.query(Player.name).order_by(Player.name).all()
+            return [p.name for p in players]
+        except Exception as e:
+            print(f"[ERROR] Failed to get player names: {e}")
+            self.session.rollback()
+            return []
     
     def get_teams(self) -> List[str]:
         """Get list of all unique teams"""
-        teams = self.session.query(Player.team).distinct().order_by(Player.team).all()
-        return [t.team for t in teams]
-    
+        self._ensure_session()
+        try:
+            teams = self.session.query(Player.team).distinct().order_by(Player.team).all()
+            return [t.team for t in teams]
+        except Exception as e:
+            print(f"[ERROR] Failed to get teams: {e}")
+            self.session.rollback()
+            return []
+
     def get_player_info(self, player_name: str) -> Dict[str, Any]:
         """
         Get basic info about a player
@@ -36,28 +66,34 @@ class DatabaseLoader:
         Returns:
             Dictionary with player info
         """
-        player = self.session.query(Player).filter(Player.name == player_name).first()
+        self._ensure_session()
+        try:
+            player = self.session.query(Player).filter(Player.name == player_name).first()
 
-        if not player:
+            if not player:
+                return None
+
+            game_count = self.session.query(Game).filter(Game.player_id == player.id).count()
+
+            # Calculate average minutes per game
+            avg_minutes_result = self.session.query(func.avg(Game.minutes)).filter(
+                Game.player_id == player.id,
+                Game.minutes.isnot(None)
+            ).scalar()
+
+            avg_minutes = round(avg_minutes_result, 1) if avg_minutes_result else 0.0
+
+            return {
+                "name": player.name,
+                "team": player.team,
+                "position": player.position,
+                "games_played": game_count,
+                "avg_minutes": avg_minutes
+            }
+        except Exception as e:
+            print(f"[ERROR] Failed to get player info for {player_name}: {e}")
+            self.session.rollback()
             return None
-
-        game_count = self.session.query(Game).filter(Game.player_id == player.id).count()
-
-        # Calculate average minutes per game
-        avg_minutes_result = self.session.query(func.avg(Game.minutes)).filter(
-            Game.player_id == player.id,
-            Game.minutes.isnot(None)
-        ).scalar()
-
-        avg_minutes = round(avg_minutes_result, 1) if avg_minutes_result else 0.0
-
-        return {
-            "name": player.name,
-            "team": player.team,
-            "position": player.position,
-            "games_played": game_count,
-            "avg_minutes": avg_minutes
-        }
     
     def get_player_stat_history(
         self, 
