@@ -1757,6 +1757,20 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     setCustomParlayLegs(prev => prev.filter(leg => leg.id !== legId));
   };
 
+  // Helper: Convert hit rate to American odds
+  const hitRateToOdds = (hitRate) => {
+    // Convert hit rate (0-100) to probability (0-1)
+    const probability = hitRate / 100;
+
+    if (probability >= 0.5) {
+      // Favorite odds (negative)
+      return Math.round(-100 * (probability / (1 - probability)));
+    } else {
+      // Underdog odds (positive)
+      return Math.round(100 * ((1 - probability) / probability));
+    }
+  };
+
   const updateCustomParlayLeg = async (legId, newLine) => {
     const leg = customParlayLegs.find(l => l.id === legId);
     if (!leg) return;
@@ -1777,13 +1791,17 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
       if (response.ok) {
         const data = await response.json();
+        const newHitRate = data.analysis.hitRate;
+        const estimatedOdds = hitRateToOdds(newHitRate);
+
         setCustomParlayLegs(prev => prev.map(l =>
           l.id === legId
             ? {
                 ...l,
                 line: parseFloat(newLine),
                 trustScore: data.analysis.trustScore,
-                hitRate: data.analysis.hitRate
+                hitRate: newHitRate,
+                odds: estimatedOdds // Update odds based on new hit rate
               }
             : l
         ));
