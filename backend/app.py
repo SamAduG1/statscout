@@ -603,6 +603,108 @@ def calculate_custom():
         }), 500
 
 
+@app.route('/api/add-player', methods=['POST'])
+def add_player():
+    """Add a new player to the database"""
+    try:
+        data = request.json
+        player_name = data.get('player_name')
+
+        if not player_name:
+            return jsonify({
+                "success": False,
+                "error": "player_name is required"
+            }), 400
+
+        from nba_stats_fetcher import NBAStatsFetcher
+        from nba_api.stats.static import players as nba_players
+        from models import Player, Game
+
+        # Find player in NBA API
+        all_nba_players = nba_players.get_players()
+        player_info = [p for p in all_nba_players if p['full_name'].lower() == player_name.lower() and p.get('is_active', True)]
+
+        if not player_info:
+            # Try partial match
+            player_info = [p for p in all_nba_players if player_name.lower() in p['full_name'].lower() and p.get('is_active', True)]
+
+        if not player_info:
+            return jsonify({
+                "success": False,
+                "error": f"Player '{player_name}' not found in NBA database"
+            }), 404
+
+        nba_player = player_info[0]
+        full_name = nba_player['full_name']
+
+        # Check if already exists
+        from models import get_session, get_engine
+        engine = get_engine()
+        session = get_session(engine)
+
+        existing = session.query(Player).filter_by(name=full_name).first()
+        if existing:
+            session.close()
+            return jsonify({
+                "success": False,
+                "error": f"Player '{full_name}' already exists in database"
+            }), 400
+
+        # Fetch player data
+        fetcher = NBAStatsFetcher()
+        games = fetcher.fetch_player_season(full_name, season="2025-26")
+
+        if not games:
+            session.close()
+            return jsonify({
+                "success": False,
+                "error": f"No game data found for {full_name}"
+            }), 404
+
+        # Add player
+        new_player = Player(
+            name=full_name,
+            team=games[0]['team'],
+            position=games[0]['position']
+        )
+        session.add(new_player)
+        session.flush()
+
+        # Add games
+        for game in games:
+            from datetime import datetime
+            new_game = Game(
+                player_id=new_player.id,
+                date=datetime.strptime(game['date'], '%Y-%m-%d').date(),
+                opponent=game['opponent'],
+                is_home=bool(game['is_home']),
+                points=int(game['points']),
+                rebounds=int(game['rebounds']),
+                assists=int(game['assists']),
+                steals=int(game['steals']),
+                blocks=int(game['blocks']),
+                three_pm=int(game['three_pm'])
+            )
+            session.add(new_game)
+
+        session.commit()
+        games_added = len(games)
+        session.close()
+
+        return jsonify({
+            "success": True,
+            "message": f"Added {full_name} with {games_added} games"
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @app.route('/api/update', methods=['POST'])
 def trigger_update():
     """Manually trigger a stats update (runs asynchronously)"""

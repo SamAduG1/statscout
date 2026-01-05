@@ -9,7 +9,7 @@ import time
 # List of players to add (name, team, position)
 # Team and position will be fetched from NBA API
 players_to_add = [
-    "Sam Merrill"
+    "Miles McBride"
 ]
 
 print("=" * 60)
