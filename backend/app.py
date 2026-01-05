@@ -351,7 +351,11 @@ def get_all_players():
                     is_home=is_home,
                     db_loader=None  # Temporarily disabled for memory
                 )
-                
+
+                # Calculate home/away location split
+                split_data = loader.get_home_away_splits(player_name, display_stat_type)
+                location_split = calc.analyze_location_split(split_data, is_home) if split_data else {"has_data": False}
+
                 # Format for frontend
                 player_prop = {
                     "id": player_id,
@@ -383,7 +387,8 @@ def get_all_players():
                     "avgLastN": analysis["avg_last_10"],
                     "streak": analysis["streak"],
                     "streakType": analysis["streak_type"],
-                    "avgMinutes": player_info.get("avg_minutes", 0)
+                    "avgMinutes": player_info.get("avg_minutes", 0),
+                    "locationSplit": location_split  # Home/Away performance split
                 }
                 
                 players_list.append(player_prop)

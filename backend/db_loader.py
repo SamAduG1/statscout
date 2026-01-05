@@ -282,6 +282,77 @@ class DatabaseLoader:
             }
         }
 
+    def get_home_away_splits(self, player_name: str, stat_type: str = 'points', min_games: int = 3) -> Dict[str, Any]:
+        """
+        Calculate home vs away performance splits for a player
+
+        Args:
+            player_name: Player's name
+            stat_type: Stat to analyze ('points', 'rebounds', 'assists', etc.)
+            min_games: Minimum games required for each split (default 3)
+
+        Returns:
+            Dictionary with home/away averages and counts
+        """
+        player = self.session.query(Player).filter(Player.name == player_name).first()
+
+        if not player:
+            return None
+
+        # Get all games
+        all_games = self.session.query(Game).filter(Game.player_id == player.id).all()
+
+        if not all_games:
+            return {
+                "has_split": False,
+                "home_games": 0,
+                "away_games": 0
+            }
+
+        # Separate home and away games
+        home_games = [g for g in all_games if g.is_home]
+        away_games = [g for g in all_games if not g.is_home]
+
+        # Check minimum game requirement
+        if len(home_games) < min_games or len(away_games) < min_games:
+            return {
+                "has_split": False,
+                "home_games": len(home_games),
+                "away_games": len(away_games),
+                "min_required": min_games
+            }
+
+        # Map stat type to game attribute
+        stat_map = {
+            'points': 'points',
+            'rebounds': 'rebounds',
+            'assists': 'assists',
+            'steals': 'steals',
+            'blocks': 'blocks',
+            'three_pm': 'three_pm',
+            '3pm': 'three_pm'
+        }
+
+        stat_attr = stat_map.get(stat_type.lower(), 'points')
+
+        # Calculate averages
+        home_values = [getattr(g, stat_attr) for g in home_games]
+        away_values = [getattr(g, stat_attr) for g in away_games]
+
+        home_avg = sum(home_values) / len(home_values)
+        away_avg = sum(away_values) / len(away_values)
+        difference = home_avg - away_avg
+
+        return {
+            "has_split": True,
+            "home_games": len(home_games),
+            "away_games": len(away_games),
+            "home_avg": round(home_avg, 1),
+            "away_avg": round(away_avg, 1),
+            "difference": round(difference, 1),
+            "better_at_home": difference > 0
+        }
+
     def close(self):
         """Close the database session"""
         self.session.close()

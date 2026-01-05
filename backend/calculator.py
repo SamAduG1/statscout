@@ -422,6 +422,50 @@ class StatScoutCalculator:
             "last_15_games": player_stats[-15:] if len(player_stats) >= 15 else player_stats
         }
 
+    def analyze_location_split(self, split_data: Dict[str, Any], is_home: bool, threshold: float = 3.0) -> Dict[str, Any]:
+        """
+        Analyze home/away split significance
+
+        Args:
+            split_data: Split data from db_loader.get_home_away_splits()
+            is_home: Is the upcoming game at home?
+            threshold: Difference threshold to mark as significant (default 3.0)
+
+        Returns:
+            Analysis with warnings and recommendations
+        """
+        if not split_data or not split_data.get("has_split"):
+            return {
+                "has_data": False,
+                "warning": None
+            }
+
+        difference = abs(split_data["difference"])
+        is_significant = difference >= threshold
+
+        # Determine if location is favorable or not
+        better_at_home = split_data["better_at_home"]
+        favorable = (is_home and better_at_home) or (not is_home and not better_at_home)
+
+        warning = None
+        if is_significant:
+            if favorable:
+                warning = f"⭐ Player performs {difference} better in this location"
+            else:
+                warning = f"⚠️ Player averages {difference} worse in this location"
+
+        return {
+            "has_data": True,
+            "home_avg": split_data["home_avg"],
+            "away_avg": split_data["away_avg"],
+            "difference": split_data["difference"],
+            "is_significant": is_significant,
+            "favorable_location": favorable,
+            "warning": warning,
+            "home_games": split_data["home_games"],
+            "away_games": split_data["away_games"]
+        }
+
 
 # Example usage and testing
 if __name__ == "__main__":
