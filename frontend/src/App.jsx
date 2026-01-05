@@ -509,11 +509,14 @@ const PlayerDetailModal = ({ player, onClose }) => {
 
   const [matchupHistory, setMatchupHistory] = React.useState(null);
   const [loadingMatchup, setLoadingMatchup] = React.useState(false);
+  const [locationSplit, setLocationSplit] = React.useState(null);
+  const [loadingSplit, setLoadingSplit] = React.useState(false);
 
-  // Load matchup history when modal opens
+  // Load matchup history and location split when modal opens
   React.useEffect(() => {
     if (player && player.opponent) {
       loadMatchupHistory();
+      loadLocationSplit();
     }
   }, [player]);
 
@@ -530,6 +533,23 @@ const PlayerDetailModal = ({ player, onClose }) => {
       console.error('Error loading matchup history:', error);
     } finally {
       setLoadingMatchup(false);
+    }
+  };
+
+  const loadLocationSplit = async () => {
+    setLoadingSplit(true);
+    try {
+      const isHomeInt = player.isHome ? 1 : 0;
+      const response = await fetch(`${API_BASE_URL}/location-split/${encodeURIComponent(player.name)}/${encodeURIComponent(player.statType)}/${isHomeInt}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setLocationSplit(data.split);
+      }
+    } catch (error) {
+      console.error('Error loading location split:', error);
+    } finally {
+      setLoadingSplit(false);
     }
   };
 
@@ -775,92 +795,107 @@ const PlayerDetailModal = ({ player, onClose }) => {
           )}
 
           {/* Location Split (Home vs Away) */}
-          {player.locationSplit && player.locationSplit.has_data && (
-            <div className="mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <span>📍</span> Home vs Away Performance
-              </h3>
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <span>📍</span> Home vs Away Performance
+            </h3>
 
-              {player.locationSplit.warning && (
-                <div className={`mb-4 p-3 rounded-lg border ${
-                  player.locationSplit.is_significant
-                    ? player.locationSplit.favorable_location
-                      ? 'bg-green-50 border-green-300 dark:bg-green-900/20 dark:border-green-800'
-                      : 'bg-yellow-50 border-yellow-300 dark:bg-yellow-900/20 dark:border-yellow-800'
-                    : 'bg-blue-50 border-blue-300 dark:bg-blue-900/20 dark:border-blue-800'
-                }`}>
-                  <p className={`text-sm font-semibold ${
-                    player.locationSplit.is_significant
-                      ? player.locationSplit.favorable_location
-                        ? 'text-green-700 dark:text-green-300'
-                        : 'text-yellow-700 dark:text-yellow-300'
-                      : 'text-blue-700 dark:text-blue-300'
+            {loadingSplit && (
+              <div className="text-center py-8">
+                <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading location split...</p>
+              </div>
+            )}
+
+            {!loadingSplit && locationSplit && locationSplit.has_data && (
+              <div>
+                {locationSplit.warning && (
+                  <div className={`mb-4 p-3 rounded-lg border ${
+                    locationSplit.is_significant
+                      ? locationSplit.favorable_location
+                        ? 'bg-green-50 border-green-300 dark:bg-green-900/20 dark:border-green-800'
+                        : 'bg-yellow-50 border-yellow-300 dark:bg-yellow-900/20 dark:border-yellow-800'
+                      : 'bg-blue-50 border-blue-300 dark:bg-blue-900/20 dark:border-blue-800'
                   }`}>
-                    {player.locationSplit.warning}
-                  </p>
-                </div>
-              )}
+                    <p className={`text-sm font-semibold ${
+                      locationSplit.is_significant
+                        ? locationSplit.favorable_location
+                          ? 'text-green-700 dark:text-green-300'
+                          : 'text-yellow-700 dark:text-yellow-300'
+                        : 'text-blue-700 dark:text-blue-300'
+                    }`}>
+                      {locationSplit.warning}
+                    </p>
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
-                {/* Home Stats */}
-                <div className={`rounded-lg p-4 border ${
-                  player.isHome
-                    ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
-                    : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
-                }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400">🏠 Home</div>
-                    {player.isHome && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded-full font-semibold">
-                        Tonight
-                      </span>
-                    )}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Home Stats */}
+                  <div className={`rounded-lg p-4 border ${
+                    player.isHome
+                      ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
+                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">🏠 Home</div>
+                      {player.isHome && (
+                        <span className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded-full font-semibold">
+                          Tonight
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {locationSplit.home_avg}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {locationSplit.home_games} games
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {player.locationSplit.home_avg}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {player.locationSplit.home_games} games
+
+                  {/* Away Stats */}
+                  <div className={`rounded-lg p-4 border ${
+                    !player.isHome
+                      ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
+                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">✈️ Away</div>
+                      {!player.isHome && (
+                        <span className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded-full font-semibold">
+                          Tonight
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {locationSplit.away_avg}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {locationSplit.away_games} games
+                    </div>
                   </div>
                 </div>
 
-                {/* Away Stats */}
-                <div className={`rounded-lg p-4 border ${
-                  !player.isHome
-                    ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
-                    : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
-                }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400">✈️ Away</div>
-                    {!player.isHome && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded-full font-semibold">
-                        Tonight
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {player.locationSplit.away_avg}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {player.locationSplit.away_games} games
-                  </div>
+                {/* Difference Indicator */}
+                <div className="mt-3 text-center">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Difference: <span className={`font-bold ${
+                      Math.abs(locationSplit.difference) >= 3.0
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {locationSplit.difference > 0 ? '+' : ''}{locationSplit.difference}
+                    </span> {player.statType.toLowerCase()} {locationSplit.better_at_home ? 'better at home' : 'better away'}
+                  </span>
                 </div>
               </div>
+            )}
 
-              {/* Difference Indicator */}
-              <div className="mt-3 text-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Difference: <span className={`font-bold ${
-                    Math.abs(player.locationSplit.difference) >= 3.0
-                      ? 'text-orange-600 dark:text-orange-400'
-                      : 'text-gray-700 dark:text-gray-300'
-                  }`}>
-                    {player.locationSplit.difference > 0 ? '+' : ''}{player.locationSplit.difference}
-                  </span> {player.statType.toLowerCase()} {player.locationSplit.better_at_home ? 'better at home' : 'better away'}
-                </span>
-              </div>
-            </div>
-          )}
+            {!loadingSplit && locationSplit && !locationSplit.has_data && (
+              <p className="text-center text-gray-500 dark:text-gray-400 py-4">
+                Not enough data for location split (minimum 3 home and 3 away games required)
+              </p>
+            )}
+          </div>
 
           {/* Matchup History vs Opponent */}
           <div className="mb-6">

@@ -352,10 +352,6 @@ def get_all_players():
                     db_loader=None  # Temporarily disabled for memory
                 )
 
-                # Calculate home/away location split
-                split_data = loader.get_home_away_splits(player_name, display_stat_type)
-                location_split = calc.analyze_location_split(split_data, is_home) if split_data else {"has_data": False}
-
                 # Format for frontend
                 player_prop = {
                     "id": player_id,
@@ -387,8 +383,7 @@ def get_all_players():
                     "avgLastN": analysis["avg_last_10"],
                     "streak": analysis["streak"],
                     "streakType": analysis["streak_type"],
-                    "avgMinutes": player_info.get("avg_minutes", 0),
-                    "locationSplit": location_split  # Home/Away performance split
+                    "avgMinutes": player_info.get("avg_minutes", 0)
                 }
                 
                 players_list.append(player_prop)
@@ -817,6 +812,32 @@ def get_matchup_quarter_analysis():
 
 
 # ========== MATCHUP HISTORY ENDPOINTS ==========
+
+@app.route('/api/location-split/<player_name>/<stat_type>/<int:is_home>', methods=['GET'])
+def get_location_split(player_name, stat_type, is_home):
+    """Get a player's home/away performance split (lazy loaded)"""
+    try:
+        split_data = loader.get_home_away_splits(player_name, stat_type)
+
+        if split_data is None:
+            return jsonify({
+                "success": False,
+                "error": f"Player '{player_name}' not found"
+            }), 404
+
+        location_split = calc.analyze_location_split(split_data, bool(is_home)) if split_data else {"has_data": False}
+
+        return jsonify({
+            "success": True,
+            "split": location_split
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 
 @app.route('/api/matchup/<player_name>/<opponent>', methods=['GET'])
 def get_player_matchup_history(player_name, opponent):
