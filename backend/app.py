@@ -605,14 +605,34 @@ def calculate_custom():
 
 @app.route('/api/update', methods=['POST'])
 def trigger_update():
-    """Manually trigger a stats update"""
+    """Manually trigger a stats update (runs asynchronously)"""
+    import threading
+
+    def run_update():
+        """Background thread function to run the update"""
+        try:
+            from update_stats import update_all_players
+            print("\n[INFO] Background update started")
+            result = update_all_players()
+            print(f"\n[INFO] Background update completed: {result}")
+        except Exception as e:
+            print(f"\n[ERROR] Background update failed: {e}")
+            import traceback
+            traceback.print_exc()
+
     try:
-        from update_stats import update_all_players
+        # Start update in background thread
+        update_thread = threading.Thread(target=run_update, daemon=True)
+        update_thread.start()
 
-        print("\n[INFO] Manual update triggered via API")
-        result = update_all_players()
+        print("\n[INFO] Update triggered successfully via API (running in background)")
 
-        return jsonify(result)
+        # Return immediately while update runs in background
+        return jsonify({
+            "success": True,
+            "message": "Stats update started in background. Check server logs for progress.",
+            "status": "running"
+        })
 
     except Exception as e:
         return jsonify({
