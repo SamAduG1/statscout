@@ -650,9 +650,27 @@ def add_player():
                 "error": f"Player '{full_name}' already exists in database"
             }), 400
 
-        # Fetch player data
+        # Fetch player details to get position
+        from nba_api.stats.endpoints import commonplayerinfo
+        import time
+
+        time.sleep(0.6)  # Rate limiting
+        player_details = commonplayerinfo.CommonPlayerInfo(player_id=nba_player['id'])
+        player_info_df = player_details.get_data_frames()[0]
+
+        # Get position from player info (fallback to 'G' if not available)
+        position = player_info_df.iloc[0]['POSITION'] if not player_info_df.empty else 'G'
+        if not position or position == '':
+            position = 'G'  # Default to Guard
+
+        # Get team abbreviation (will be extracted from games, but needed as fallback)
+        team_abbrev = player_info_df.iloc[0]['TEAM_ABBREVIATION'] if not player_info_df.empty else 'UNK'
+        if not team_abbrev or team_abbrev == '':
+            team_abbrev = 'UNK'
+
+        # Fetch player game data
         fetcher = NBAStatsFetcher()
-        games = fetcher.fetch_player_season(full_name, season="2025-26")
+        games = fetcher.fetch_player_season(full_name, team_abbrev, position, season="2025-26")
 
         if not games:
             session.close()
@@ -661,11 +679,11 @@ def add_player():
                 "error": f"No game data found for {full_name}"
             }), 404
 
-        # Add player
+        # Add player (use team from actual games data)
         new_player = Player(
             name=full_name,
             team=games[0]['team'],
-            position=games[0]['position']
+            position=position
         )
         session.add(new_player)
         session.flush()
