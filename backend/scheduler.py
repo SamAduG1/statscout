@@ -42,12 +42,12 @@ def init_scheduler():
 
     scheduler = BackgroundScheduler()
 
-    # Schedule daily update at 3 AM (when most games are finished)
+    # Schedule daily update at 8 AM (when most games are finished)
     # Adjust the hour to your preference
     scheduler.add_job(
         scheduled_update,
         trigger='cron',
-        hour=3,
+        hour=8,
         minute=0,
         id='daily_stats_update',
         name='Daily Stats Update',
@@ -57,7 +57,7 @@ def init_scheduler():
     scheduler.start()
 
     print("[INFO] Scheduler initialized")
-    print("[INFO] Daily stats update scheduled for 3:00 AM")
+    print("[INFO] Daily stats update scheduled for 8:00 AM")
 
     return scheduler
 
