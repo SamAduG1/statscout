@@ -18,11 +18,14 @@ class StatScoutCalculator:
         Args:
             injury_tracker: Optional ESPNInjuryTracker instance for teammate injury boosts
         """
-        # Original weights (adjusted to make room for teammate boost)
-        self.hit_rate_weight = 0.45      # 45% weight for historical hit rate
-        self.recent_form_weight = 0.25   # 25% weight for recent performance
-        self.opponent_weight = 0.15      # 15% weight for opponent difficulty
-        self.teammate_weight = 0.15      # 15% weight for teammate injury boost
+        # Trust score weights (must sum to 1.0)
+        self.hit_rate_weight = 0.30      # 30% weight for historical hit rate
+        self.recent_form_weight = 0.20   # 20% weight for recent performance
+        self.opponent_weight = 0.10      # 10% weight for opponent difficulty
+        self.teammate_weight = 0.10      # 10% weight for teammate injury boost
+        self.rest_weight = 0.15          # 15% weight for rest days (NEW - high impact!)
+        self.usage_trend_weight = 0.10   # 10% weight for usage trending (NEW)
+        self.consistency_weight = 0.05   # 5% weight for player consistency (NEW)
 
         # Injury tracker for detecting out players
         self.injury_tracker = injury_tracker
@@ -258,7 +261,9 @@ class StatScoutCalculator:
         player_name: str = None,
         team: str = None,
         stat_type: str = "Points",
-        db_loader=None
+        db_loader=None,
+        rest_days: int = None,
+        usage_trend_data: Dict[str, Any] = None
     ) -> float:
         """
         Calculate overall trust score for a player prop
@@ -271,7 +276,9 @@ class StatScoutCalculator:
             player_name: Player's name (for teammate boost calculation)
             team: Player's team (for teammate boost calculation)
             stat_type: Type of stat being analyzed (for teammate boost)
-            db_loader: DatabaseLoader instance (for teammate boost)
+            db_loader: DatabaseLoader instance (for teammate boost and rest days)
+            rest_days: Number of rest days (if None, will calculate from db_loader)
+            usage_trend_data: Usage trend data (if None, will calculate from db_loader)
 
         Returns:
             Trust score (0-100)
@@ -288,12 +295,48 @@ class StatScoutCalculator:
                 player_name, team, stat_type, db_loader
             )
 
-        # Weighted average with teammate boost
+        # Calculate rest factor
+        rest_score = 50.0  # Default neutral
+        if rest_days is not None:
+            rest_factor_data = self.calculate_rest_factor(rest_days, rest_days == 0)
+            rest_score = rest_factor_data["rest_score"]
+        elif db_loader and player_name:
+            # Try to get rest days from database
+            rest_data = db_loader.get_rest_days(player_name)
+            if rest_data and rest_data["rest_days"] is not None:
+                rest_factor_data = self.calculate_rest_factor(
+                    rest_data["rest_days"],
+                    rest_data["is_back_to_back"]
+                )
+                rest_score = rest_factor_data["rest_score"]
+
+        # Calculate usage trend factor
+        usage_score = 50.0  # Default neutral
+        if usage_trend_data:
+            usage_analysis = self.analyze_usage_trend(usage_trend_data)
+            if usage_analysis["has_data"]:
+                usage_score = usage_analysis["usage_score"]
+        elif db_loader and player_name:
+            # Try to get usage trend from database
+            trend_data = db_loader.get_usage_trend(player_name, stat_type.lower())
+            if trend_data:
+                usage_analysis = self.analyze_usage_trend(trend_data)
+                if usage_analysis["has_data"]:
+                    usage_score = usage_analysis["usage_score"]
+
+        # Calculate consistency factor
+        consistency_data = self.calculate_consistency_score(player_stats)
+        consistency_score = consistency_data["consistency_score"]
+
+        # Weighted average with all factors
         trust_score = (
             (hit_rate * self.hit_rate_weight) +
             (recent_form * self.recent_form_weight) +
             (opponent_diff * self.opponent_weight) +
-            (teammate_boost * self.teammate_weight)
+            (teammate_boost * self.teammate_weight) +
+            (rest_score * self.rest_weight) +
+            (usage_score * self.usage_trend_weight) +
+            (consistency_score * self.consistency_weight)
         )
 
         # Home court advantage boost (+5 points if at home)
@@ -464,6 +507,157 @@ class StatScoutCalculator:
             "warning": warning,
             "home_games": split_data["home_games"],
             "away_games": split_data["away_games"]
+        }
+
+    def calculate_consistency_score(self, player_stats: List[float]) -> Dict[str, Any]:
+        """
+        Calculate player consistency score based on standard deviation
+
+        Identifies if a player is reliable (low variance) or volatile (high variance)
+
+        Args:
+            player_stats: List of player's recent stat values
+
+        Returns:
+            Dictionary with consistency_score (0-100) and classification
+        """
+        if not player_stats or len(player_stats) < 5:
+            return {
+                "has_data": False,
+                "consistency_score": 50.0,
+                "classification": "Unknown"
+            }
+
+        # Calculate mean and standard deviation
+        mean = np.mean(player_stats)
+        std_dev = np.std(player_stats)
+
+        # Calculate coefficient of variation (CV)
+        # Lower CV = more consistent
+        if mean > 0:
+            cv = (std_dev / mean) * 100
+        else:
+            cv = 100  # Max variance if mean is 0
+
+        # Convert CV to 0-100 consistency score
+        # CV < 20% = very consistent (score 90-100)
+        # CV 20-40% = consistent (score 70-90)
+        # CV 40-60% = average (score 50-70)
+        # CV > 60% = volatile (score 0-50)
+
+        if cv <= 20:
+            consistency_score = 100 - (cv / 20) * 10  # 90-100
+            classification = "Very Consistent"
+        elif cv <= 40:
+            consistency_score = 90 - ((cv - 20) / 20) * 20  # 70-90
+            classification = "Consistent"
+        elif cv <= 60:
+            consistency_score = 70 - ((cv - 40) / 20) * 20  # 50-70
+            classification = "Average"
+        else:
+            consistency_score = max(0, 50 - ((cv - 60) / 40) * 50)  # 0-50
+            classification = "Volatile"
+
+        return {
+            "has_data": True,
+            "consistency_score": round(consistency_score, 1),
+            "coefficient_of_variation": round(cv, 1),
+            "std_dev": round(std_dev, 1),
+            "mean": round(mean, 1),
+            "classification": classification
+        }
+
+    def calculate_rest_factor(self, rest_days: int, is_back_to_back: bool) -> Dict[str, Any]:
+        """
+        Calculate impact of rest days on performance
+
+        Args:
+            rest_days: Number of days of rest before game
+            is_back_to_back: Whether game is a back-to-back
+
+        Returns:
+            Dictionary with rest_score (0-100) and warning if applicable
+        """
+        warning = None
+
+        # Back-to-back games hurt performance significantly
+        if is_back_to_back:
+            rest_score = 30.0  # Major penalty
+            warning = "⚠️ Back-to-back game - historically 10-15% performance drop"
+        # 1 day rest is below optimal
+        elif rest_days == 1:
+            rest_score = 60.0
+            warning = "⚡ Only 1 day rest - slightly below optimal"
+        # 2-3 days is optimal
+        elif 2 <= rest_days <= 3:
+            rest_score = 100.0  # Optimal rest
+        # 4-5 days is good
+        elif 4 <= rest_days <= 5:
+            rest_score = 90.0
+        # 6+ days might indicate rust
+        elif rest_days >= 6:
+            rest_score = 70.0
+            warning = "🛑 Extended rest (6+ days) - possible rust factor"
+        else:
+            rest_score = 50.0  # Default
+
+        return {
+            "rest_days": rest_days,
+            "is_back_to_back": is_back_to_back,
+            "rest_score": rest_score,
+            "warning": warning
+        }
+
+    def analyze_usage_trend(self, trend_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze usage trend significance for predictions
+
+        Args:
+            trend_data: Trend data from db_loader.get_usage_trend()
+
+        Returns:
+            Analysis with adjusted expectations and warnings
+        """
+        if not trend_data or not trend_data.get("has_trend"):
+            return {
+                "has_data": False,
+                "usage_score": 50.0
+            }
+
+        pct_change = trend_data["pct_change"]
+        is_significant = trend_data["is_significant"]
+        trend_direction = trend_data["trend_direction"]
+
+        # Convert trend to score (0-100)
+        # Positive trend (usage up) = higher score
+        # Negative trend (usage down) = lower score
+
+        if is_significant:
+            if trend_direction == "up":
+                # Significant upward trend - boost prediction
+                usage_score = 75 + min(25, abs(pct_change) / 2)  # 75-100
+                warning = f"📈 Usage trending UP {abs(pct_change):.1f}% - role expanding"
+            elif trend_direction == "down":
+                # Significant downward trend - penalize prediction
+                usage_score = 25 - min(25, abs(pct_change) / 2)  # 0-25
+                warning = f"📉 Usage trending DOWN {abs(pct_change):.1f}% - role shrinking"
+            else:
+                usage_score = 50.0
+                warning = None
+        else:
+            # Not significant - neutral
+            usage_score = 50.0 + (pct_change / 2)  # Small adjustment
+            warning = None
+
+        return {
+            "has_data": True,
+            "usage_score": round(max(0, min(100, usage_score)), 1),
+            "pct_change": pct_change,
+            "is_significant": is_significant,
+            "trend_direction": trend_direction,
+            "warning": warning,
+            "recent_avg": trend_data["recent_avg"],
+            "baseline_avg": trend_data["baseline_avg"]
         }
 
 

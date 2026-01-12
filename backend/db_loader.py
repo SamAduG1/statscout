@@ -353,6 +353,145 @@ class DatabaseLoader:
             "better_at_home": difference > 0
         }
 
+    def get_rest_days(self, player_name: str, upcoming_game_date: str = None) -> Dict[str, Any]:
+        """
+        Calculate rest days before the upcoming game
+
+        Args:
+            player_name: Player's name
+            upcoming_game_date: Date of upcoming game (YYYY-MM-DD format). If None, uses today.
+
+        Returns:
+            Dictionary with rest_days, last_game_date, and is_back_to_back
+        """
+        from datetime import datetime, timedelta
+
+        player = self.session.query(Player).filter(Player.name == player_name).first()
+
+        if not player:
+            return None
+
+        # Get all games sorted by date (most recent first)
+        games = self.session.query(Game).filter(
+            Game.player_id == player.id
+        ).order_by(Game.date.desc()).all()
+
+        if not games:
+            return {
+                "rest_days": None,
+                "last_game_date": None,
+                "is_back_to_back": False
+            }
+
+        # Get the most recent game date
+        last_game = games[0]
+        last_game_date = last_game.date
+
+        # Determine upcoming game date
+        if upcoming_game_date:
+            if isinstance(upcoming_game_date, str):
+                upcoming_date = datetime.strptime(upcoming_game_date, '%Y-%m-%d').date()
+            else:
+                upcoming_date = upcoming_game_date
+        else:
+            upcoming_date = datetime.now().date()
+
+        # Calculate rest days
+        rest_days = (upcoming_date - last_game_date).days - 1  # -1 because game day doesn't count as rest
+
+        # Back-to-back if 0 rest days (games on consecutive days)
+        is_back_to_back = rest_days == 0
+
+        return {
+            "rest_days": rest_days,
+            "last_game_date": str(last_game_date),
+            "is_back_to_back": is_back_to_back
+        }
+
+    def get_usage_trend(self, player_name: str, stat_type: str = 'points', recent_n: int = 5, baseline_n: int = 15) -> Dict[str, Any]:
+        """
+        Calculate if a player's usage is trending up or down
+
+        Compares recent N games to baseline average to detect role changes
+
+        Args:
+            player_name: Player's name
+            stat_type: Stat to analyze ('points', 'rebounds', etc.)
+            recent_n: Number of recent games to compare (default 5)
+            baseline_n: Number of games for baseline (default 15)
+
+        Returns:
+            Dictionary with trend direction, percentages, and significance
+        """
+        player = self.session.query(Player).filter(Player.name == player_name).first()
+
+        if not player:
+            return None
+
+        # Get all games sorted by date (oldest first for proper baseline)
+        all_games = self.session.query(Game).filter(
+            Game.player_id == player.id
+        ).order_by(Game.date.asc()).all()
+
+        if len(all_games) < baseline_n:
+            return {
+                "has_trend": False,
+                "reason": f"Not enough games (need {baseline_n}, have {len(all_games)})"
+            }
+
+        # Map stat type to game attribute
+        stat_map = {
+            'points': 'points',
+            'rebounds': 'rebounds',
+            'assists': 'assists',
+            'steals': 'steals',
+            'blocks': 'blocks',
+            'three_pm': 'three_pm',
+            '3pm': 'three_pm'
+        }
+
+        stat_attr = stat_map.get(stat_type.lower(), 'points')
+
+        # Get recent games and baseline games
+        recent_games = all_games[-recent_n:]
+        baseline_games = all_games[-baseline_n:-recent_n] if len(all_games) > baseline_n else all_games[:-recent_n]
+
+        if not baseline_games:
+            # If not enough for split, use all except recent as baseline
+            baseline_games = all_games[:-recent_n]
+
+        if not baseline_games:
+            return {
+                "has_trend": False,
+                "reason": "Not enough games for baseline comparison"
+            }
+
+        # Calculate averages
+        recent_avg = sum(getattr(g, stat_attr) for g in recent_games) / len(recent_games)
+        baseline_avg = sum(getattr(g, stat_attr) for g in baseline_games) / len(baseline_games)
+
+        # Calculate percentage change
+        if baseline_avg > 0:
+            pct_change = ((recent_avg - baseline_avg) / baseline_avg) * 100
+        else:
+            pct_change = 0
+
+        # Determine if trend is significant (> 15% change)
+        is_significant = abs(pct_change) >= 15
+
+        trend_direction = "up" if pct_change > 0 else "down" if pct_change < 0 else "stable"
+
+        return {
+            "has_trend": True,
+            "trend_direction": trend_direction,
+            "recent_avg": round(recent_avg, 1),
+            "baseline_avg": round(baseline_avg, 1),
+            "pct_change": round(pct_change, 1),
+            "is_significant": is_significant,
+            "recent_games": recent_n,
+            "baseline_games": len(baseline_games)
+        }
+
     def close(self):
         """Close the database session"""
         self.session.close()
