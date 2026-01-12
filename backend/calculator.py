@@ -19,13 +19,14 @@ class StatScoutCalculator:
             injury_tracker: Optional ESPNInjuryTracker instance for teammate injury boosts
         """
         # Trust score weights (must sum to 1.0)
-        self.hit_rate_weight = 0.30      # 30% weight for historical hit rate
-        self.recent_form_weight = 0.20   # 20% weight for recent performance
-        self.opponent_weight = 0.10      # 10% weight for opponent difficulty
-        self.teammate_weight = 0.10      # 10% weight for teammate injury boost
-        self.rest_weight = 0.15          # 15% weight for rest days (NEW - high impact!)
-        self.usage_trend_weight = 0.10   # 10% weight for usage trending (NEW)
-        self.consistency_weight = 0.05   # 5% weight for player consistency (NEW)
+        self.hit_rate_weight = 0.28      # 28% weight for historical hit rate
+        self.recent_form_weight = 0.18   # 18% weight for recent performance
+        self.opponent_weight = 0.08      # 8% weight for opponent difficulty
+        self.teammate_weight = 0.08      # 8% weight for teammate injury boost
+        self.rest_weight = 0.15          # 15% weight for rest days (HIGH impact!)
+        self.usage_trend_weight = 0.10   # 10% weight for usage trending
+        self.consistency_weight = 0.05   # 5% weight for player consistency
+        self.pace_weight = 0.08          # 8% weight for opponent pace (NEW)
 
         # Injury tracker for detecting out players
         self.injury_tracker = injury_tracker
@@ -263,7 +264,8 @@ class StatScoutCalculator:
         stat_type: str = "Points",
         db_loader=None,
         rest_days: int = None,
-        usage_trend_data: Dict[str, Any] = None
+        usage_trend_data: Dict[str, Any] = None,
+        opponent: str = None
     ) -> float:
         """
         Calculate overall trust score for a player prop
@@ -279,6 +281,7 @@ class StatScoutCalculator:
             db_loader: DatabaseLoader instance (for teammate boost and rest days)
             rest_days: Number of rest days (if None, will calculate from db_loader)
             usage_trend_data: Usage trend data (if None, will calculate from db_loader)
+            opponent: Opponent team abbreviation (for pace calculation)
 
         Returns:
             Trust score (0-100)
@@ -328,6 +331,13 @@ class StatScoutCalculator:
         consistency_data = self.calculate_consistency_score(player_stats)
         consistency_score = consistency_data["consistency_score"]
 
+        # Calculate opponent pace factor
+        pace_score = 50.0  # Default neutral
+        if opponent and db_loader:
+            pace_data = db_loader.get_team_pace_rating(opponent)
+            if pace_data and pace_data.get("has_pace_data"):
+                pace_score = pace_data["pace_score"]
+
         # Weighted average with all factors
         trust_score = (
             (hit_rate * self.hit_rate_weight) +
@@ -336,7 +346,8 @@ class StatScoutCalculator:
             (teammate_boost * self.teammate_weight) +
             (rest_score * self.rest_weight) +
             (usage_score * self.usage_trend_weight) +
-            (consistency_score * self.consistency_weight)
+            (consistency_score * self.consistency_weight) +
+            (pace_score * self.pace_weight)
         )
 
         # Home court advantage boost (+5 points if at home)
@@ -418,7 +429,8 @@ class StatScoutCalculator:
         recent_hit_rate_info = self.calculate_recent_hit_rate(player_stats, line, recent_n=10)
         trust_score = self.calculate_trust_score(
             player_stats, line, opponent_rank, is_home,
-            player_name=player_name, team=team, stat_type=stat_type, db_loader=db_loader
+            player_name=player_name, team=team, stat_type=stat_type, db_loader=db_loader,
+            opponent=opponent
         )
         streak_info = self.detect_streak(player_stats, line)
 

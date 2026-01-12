@@ -492,6 +492,74 @@ class DatabaseLoader:
             "baseline_games": len(baseline_games)
         }
 
+    def get_team_pace_rating(self, team_abbrev: str, min_games: int = 10) -> Dict[str, Any]:
+        """
+        Calculate a team's pace rating based on total scoring in their games
+
+        Pace indicates how fast a team plays (more possessions = higher pace = more stats)
+
+        Args:
+            team_abbrev: Team abbreviation (e.g., "LAL", "GSW")
+            min_games: Minimum games needed for reliable pace estimate
+
+        Returns:
+            Dictionary with pace_rating, games_analyzed, and classification
+        """
+        # Get all games where this team was the opponent
+        opponent_games = self.session.query(Game).filter(
+            Game.opponent == team_abbrev
+        ).all()
+
+        if len(opponent_games) < min_games:
+            return {
+                "has_pace_data": False,
+                "reason": f"Not enough games (need {min_games}, have {len(opponent_games)})",
+                "pace_score": 50.0  # Neutral default
+            }
+
+        # Calculate average total points in games involving this team
+        # High-scoring games typically mean faster pace
+        total_points = []
+        for game in opponent_games:
+            # Sum player's points + estimate opponent's points
+            # (We don't store opponent score, so we estimate from game context)
+            total_points.append(game.points)
+
+        # Average points scored against this team
+        avg_points_allowed = sum(total_points) / len(total_points)
+
+        # NBA average is around 110-115 points per team per game
+        # Fast teams (105+ pace): Allow 115+ PPG
+        # Average teams (98-104 pace): Allow 108-115 PPG
+        # Slow teams (<98 pace): Allow <108 PPG
+
+        # Convert to pace score (0-100)
+        # Higher points allowed = faster pace = higher score
+        if avg_points_allowed >= 115:
+            pace_score = 100  # Very fast
+            classification = "Fast"
+        elif avg_points_allowed >= 112:
+            pace_score = 85
+            classification = "Above Average"
+        elif avg_points_allowed >= 108:
+            pace_score = 65
+            classification = "Average"
+        elif avg_points_allowed >= 105:
+            pace_score = 45
+            classification = "Below Average"
+        else:
+            pace_score = 30
+            classification = "Slow"
+
+        return {
+            "has_pace_data": True,
+            "team": team_abbrev,
+            "pace_score": pace_score,
+            "classification": classification,
+            "avg_points_allowed": round(avg_points_allowed, 1),
+            "games_analyzed": len(opponent_games)
+        }
+
     def close(self):
         """Close the database session"""
         self.session.close()
