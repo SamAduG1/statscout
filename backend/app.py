@@ -959,6 +959,48 @@ def get_location_split(player_name, stat_type, is_home):
         }), 500
 
 
+@app.route('/api/half-tendency/<player_name>/<stat_type>', methods=['GET'])
+def get_half_tendency(player_name, stat_type):
+    """Get a player's first half vs second half tendency"""
+    try:
+        half_data = loader.get_half_tendency(player_name, stat_type)
+
+        if half_data is None:
+            return jsonify({
+                "success": False,
+                "error": f"Player '{player_name}' not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "tendency": half_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/live-projection/<player_name>/<stat_type>/<float:current_stat>', methods=['GET'])
+def get_live_projection(player_name, stat_type, current_stat):
+    """Get live projection for halftime betting"""
+    try:
+        projection = loader.get_live_projection(player_name, stat_type, current_stat, is_halftime=True)
+
+        return jsonify({
+            "success": True,
+            "projection": projection
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 @app.route('/api/matchup/<player_name>/<opponent>', methods=['GET'])
 def get_player_matchup_history(player_name, opponent):
     """Get a player's performance history against a specific opponent"""

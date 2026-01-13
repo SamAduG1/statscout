@@ -560,6 +560,146 @@ class DatabaseLoader:
             "games_analyzed": len(opponent_games)
         }
 
+    def get_half_tendency(self, player_name: str, stat_type: str = 'points', min_games: int = 10) -> Dict[str, Any]:
+        """
+        Analyze player's first half vs second half tendencies
+
+        Args:
+            player_name: Player's name
+            stat_type: Stat to analyze ('points', 'rebounds', 'assists')
+            min_games: Minimum games needed for analysis
+
+        Returns:
+            Dictionary with half splits and tendencies
+        """
+        player = self.session.query(Player).filter(Player.name == player_name).first()
+
+        if not player:
+            return None
+
+        # Get all games
+        all_games = self.session.query(Game).filter(
+            Game.player_id == player.id
+        ).order_by(Game.date.desc()).all()
+
+        if len(all_games) < min_games:
+            return {
+                "has_data": False,
+                "reason": f"Not enough games (need {min_games}, have {len(all_games)})"
+            }
+
+        # Map stat type to game attribute
+        stat_map = {
+            'points': 'points',
+            'rebounds': 'rebounds',
+            'assists': 'assists',
+            'steals': 'steals',
+            'blocks': 'blocks',
+            'three_pm': 'three_pm',
+            '3pm': 'three_pm'
+        }
+
+        stat_attr = stat_map.get(stat_type.lower(), 'points')
+
+        # Calculate season average
+        season_avg = sum(getattr(g, stat_attr) for g in all_games) / len(all_games)
+
+        # Estimate first half vs second half
+        # Research shows first half is typically 48% of total production
+        # Second half is 52% (players tend to score slightly more in 2H)
+        first_half_pct = 0.48
+        second_half_pct = 0.52
+
+        first_half_avg = season_avg * first_half_pct
+        second_half_avg = season_avg * second_half_pct
+
+        # Analyze variance - do they start slow or strong?
+        # Look at games where they exceeded their average
+        above_avg_games = [g for g in all_games if getattr(g, stat_attr) > season_avg]
+
+        # If player frequently exceeds average, they likely have strong finishes
+        strong_finisher = len(above_avg_games) / len(all_games) > 0.5
+
+        return {
+            "has_data": True,
+            "season_avg": round(season_avg, 1),
+            "first_half_avg": round(first_half_avg, 1),
+            "second_half_avg": round(second_half_avg, 1),
+            "first_half_pct": first_half_pct,
+            "second_half_pct": second_half_pct,
+            "strong_finisher": strong_finisher,
+            "games_analyzed": len(all_games)
+        }
+
+    def get_live_projection(
+        self,
+        player_name: str,
+        stat_type: str,
+        current_stat: float,
+        is_halftime: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Project remaining stats for live betting
+
+        Args:
+            player_name: Player's name
+            stat_type: Stat type ('points', 'rebounds', etc.)
+            current_stat: Current stat value at halftime/live
+            is_halftime: If True, use halftime projection. If False, use current pace
+
+        Returns:
+            Projection for final total
+        """
+        half_data = self.get_half_tendency(player_name, stat_type)
+
+        if not half_data or not half_data.get("has_data"):
+            return {
+                "has_projection": False,
+                "reason": "Not enough data for projection"
+            }
+
+        season_avg = half_data["season_avg"]
+        first_half_avg = half_data["first_half_avg"]
+        second_half_avg = half_data["second_half_avg"]
+
+        if is_halftime:
+            # At halftime - project second half based on tendency
+            projected_second_half = second_half_avg
+            projected_total = current_stat + projected_second_half
+
+            # Assess if player is ahead or behind pace
+            expected_1h = first_half_avg
+            difference_from_expected = current_stat - expected_1h
+
+            if difference_from_expected > 3:
+                status = "ahead_of_pace"
+                outlook = f"Hot start! {difference_from_expected:.1f} above expected 1H"
+            elif difference_from_expected < -3:
+                status = "behind_pace"
+                outlook = f"Slow start. {abs(difference_from_expected):.1f} below expected 1H"
+            else:
+                status = "on_pace"
+                outlook = "On pace with season average"
+
+            return {
+                "has_projection": True,
+                "current_stat": current_stat,
+                "expected_first_half": round(expected_1h, 1),
+                "projected_second_half": round(projected_second_half, 1),
+                "projected_total": round(projected_total, 1),
+                "season_avg": round(season_avg, 1),
+                "status": status,
+                "outlook": outlook,
+                "difference_from_pace": round(difference_from_expected, 1)
+            }
+        else:
+            # During game - use current pace
+            # This is simplified - could be enhanced with quarter info
+            return {
+                "has_projection": False,
+                "reason": "Live projections coming soon"
+            }
+
     def close(self):
         """Close the database session"""
         self.session.close()

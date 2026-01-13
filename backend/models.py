@@ -36,7 +36,7 @@ class Game(Base):
     opponent = Column(String, nullable=False)
     is_home = Column(Boolean, nullable=False)
 
-    # Statistics
+    # Full Game Statistics
     points = Column(Integer, nullable=False)
     rebounds = Column(Integer, nullable=False)
     assists = Column(Integer, nullable=False)
@@ -45,8 +45,47 @@ class Game(Base):
     three_pm = Column(Integer, nullable=False)
     minutes = Column(Float, nullable=True)  # Minutes played (can be null for older data)
 
+    # Quarter-by-Quarter Statistics (nullable for backward compatibility)
+    q1_points = Column(Integer, nullable=True)
+    q2_points = Column(Integer, nullable=True)
+    q3_points = Column(Integer, nullable=True)
+    q4_points = Column(Integer, nullable=True)
+
+    q1_rebounds = Column(Integer, nullable=True)
+    q2_rebounds = Column(Integer, nullable=True)
+    q3_rebounds = Column(Integer, nullable=True)
+    q4_rebounds = Column(Integer, nullable=True)
+
+    q1_assists = Column(Integer, nullable=True)
+    q2_assists = Column(Integer, nullable=True)
+    q3_assists = Column(Integer, nullable=True)
+    q4_assists = Column(Integer, nullable=True)
+
     # Relationship to player
     player = relationship("Player", back_populates="games")
+
+    @property
+    def first_half_points(self):
+        """Calculate first half points (Q1 + Q2)"""
+        if self.q1_points is not None and self.q2_points is not None:
+            return self.q1_points + self.q2_points
+        return None
+
+    @property
+    def second_half_points(self):
+        """Calculate second half points (Q3 + Q4)"""
+        if self.q3_points is not None and self.q4_points is not None:
+            return self.q3_points + self.q4_points
+        return None
+
+    @property
+    def first_half_total(self):
+        """Calculate first half combined stats (P+R+A)"""
+        if all(x is not None for x in [self.q1_points, self.q2_points, self.q1_rebounds, self.q2_rebounds, self.q1_assists, self.q2_assists]):
+            return (self.q1_points + self.q2_points +
+                   self.q1_rebounds + self.q2_rebounds +
+                   self.q1_assists + self.q2_assists)
+        return None
 
     def __repr__(self):
         return f"<Game(player_id={self.player_id}, date='{self.date}', opponent='{self.opponent}')>"
