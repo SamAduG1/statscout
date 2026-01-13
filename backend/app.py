@@ -1,6 +1,7 @@
 """
 StatScout Flask API Server
 Serves player prop data and analytics to the frontend
+Includes halftime betting projections and live stat tracking
 """
 
 from flask import Flask, jsonify, request
