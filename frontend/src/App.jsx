@@ -576,15 +576,28 @@ const PlayerDetailModal = ({ player, onClose }) => {
   };
 
   const calculateLiveProjection = async () => {
-    if (!liveInput || isNaN(liveInput)) return;
+    console.log('calculateLiveProjection called with liveInput:', liveInput);
+
+    if (!liveInput || isNaN(parseFloat(liveInput))) {
+      console.log('Invalid input, returning early');
+      return;
+    }
 
     setLoadingProjection(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/live-projection/${encodeURIComponent(player.name)}/${encodeURIComponent(player.statType)}/${liveInput}`);
+      const url = `${API_BASE_URL}/live-projection/${encodeURIComponent(player.name)}/${encodeURIComponent(player.statType)}/${liveInput}`;
+      console.log('Fetching projection from:', url);
+
+      const response = await fetch(url);
       const data = await response.json();
+
+      console.log('Projection response:', data);
 
       if (data.success) {
         setLiveProjection(data.projection);
+        console.log('Projection set successfully');
+      } else {
+        console.error('Projection API returned success=false:', data);
       }
     } catch (error) {
       console.error('Error loading projection:', error);
@@ -995,7 +1008,10 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     />
                     <button
-                      onClick={calculateLiveProjection}
+                      onClick={() => {
+                        console.log('Project button clicked, liveInput:', liveInput);
+                        calculateLiveProjection();
+                      }}
                       disabled={loadingProjection || !liveInput}
                       className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
                     >
