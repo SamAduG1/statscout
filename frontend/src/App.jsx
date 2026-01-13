@@ -511,12 +511,18 @@ const PlayerDetailModal = ({ player, onClose }) => {
   const [loadingMatchup, setLoadingMatchup] = React.useState(false);
   const [locationSplit, setLocationSplit] = React.useState(null);
   const [loadingSplit, setLoadingSplit] = React.useState(false);
+  const [halfTendency, setHalfTendency] = React.useState(null);
+  const [loadingHalf, setLoadingHalf] = React.useState(false);
+  const [liveInput, setLiveInput] = React.useState('');
+  const [liveProjection, setLiveProjection] = React.useState(null);
+  const [loadingProjection, setLoadingProjection] = React.useState(false);
 
-  // Load matchup history and location split when modal opens
+  // Load matchup history, location split, and half tendency when modal opens
   React.useEffect(() => {
     if (player && player.opponent) {
       loadMatchupHistory();
       loadLocationSplit();
+      loadHalfTendency();
     }
   }, [player]);
 
@@ -550,6 +556,40 @@ const PlayerDetailModal = ({ player, onClose }) => {
       console.error('Error loading location split:', error);
     } finally {
       setLoadingSplit(false);
+    }
+  };
+
+  const loadHalfTendency = async () => {
+    setLoadingHalf(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/half-tendency/${encodeURIComponent(player.name)}/${encodeURIComponent(player.statType)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setHalfTendency(data.tendency);
+      }
+    } catch (error) {
+      console.error('Error loading half tendency:', error);
+    } finally {
+      setLoadingHalf(false);
+    }
+  };
+
+  const calculateLiveProjection = async () => {
+    if (!liveInput || isNaN(liveInput)) return;
+
+    setLoadingProjection(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/live-projection/${encodeURIComponent(player.name)}/${encodeURIComponent(player.statType)}/${liveInput}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setLiveProjection(data.projection);
+      }
+    } catch (error) {
+      console.error('Error loading projection:', error);
+    } finally {
+      setLoadingProjection(false);
     }
   };
 
@@ -893,6 +933,133 @@ const PlayerDetailModal = ({ player, onClose }) => {
             {!loadingSplit && locationSplit && !locationSplit.has_data && (
               <p className="text-center text-gray-500 dark:text-gray-400 py-4">
                 Not enough data for location split (minimum 3 home and 3 away games required)
+              </p>
+            )}
+          </div>
+
+          {/* Halftime Betting Tool */}
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <span>⏱️</span> Halftime Betting Tool
+            </h3>
+
+            {loadingHalf && (
+              <div className="text-center py-8">
+                <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading halftime data...</p>
+              </div>
+            )}
+
+            {!loadingHalf && halfTendency && halfTendency.has_data && (
+              <div>
+                {/* First Half / Second Half Expectations */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-4 mb-4 border border-blue-200 dark:border-blue-800">
+                  <div className="grid grid-cols-3 gap-4 mb-3">
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Season Avg</div>
+                      <div className="text-xl font-bold text-gray-900 dark:text-white">{halfTendency.season_avg}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Expected 1H</div>
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{halfTendency.first_half_avg}</div>
+                      <div className="text-xs text-gray-500">({(halfTendency.first_half_pct * 100).toFixed(0)}%)</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Expected 2H</div>
+                      <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{halfTendency.second_half_avg}</div>
+                      <div className="text-xs text-gray-500">({(halfTendency.second_half_pct * 100).toFixed(0)}%)</div>
+                    </div>
+                  </div>
+                  {halfTendency.strong_finisher && (
+                    <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded px-3 py-2 text-sm">
+                      <span className="font-semibold text-green-800 dark:text-green-300">💪 Strong 2H Finisher</span>
+                      <span className="text-green-700 dark:text-green-400 ml-2">- Tends to score more in second half</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Projection Calculator */}
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">🎯 Live Projection Calculator</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Enter player's current {player.statType.toLowerCase()} at halftime:
+                  </p>
+
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="number"
+                      value={liveInput}
+                      onChange={(e) => setLiveInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && calculateLiveProjection()}
+                      placeholder={`e.g., ${Math.floor(halfTendency.first_half_avg)}`}
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={calculateLiveProjection}
+                      disabled={loadingProjection || !liveInput}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
+                    >
+                      {loadingProjection ? 'Calculating...' : 'Project'}
+                    </button>
+                  </div>
+
+                  {liveProjection && liveProjection.has_projection && (
+                    <div className={`rounded-lg p-4 border-2 ${
+                      liveProjection.status === 'ahead_of_pace'
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                        : liveProjection.status === 'behind_pace'
+                        ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700'
+                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">{liveProjection.status === 'ahead_of_pace' ? '🔥' : liveProjection.status === 'behind_pace' ? '❄️' : '📊'}</span>
+                        <span className={`font-bold text-lg ${
+                          liveProjection.status === 'ahead_of_pace'
+                            ? 'text-green-800 dark:text-green-300'
+                            : liveProjection.status === 'behind_pace'
+                            ? 'text-yellow-800 dark:text-yellow-300'
+                            : 'text-blue-800 dark:text-blue-300'
+                        }`}>
+                          {liveProjection.outlook}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">Projected 2H</div>
+                          <div className="text-xl font-bold text-gray-900 dark:text-white">+{liveProjection.projected_second_half}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">Projected Total</div>
+                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{liveProjection.projected_total}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
+                        <div className="flex justify-between">
+                          <span>Current at Halftime:</span>
+                          <span className="font-semibold">{liveProjection.current_stat}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>vs Expected 1H:</span>
+                          <span className="font-semibold">{liveProjection.expected_first_half}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Difference:</span>
+                          <span className={`font-semibold ${liveProjection.difference_from_pace > 0 ? 'text-green-600' : liveProjection.difference_from_pace < 0 ? 'text-red-600' : ''}`}>
+                            {liveProjection.difference_from_pace > 0 ? '+' : ''}{liveProjection.difference_from_pace}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!loadingHalf && halfTendency && !halfTendency.has_data && (
+              <p className="text-center text-gray-500 dark:text-gray-400 py-4">
+                Not enough data for halftime analysis (minimum 10 games required)
               </p>
             )}
           </div>
