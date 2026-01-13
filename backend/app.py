@@ -984,10 +984,12 @@ def get_half_tendency(player_name, stat_type):
         }), 500
 
 
-@app.route('/api/live-projection/<player_name>/<stat_type>/<float:current_stat>', methods=['GET'])
+@app.route('/api/live-projection/<player_name>/<stat_type>/<current_stat>', methods=['GET'])
 def get_live_projection(player_name, stat_type, current_stat):
     """Get live projection for halftime betting"""
     try:
+        # Convert current_stat to float (handles both integers and decimals)
+        current_stat = float(current_stat)
         projection = loader.get_live_projection(player_name, stat_type, current_stat, is_halftime=True)
 
         return jsonify({
