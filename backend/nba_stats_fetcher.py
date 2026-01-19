@@ -6,11 +6,11 @@ Fetches real historical game data using nba_api (official NBA stats, no auth req
 import sys
 import io
 from nba_api.stats.static import players
-from nba_api.stats.endpoints import playergamelog
+from nba_api.stats.endpoints import playergamelog, boxscoretraditionalv2
 import pandas as pd
 import time
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 # Force UTF-8 output for Windows console
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -159,6 +159,41 @@ class NBAStatsFetcher:
             'three_pm': int(game_row.get('FG3M', 0) or 0),
             'minutes': minutes_played
         }
+
+    def get_quarter_splits_for_game(self, game_id: str, player_name: str) -> Optional[Dict]:
+        """
+        Fetch quarter-by-quarter stats for a specific game
+
+        Args:
+            game_id: NBA game ID (e.g., "0022500123")
+            player_name: Player's full name
+
+        Returns:
+            Dictionary with quarter splits or None if unavailable
+        """
+        try:
+            time.sleep(0.6)  # Rate limiting
+
+            # Fetch box score with quarter data
+            boxscore = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
+            player_stats = boxscore.get_data_frames()[0]  # Player stats dataframe
+
+            # Find this player's row
+            player_row = player_stats[player_stats['PLAYER_NAME'] == player_name]
+
+            if player_row.empty:
+                return None
+
+            row = player_row.iloc[0]
+
+            # The boxscore endpoint doesn't have quarter columns directly
+            # We need to calculate from period-by-period data
+            # For now, return None - we'll use a different approach
+            return None
+
+        except Exception as e:
+            print(f"[WARNING] Could not fetch quarter splits for game {game_id}: {e}")
+            return None
 
     def fetch_player_season(
         self,

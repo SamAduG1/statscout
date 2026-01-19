@@ -18,7 +18,6 @@ TEAM_CORRECTIONS = {
     "Dillon Brooks": "PHX",          # Playing for PHX in 2025-26
     "Caris LeVert": "DET",           # Playing for DET in 2025-26
     "Brook Lopez": "LAC",            # Playing for LAC in 2025-26
-    "CJ McCollum": "WAS",            # Playing for WAS in 2025-26
     "Chris Paul": "LAC",             # Playing for LAC in 2025-26
     "Deandre Ayton": "LAL",          # Playing for LAL in 2025-26
     "Marcus Smart": "LAL",           # Playing for LAL in 2025-26
@@ -28,6 +27,10 @@ TEAM_CORRECTIONS = {
     "Myles Turner": "MIL",           # Playing for MIL in 2025-26
     "Mark Williams": "PHX",          # Playing for PHX in 2025-26
     "Clint Capela": "HOU",           # Playing for HOU in 2025-26
+    # January 2026 trades
+    "Trae Young": "WAS",             # Traded to WAS from ATL
+    "CJ McCollum": "ATL",            # Traded to ATL from WAS
+    "Corey Kispert": "ATL",          # Traded to ATL from WAS
 }
 
 
