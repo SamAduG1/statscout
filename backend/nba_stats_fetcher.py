@@ -19,10 +19,25 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 class NBAStatsFetcher:
     """Fetch real NBA player game logs using nba_api"""
 
+    # Mapping of non-standard abbreviations to standard format
+    TEAM_ABBREV_MAP = {
+        'GS': 'GSW',
+        'SA': 'SAS',
+        'NO': 'NOP',
+        'NY': 'NYK',
+        'WSH': 'WAS',
+        'PHO': 'PHX',
+        'UTAH': 'UTA',
+    }
+
     def __init__(self):
         """Initialize the NBA stats fetcher"""
         # Cache of all NBA players
         self.all_players = players.get_players()
+
+    def normalize_team_abbrev(self, abbrev: str) -> str:
+        """Normalize team abbreviation to standard format"""
+        return self.TEAM_ABBREV_MAP.get(abbrev, abbrev)
 
     def find_player_id(self, player_name: str) -> int:
         """
@@ -127,6 +142,9 @@ class NBAStatsFetcher:
         else:
             is_home = True
             opponent = 'UNK'
+
+        # Normalize opponent abbreviation to standard format
+        opponent = self.normalize_team_abbrev(opponent)
 
         # Parse date (format: "OCT 22, 2024")
         game_date_str = game_row.get('GAME_DATE', '')

@@ -108,8 +108,46 @@ class ESPNAPIClient:
     These are more reliable than scraping HTML
     """
 
+    # Mapping of ESPN abbreviations to NBA API standard abbreviations
+    TEAM_ABBREV_MAP = {
+        'GS': 'GSW',
+        'SA': 'SAS',
+        'NO': 'NOP',
+        'NY': 'NYK',
+        'WSH': 'WAS',
+        'PHO': 'PHX',
+        'UTAH': 'UTA',
+        'BKN': 'BKN',
+        'CHA': 'CHA',
+        'CHI': 'CHI',
+        'CLE': 'CLE',
+        'DAL': 'DAL',
+        'DEN': 'DEN',
+        'DET': 'DET',
+        'HOU': 'HOU',
+        'IND': 'IND',
+        'LAC': 'LAC',
+        'LAL': 'LAL',
+        'MEM': 'MEM',
+        'MIA': 'MIA',
+        'MIL': 'MIL',
+        'MIN': 'MIN',
+        'OKC': 'OKC',
+        'ORL': 'ORL',
+        'PHI': 'PHI',
+        'POR': 'POR',
+        'SAC': 'SAC',
+        'TOR': 'TOR',
+        'ATL': 'ATL',
+        'BOS': 'BOS',
+    }
+
     def __init__(self):
         self.base_url = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
+
+    def normalize_team_abbrev(self, abbrev: str) -> str:
+        """Normalize team abbreviation to NBA API standard format"""
+        return self.TEAM_ABBREV_MAP.get(abbrev, abbrev)
 
     def get_scoreboard(self, date_str: str) -> Dict:
         """
@@ -290,9 +328,9 @@ class ESPNAPIClient:
                         if points > 0 or rebounds > 0 or assists > 0:
                             all_player_stats.append({
                                 'player_name': player_name,
-                                'team': team_abbrev,
+                                'team': self.normalize_team_abbrev(team_abbrev),
                                 'date': datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d"),
-                                'opponent': opponent,
+                                'opponent': self.normalize_team_abbrev(opponent),
                                 'is_home': is_home,
                                 'points': points,
                                 'rebounds': rebounds,

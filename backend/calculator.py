@@ -338,16 +338,29 @@ class StatScoutCalculator:
             if pace_data and pace_data.get("has_pace_data"):
                 pace_score = pace_data["pace_score"]
 
+        # Adjust neutral defaults (50) to not penalize when data is unavailable
+        # When factors default to 50 (unknown), treat them as slightly favorable (60)
+        # Rationale: A player with 100% hit rate likely has positive unmeasured factors,
+        # so assuming neutral (50) unfairly penalizes them. 60 = "slightly positive assumption"
+        # This prevents high hit-rate players from being artificially capped at ~75%
+        NEUTRAL_BOOST = 60.0
+
+        # Apply boost only to factors that are at exactly 50 (neutral/unknown)
+        adjusted_teammate = teammate_boost if teammate_boost != 50.0 else NEUTRAL_BOOST
+        adjusted_rest = rest_score if rest_score != 50.0 else NEUTRAL_BOOST
+        adjusted_usage = usage_score if usage_score != 50.0 else NEUTRAL_BOOST
+        adjusted_pace = pace_score if pace_score != 50.0 else NEUTRAL_BOOST
+
         # Weighted average with all factors
         trust_score = (
             (hit_rate * self.hit_rate_weight) +
             (recent_form * self.recent_form_weight) +
             (opponent_diff * self.opponent_weight) +
-            (teammate_boost * self.teammate_weight) +
-            (rest_score * self.rest_weight) +
-            (usage_score * self.usage_trend_weight) +
+            (adjusted_teammate * self.teammate_weight) +
+            (adjusted_rest * self.rest_weight) +
+            (adjusted_usage * self.usage_trend_weight) +
             (consistency_score * self.consistency_weight) +
-            (pace_score * self.pace_weight)
+            (adjusted_pace * self.pace_weight)
         )
 
         # Home court advantage boost (+5 points if at home)

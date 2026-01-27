@@ -72,11 +72,10 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
         if last_date and game_date <= last_date:
             continue
 
-        # Check if game already exists (by date and opponent)
+        # Check if game already exists (by date only - ignore opponent abbreviation differences)
         existing = session.query(Game).filter_by(
             player_id=player.id,
-            date=game_date,
-            opponent=game['opponent']
+            date=game_date
         ).first()
 
         if existing:
@@ -165,12 +164,11 @@ def add_espn_recent_games(session, days_back=7):
                         # Skip players not in our database
                         continue
 
-                    # Check if game already exists
+                    # Check if game already exists (by player and date only - ignore opponent abbreviation differences)
                     game_date = datetime.strptime(stat['date'], '%Y-%m-%d').date()
                     existing = session.query(Game).filter_by(
                         player_id=player.id,
-                        date=game_date,
-                        opponent=stat['opponent']
+                        date=game_date
                     ).first()
 
                     if existing:
