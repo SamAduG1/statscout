@@ -250,7 +250,7 @@ class DatabaseLoader:
 
         games_count = len(games)
 
-        # Build game history
+        # Build game history with all combined stats
         game_history = []
         for game in games:
             game_history.append({
@@ -263,7 +263,10 @@ class DatabaseLoader:
                 "blocks": game.blocks,
                 "three_pm": game.three_pm,
                 "minutes": game.minutes,
-                "PRA": game.points + game.rebounds + game.assists
+                "PRA": game.points + game.rebounds + game.assists,
+                "PA": game.points + game.assists,
+                "PR": game.points + game.rebounds,
+                "RA": game.rebounds + game.assists
             })
 
         return {
@@ -278,7 +281,10 @@ class DatabaseLoader:
                 "steals": round(total_steals / games_count, 1),
                 "blocks": round(total_blocks / games_count, 1),
                 "three_pm": round(total_three_pm / games_count, 1),
-                "PRA": round((total_points + total_rebounds + total_assists) / games_count, 1)
+                "PRA": round((total_points + total_rebounds + total_assists) / games_count, 1),
+                "PA": round((total_points + total_assists) / games_count, 1),
+                "PR": round((total_points + total_rebounds) / games_count, 1),
+                "RA": round((total_rebounds + total_assists) / games_count, 1)
             }
         }
 

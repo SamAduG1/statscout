@@ -3,7 +3,11 @@ Fix team assignments for players on wrong teams
 """
 import sys
 import io
+import os
 from models import get_engine, get_session, Player
+
+# Set Supabase DATABASE_URL for production database
+os.environ['DATABASE_URL'] = 'postgresql://postgres.tqyzxwogjhehjcwhxnre:Softwareidk5852!@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
 
 # Force UTF-8 output
 if not isinstance(sys.stdout, io.TextIOWrapper) or sys.stdout.encoding != 'utf-8':

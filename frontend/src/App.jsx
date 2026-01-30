@@ -1114,7 +1114,8 @@ const PlayerDetailModal = ({ player, onClose }) => {
                           '3PM': matchupHistory.averages.three_pm,
                           'PRA': matchupHistory.averages.PRA,
                           'PA': matchupHistory.averages.PA,
-                          'PR': matchupHistory.averages.PR
+                          'PR': matchupHistory.averages.PR,
+                          'RA': matchupHistory.averages.RA
                         };
                         return statMap[player.statType] || 0;
                       })()}
@@ -1129,7 +1130,8 @@ const PlayerDetailModal = ({ player, onClose }) => {
                         '3PM': matchupHistory.averages.three_pm,
                         'PRA': matchupHistory.averages.PRA,
                         'PA': matchupHistory.averages.PA,
-                        'PR': matchupHistory.averages.PR
+                        'PR': matchupHistory.averages.PR,
+                        'RA': matchupHistory.averages.RA
                       };
                       return (statMap[player.statType] || 0) > player.line ? 'text-green-600' : 'text-red-600';
                     })()}`}>
