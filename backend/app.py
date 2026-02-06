@@ -293,7 +293,7 @@ def get_all_players():
                 if stat_filter != 'all' and display_stat_type.lower() != stat_filter.lower():
                     continue
                 
-                if len(stat_values) < 5:  # Need at least 5 games
+                if len(stat_values) < 3:  # Need at least 3 games
                     continue
 
                 # Calculate average
@@ -432,9 +432,9 @@ def get_player(player_name):
         opponents = [t for t in all_teams if t != player_info["team"]]
         
         for stat_type, stat_values in all_stats.items():
-            if len(stat_values) < 5:
+            if len(stat_values) < 3:
                 continue
-            
+
             display_stat_type = stat_type.upper() if len(stat_type) <= 3 else stat_type.title()
             avg_stat = sum(stat_values) / len(stat_values)
             line = STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
@@ -1106,7 +1106,7 @@ def generate_parlay():
                 else:
                     display_stat_type = stat_type.title()
 
-                if len(stat_values) < 5:
+                if len(stat_values) < 3:
                     continue
 
                 avg_stat = sum(stat_values) / len(stat_values)
