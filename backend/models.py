@@ -171,6 +171,16 @@ def get_engine(db_path=None):
             db_path = 'sqlite:///statscout.db'
             print(f"[INFO] Using SQLite database: {db_path}")
 
+    if db_path and db_path.startswith('postgresql'):
+        return create_engine(
+            db_path,
+            echo=False,
+            pool_pre_ping=True,       # Test connections before use (detects stale connections)
+            pool_recycle=300,         # Recycle connections every 5 min (avoids Supabase idle timeout)
+            pool_timeout=30,          # Wait up to 30s to get a connection from pool
+            connect_args={"connect_timeout": 10},  # TCP connect timeout per attempt
+        )
+
     return create_engine(db_path, echo=False)
 
 
