@@ -48,6 +48,125 @@ players_cache = {
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
 
+def _compute_players_data(team_filter='all', stat_filter='all'):
+    """
+    Core computation for player props - separated from request handling
+    so it can be called from both the route and background threads.
+    Returns the response dict (not a Flask response object).
+    """
+    players_list = []
+    player_id = 1
+
+    player_names = loader.get_player_names()
+    all_teams = loader.get_teams()
+    injury_tracker.get_all_injuries()
+    team_game_cache = {}
+
+    for player_name in player_names:
+        player_info = loader.get_player_info(player_name)
+        if not player_info:
+            continue
+        team = player_info["team"]
+        if team_filter != 'all' and team != team_filter:
+            continue
+        all_stats = loader.get_all_available_stats(player_name)
+        for stat_type, stat_values in all_stats.items():
+            if stat_type == 'three_pm':
+                display_stat_type = '3PM'
+            elif len(stat_type) <= 3:
+                display_stat_type = stat_type.upper()
+            else:
+                display_stat_type = stat_type.title()
+            if stat_filter != 'all' and display_stat_type.lower() != stat_filter.lower():
+                continue
+            if len(stat_values) < 3:
+                continue
+            avg_stat = sum(stat_values) / len(stat_values)
+            cached_odds = get_cached_odds()
+            odds_key = f"{player_name}_{display_stat_type}"
+            bookmaker_lines = []
+            is_real_line = False
+            if odds_key in cached_odds:
+                bookmaker_lines = cached_odds[odds_key]
+                line = bookmaker_lines[0]["line"] if bookmaker_lines else STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
+                is_real_line = True if bookmaker_lines else False
+            else:
+                line = STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
+            if team not in team_game_cache:
+                team_game_cache[team] = schedule_fetcher.get_player_next_game(team)
+            next_game = team_game_cache[team]
+            if next_game:
+                opponent = next_game['opponent']
+                is_home = next_game['is_home']
+                game_date = next_game['game_date']
+                game_time = next_game['game_time']
+                opponent_rank = random.randint(5, 25)
+            else:
+                opponent = "TBD"
+                opponent_rank = random.randint(5, 25)
+                is_home = True
+                game_date = "TBD"
+                game_time = "TBD"
+            analysis = calc.analyze_player_prop(
+                player_name=player_name,
+                team=team,
+                stat_type=display_stat_type,
+                player_stats=stat_values,
+                line=line,
+                opponent=opponent,
+                opponent_rank=opponent_rank,
+                is_home=is_home,
+                db_loader=None
+            )
+            player_prop = {
+                "id": player_id,
+                "name": player_name,
+                "team": team,
+                "teamColor": TEAM_COLORS.get(team, "#000000"),
+                "position": player_info["position"],
+                "statType": display_stat_type,
+                "line": line,
+                "isRealLine": is_real_line,
+                "bookmakerLines": bookmaker_lines,
+                "hitRate": analysis["hit_rate"],
+                "season_hits": analysis.get("season_hits"),
+                "total_games": analysis.get("total_games"),
+                "recent_hit_rate": analysis.get("recent_hit_rate"),
+                "recent_hits": analysis.get("recent_hits"),
+                "recent_total": analysis.get("recent_total"),
+                "trustScore": analysis["trust_score"],
+                "lastGames": analysis["last_games"],
+                "last5Games": analysis["last_5_games"],
+                "last15Games": analysis["last_15_games"],
+                "recentForm": analysis["recent_form"],
+                "opponent": opponent,
+                "opponentRank": opponent_rank,
+                "opponentDefStat": get_opponent_def_stat(display_stat_type),
+                "gameDate": game_date,
+                "gameTime": game_time,
+                "isHome": is_home,
+                "avgLastN": analysis["avg_last_10"],
+                "streak": analysis["streak"],
+                "streakType": analysis["streak_type"],
+                "avgMinutes": player_info.get("avg_minutes", 0)
+            }
+            players_list.append(player_prop)
+            player_id += 1
+
+    all_player_names = list(set([p["name"] for p in players_list]))
+    injury_statuses = injury_tracker.get_batch_status(all_player_names)
+    for player in players_list:
+        player_status = injury_statuses.get(player["name"], {"status": "ACTIVE", "source": "default"})
+        player["injuryStatus"] = player_status["status"]
+        player["injurySource"] = player_status.get("source", "default")
+
+    return {
+        "success": True,
+        "count": len(players_list),
+        "players": players_list
+    }
+
+
 def _build_players_cache_background():
     """Pre-warm players cache in background thread after startup"""
     import threading
@@ -57,13 +176,13 @@ def _build_players_cache_background():
         _time.sleep(8)  # Wait for app to fully initialize
         print("[CACHE] Starting background players cache build...")
         try:
-            # Import here to avoid circular issues at module load time
-            from flask import current_app
-            with app.app_context():
-                # Directly call get_all_players logic via request context
-                with app.test_request_context('/api/players'):
-                    response = get_all_players()
-                    print("[CACHE] Background cache build complete")
+            data = _compute_players_data()
+            if data["count"] > 0:
+                players_cache["data"] = data
+                players_cache["last_updated"] = datetime.now()
+                print(f"[CACHE] Background cache build complete ({data['count']} props)")
+            else:
+                print("[CACHE] No upcoming games found during pre-warm")
         except Exception as e:
             print(f"[CACHE] Background cache build failed: {e}")
 
@@ -286,169 +405,13 @@ def get_all_players():
             return jsonify(players_cache["data"])
 
     try:
-        players_list = []
-        player_id = 1
-
-        # Get all players from CSV
-        player_names = loader.get_player_names()
-
-        # Get list of all teams for opponent selection
-        all_teams = loader.get_teams()
-
-        # CRITICAL PERFORMANCE FIX: Pre-fetch injuries ONCE for the entire request
-        # This prevents calling ESPN API hundreds of times (one per player+stat combination)!
-        injury_tracker.get_all_injuries()
-
-        # Cache game info by team to avoid repeated lookups
-        team_game_cache = {}
-
-        for player_name in player_names:
-            player_info = loader.get_player_info(player_name)
-            
-            if not player_info:
-                continue
-            
-            team = player_info["team"]
-            
-            # Team filter
-            if team_filter != 'all' and team != team_filter:
-                continue
-            
-            # Get all available stats for this player
-            all_stats = loader.get_all_available_stats(player_name)
-            
-            # Process each stat type
-            for stat_type, stat_values in all_stats.items():
-                # Format stat type for display
-                if stat_type == 'three_pm':
-                    display_stat_type = '3PM'
-                elif len(stat_type) <= 3:
-                    display_stat_type = stat_type.upper()
-                else:
-                    display_stat_type = stat_type.title()
-                
-                # Stat filter
-                if stat_filter != 'all' and display_stat_type.lower() != stat_filter.lower():
-                    continue
-                
-                if len(stat_values) < 3:  # Need at least 3 games
-                    continue
-
-                # Calculate average
-                avg_stat = sum(stat_values) / len(stat_values)
-
-                # Try to get real betting lines from odds API
-                cached_odds = get_cached_odds()
-                odds_key = f"{player_name}_{display_stat_type}"
-
-                bookmaker_lines = []
-                is_real_line = False
-
-                if odds_key in cached_odds:
-                    # Use real betting lines from multiple bookmakers
-                    bookmaker_lines = cached_odds[odds_key]
-                    # Use the first bookmaker's line as the primary line
-                    line = bookmaker_lines[0]["line"] if bookmaker_lines else STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
-                    is_real_line = True if bookmaker_lines else False
-                else:
-                    # Fallback to calculated line based on average
-                    line = STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
-                    is_real_line = False
-
-                # Get real game matchup from schedule (cached by team)
-                if team not in team_game_cache:
-                    team_game_cache[team] = schedule_fetcher.get_player_next_game(team)
-
-                next_game = team_game_cache[team]
-
-                if next_game:
-                    # Use real game data
-                    opponent = next_game['opponent']
-                    is_home = next_game['is_home']
-                    game_date = next_game['game_date']
-                    game_time = next_game['game_time']
-                    opponent_rank = random.randint(5, 25)  # Still mock for now
-                else:
-                    # No game found in betting lines - show placeholder
-                    opponent = "TBD"
-                    opponent_rank = random.randint(5, 25)
-                    is_home = True
-                    game_date = "TBD"
-                    game_time = "TBD"
-
-                # Calculate all analytics
-                # TEMPORARY: Skip teammate boost to reduce memory usage on free tier
-                # TODO: Re-enable after optimizing or upgrading to paid tier
-                analysis = calc.analyze_player_prop(
-                    player_name=player_name,
-                    team=team,
-                    stat_type=display_stat_type,
-                    player_stats=stat_values,
-                    line=line,
-                    opponent=opponent,
-                    opponent_rank=opponent_rank,
-                    is_home=is_home,
-                    db_loader=None  # Temporarily disabled for memory
-                )
-
-                # Format for frontend
-                player_prop = {
-                    "id": player_id,
-                    "name": player_name,
-                    "team": team,
-                    "teamColor": TEAM_COLORS.get(team, "#000000"),
-                    "position": player_info["position"],
-                    "statType": display_stat_type,
-                    "line": line,
-                    "isRealLine": is_real_line,  # Flag if line is from real odds API
-                    "bookmakerLines": bookmaker_lines,  # All available bookmaker lines
-                    "hitRate": analysis["hit_rate"],
-                    "season_hits": analysis.get("season_hits"),
-                    "total_games": analysis.get("total_games"),
-                    "recent_hit_rate": analysis.get("recent_hit_rate"),
-                    "recent_hits": analysis.get("recent_hits"),
-                    "recent_total": analysis.get("recent_total"),
-                    "trustScore": analysis["trust_score"],
-                    "lastGames": analysis["last_games"],
-                    "last5Games": analysis["last_5_games"],
-                    "last15Games": analysis["last_15_games"],
-                    "recentForm": analysis["recent_form"],
-                    "opponent": opponent,
-                    "opponentRank": opponent_rank,
-                    "opponentDefStat": get_opponent_def_stat(display_stat_type),
-                    "gameDate": game_date,
-                    "gameTime": game_time,
-                    "isHome": is_home,
-                    "avgLastN": analysis["avg_last_10"],
-                    "streak": analysis["streak"],
-                    "streakType": analysis["streak_type"],
-                    "avgMinutes": player_info.get("avg_minutes", 0)
-                }
-                
-                players_list.append(player_prop)
-                player_id += 1
-
-        # Get injury status for all players in batch
-        all_player_names = list(set([p["name"] for p in players_list]))
-        injury_statuses = injury_tracker.get_batch_status(all_player_names)
-
-        # Add injury status to each player
-        for player in players_list:
-            player_status = injury_statuses.get(player["name"], {"status": "ACTIVE", "source": "default"})
-            player["injuryStatus"] = player_status["status"]
-            player["injurySource"] = player_status.get("source", "default")
-
-        response_data = {
-            "success": True,
-            "count": len(players_list),
-            "players": players_list
-        }
+        response_data = _compute_players_data(team_filter, stat_filter)
 
         # Store in cache for unfiltered requests (only when we have actual data)
-        if team_filter == 'all' and stat_filter == 'all' and len(players_list) > 0:
+        if team_filter == 'all' and stat_filter == 'all' and response_data["count"] > 0:
             players_cache["data"] = response_data
             players_cache["last_updated"] = datetime.now()
-            print(f"[CACHE] Players cache updated ({len(players_list)} props)")
+            print(f"[CACHE] Players cache updated ({response_data['count']} props)")
 
         return jsonify(response_data)
 
