@@ -34,26 +34,6 @@ parlay_builder = ParlayBuilder()
 from scheduler import init_scheduler
 scheduler = init_scheduler()
 
-# Pre-warm players cache on startup (runs in background so it doesn't block app start)
-def _prewarm_players_cache():
-    import threading
-    import time as _time
-
-    def _build_cache():
-        _time.sleep(5)  # Wait for app to fully initialize
-        try:
-            with app.test_client() as client:
-                print("[CACHE] Pre-warming players cache...")
-                client.get('/api/players')
-                print("[CACHE] Players cache pre-warm complete")
-        except Exception as e:
-            print(f"[CACHE] Pre-warm failed: {e}")
-
-    thread = threading.Thread(target=_build_cache, daemon=True)
-    thread.start()
-
-_prewarm_players_cache()
-
 # Cache for odds data (optimized to conserve API quota)
 odds_cache = {
     "data": {},
