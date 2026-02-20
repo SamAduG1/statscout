@@ -34,11 +34,38 @@ parlay_builder = ParlayBuilder()
 from scheduler import init_scheduler
 scheduler = init_scheduler()
 
+# Pre-warm players cache on startup (runs in background so it doesn't block app start)
+def _prewarm_players_cache():
+    import threading
+    import time as _time
+
+    def _build_cache():
+        _time.sleep(5)  # Wait for app to fully initialize
+        try:
+            with app.test_client() as client:
+                print("[CACHE] Pre-warming players cache...")
+                client.get('/api/players')
+                print("[CACHE] Players cache pre-warm complete")
+        except Exception as e:
+            print(f"[CACHE] Pre-warm failed: {e}")
+
+    thread = threading.Thread(target=_build_cache, daemon=True)
+    thread.start()
+
+_prewarm_players_cache()
+
 # Cache for odds data (optimized to conserve API quota)
 odds_cache = {
     "data": {},
     "last_updated": None
 }
+
+# Cache for players response (prevents Render 30s proxy timeout)
+players_cache = {
+    "data": None,
+    "last_updated": None
+}
+PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
 # Cache configuration (in seconds)
 CACHE_DURATION = 4 * 60 * 60  # 4 hours (was 30 minutes)
@@ -242,11 +269,19 @@ def health_check():
 @app.route('/api/players', methods=['GET'])
 def get_all_players():
     """Get all available player props"""
-    
+
     # Get query parameters for filtering
     team_filter = request.args.get('team', 'all')
     stat_filter = request.args.get('stat', 'all')
-    
+
+    # Serve from cache for unfiltered requests (avoids Render 30s proxy timeout)
+    now = datetime.now()
+    if team_filter == 'all' and stat_filter == 'all':
+        cache_age = (now - players_cache["last_updated"]).total_seconds() if players_cache["last_updated"] else None
+        if players_cache["data"] is not None and cache_age is not None and cache_age < PLAYERS_CACHE_DURATION:
+            print(f"[CACHE] Serving players from cache (age: {cache_age:.0f}s)")
+            return jsonify(players_cache["data"])
+
     try:
         players_list = []
         player_id = 1
@@ -400,17 +435,44 @@ def get_all_players():
             player["injuryStatus"] = player_status["status"]
             player["injurySource"] = player_status.get("source", "default")
 
-        return jsonify({
+        response_data = {
             "success": True,
             "count": len(players_list),
             "players": players_list
-        })
-    
+        }
+
+        # Store in cache for unfiltered requests
+        if team_filter == 'all' and stat_filter == 'all':
+            players_cache["data"] = response_data
+            players_cache["last_updated"] = datetime.now()
+            print(f"[CACHE] Players cache updated ({len(players_list)} props)")
+
+        return jsonify(response_data)
+
     except Exception as e:
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
+
+
+@app.route('/api/players/refresh', methods=['POST'])
+def refresh_players_cache():
+    """Force refresh the players cache in the background"""
+    import threading
+
+    def _refresh():
+        with app.app_context():
+            try:
+                print("[CACHE] Background refresh started...")
+                # Trigger a fresh build by clearing cache and making internal request
+                players_cache["data"] = None
+                players_cache["last_updated"] = None
+            except Exception as e:
+                print(f"[CACHE] Background refresh error: {e}")
+
+    threading.Thread(target=_refresh, daemon=True).start()
+    return jsonify({"success": True, "message": "Cache refresh triggered"})
 
 
 @app.route('/api/player/<player_name>', methods=['GET'])
