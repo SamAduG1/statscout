@@ -4,6 +4,7 @@ Defines the database schema using SQLAlchemy
 """
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, ForeignKey
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -172,15 +173,13 @@ def get_engine(db_path=None):
             print(f"[INFO] Using SQLite database: {db_path}")
 
     if db_path and db_path.startswith('postgresql'):
+        # Use NullPool - Supabase transaction pooler handles pooling on their side
+        # This avoids client-side pool exhaustion and circuit breaker issues
         return create_engine(
             db_path,
             echo=False,
-            pool_size=1,              # Single connection (free tier + prevents circuit breaker)
-            max_overflow=2,           # Allow up to 2 extra connections under load
-            pool_pre_ping=True,       # Test connections before use (detects stale connections)
-            pool_recycle=300,         # Recycle connections every 5 min (avoids Supabase idle timeout)
-            pool_timeout=30,          # Wait up to 30s to get a connection from pool
-            connect_args={"connect_timeout": 30, "sslmode": "require"},  # Supabase requires SSL
+            poolclass=NullPool,
+            connect_args={"connect_timeout": 30, "sslmode": "require"},
         )
 
     return create_engine(db_path, echo=False)
