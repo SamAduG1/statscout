@@ -174,17 +174,23 @@ def _build_players_cache_background():
 
     def _run():
         _time.sleep(8)  # Wait for app to fully initialize
-        print("[CACHE] Starting background players cache build...")
-        try:
-            data = _compute_players_data()
-            if data["count"] > 0:
-                players_cache["data"] = data
-                players_cache["last_updated"] = datetime.now()
-                print(f"[CACHE] Background cache build complete ({data['count']} props)")
-            else:
-                print("[CACHE] No upcoming games found during pre-warm")
-        except Exception as e:
-            print(f"[CACHE] Background cache build failed: {e}")
+        max_attempts = 5
+        for attempt in range(1, max_attempts + 1):
+            print(f"[CACHE] Background cache build attempt {attempt}/{max_attempts}...")
+            try:
+                data = _compute_players_data()
+                if data["count"] > 0:
+                    players_cache["data"] = data
+                    players_cache["last_updated"] = datetime.now()
+                    print(f"[CACHE] Cache build complete ({data['count']} props)")
+                    return
+                else:
+                    print(f"[CACHE] Attempt {attempt}: 0 props returned")
+            except Exception as e:
+                print(f"[CACHE] Attempt {attempt} failed: {e}")
+            if attempt < max_attempts:
+                _time.sleep(30)  # Wait 30s before retrying
+        print("[CACHE] All cache build attempts failed")
 
     threading.Thread(target=_run, daemon=True).start()
 
@@ -257,12 +263,7 @@ def get_cached_odds():
 
     return odds_cache["data"]
 
-# Verify database connection on startup
-try:
-    player_count = len(loader.get_player_names())
-    print(f"[SUCCESS] Database connected successfully - {player_count} players loaded")
-except Exception as e:
-    print(f"[ERROR] Error connecting to database: {e}")
+# DB connection verified async via background cache builder (avoids gunicorn worker timeout)
 
 # Team color mapping (for frontend display)
 TEAM_COLORS = {
