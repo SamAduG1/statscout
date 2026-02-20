@@ -441,8 +441,8 @@ def get_all_players():
             "players": players_list
         }
 
-        # Store in cache for unfiltered requests
-        if team_filter == 'all' and stat_filter == 'all':
+        # Store in cache for unfiltered requests (only when we have actual data)
+        if team_filter == 'all' and stat_filter == 'all' and len(players_list) > 0:
             players_cache["data"] = response_data
             players_cache["last_updated"] = datetime.now()
             print(f"[CACHE] Players cache updated ({len(players_list)} props)")
