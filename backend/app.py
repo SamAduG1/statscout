@@ -428,14 +428,17 @@ def refresh_players_cache():
     import threading
 
     def _refresh():
-        with app.app_context():
-            try:
-                print("[CACHE] Background refresh started...")
-                # Trigger a fresh build by clearing cache and making internal request
-                players_cache["data"] = None
-                players_cache["last_updated"] = None
-            except Exception as e:
-                print(f"[CACHE] Background refresh error: {e}")
+        try:
+            print("[CACHE] Background refresh started...")
+            data = _compute_players_data()
+            if data["count"] > 0:
+                players_cache["data"] = data
+                players_cache["last_updated"] = datetime.now()
+                print(f"[CACHE] Refresh complete ({data['count']} props)")
+            else:
+                print("[CACHE] Refresh returned 0 props, cache not updated")
+        except Exception as e:
+            print(f"[CACHE] Background refresh error: {e}")
 
     threading.Thread(target=_refresh, daemon=True).start()
     return jsonify({"success": True, "message": "Cache refresh triggered"})
