@@ -47,6 +47,29 @@ players_cache = {
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
+
+def _build_players_cache_background():
+    """Pre-warm players cache in background thread after startup"""
+    import threading
+    import time as _time
+
+    def _run():
+        _time.sleep(8)  # Wait for app to fully initialize
+        print("[CACHE] Starting background players cache build...")
+        try:
+            # Import here to avoid circular issues at module load time
+            from flask import current_app
+            with app.app_context():
+                # Directly call get_all_players logic via request context
+                with app.test_request_context('/api/players'):
+                    response = get_all_players()
+                    print("[CACHE] Background cache build complete")
+        except Exception as e:
+            print(f"[CACHE] Background cache build failed: {e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 # Cache configuration (in seconds)
 CACHE_DURATION = 4 * 60 * 60  # 4 hours (was 30 minutes)
 ACTIVE_HOURS_START = 6  # 6 AM
@@ -1243,6 +1266,9 @@ def generate_parlay():
             "traceback": traceback.format_exc()
         }), 500
 
+
+# Start background cache build after all routes are defined
+_build_players_cache_background()
 
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")
