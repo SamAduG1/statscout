@@ -86,7 +86,7 @@ def _compute_players_data(team_filter='all', stat_filter='all'):
             odds_key = f"{player_name}_{display_stat_type}"
             bookmaker_lines = []
             is_real_line = False
-            if odds_key in cached_odds:
+            if cached_odds and odds_key in cached_odds:
                 bookmaker_lines = cached_odds[odds_key]
                 line = bookmaker_lines[0]["line"] if bookmaker_lines else STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
                 is_real_line = True if bookmaker_lines else False
@@ -256,10 +256,9 @@ def get_cached_odds():
         else:
             print(f"[WARNING] Could not fetch odds: {response.get('error')}")
     elif cache_expired and not is_active_hours():
-        print(f"[INFO] Cache expired but outside active hours ({ACTIVE_HOURS_START}:00-{ACTIVE_HOURS_END}:00). Using stale cache.")
+        pass  # Outside active hours - silently use stale cache (logged by caller if needed)
     else:
-        cache_age = (now - odds_cache["last_updated"]).total_seconds() / 3600 if odds_cache["last_updated"] else 0
-        print(f"[INFO] Using cached odds (age: {cache_age:.1f} hours)")
+        pass  # Cache is fresh, no need to log every call
 
     return odds_cache["data"]
 
@@ -400,10 +399,15 @@ def get_all_players():
     # Serve from cache for unfiltered requests (avoids Render 30s proxy timeout)
     now = datetime.now()
     if team_filter == 'all' and stat_filter == 'all':
-        cache_age = (now - players_cache["last_updated"]).total_seconds() if players_cache["last_updated"] else None
-        if players_cache["data"] is not None and cache_age is not None and cache_age < PLAYERS_CACHE_DURATION:
-            print(f"[CACHE] Serving players from cache (age: {cache_age:.0f}s)")
-            return jsonify(players_cache["data"])
+        if players_cache["data"] is not None:
+            cache_age = (now - players_cache["last_updated"]).total_seconds() if players_cache["last_updated"] else None
+            if cache_age is not None and cache_age < PLAYERS_CACHE_DURATION:
+                print(f"[CACHE] Serving players from cache (age: {cache_age:.0f}s)")
+                return jsonify(players_cache["data"])
+        else:
+            # Cache not yet built - return empty response immediately (background thread is building it)
+            print("[CACHE] Cache not ready yet, returning empty response")
+            return jsonify({"success": True, "count": 0, "players": []})
 
     try:
         response_data = _compute_players_data(team_filter, stat_filter)
