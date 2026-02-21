@@ -47,6 +47,9 @@ players_cache = {
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
+# Cache for raw stat values per player - used by /api/calculate to avoid DB queries
+stats_cache = {}  # {player_name: {stat_type: [values...]}}
+
 
 def _compute_players_data(team_filter='all', stat_filter='all'):
     """
@@ -70,6 +73,9 @@ def _compute_players_data(team_filter='all', stat_filter='all'):
         if team_filter != 'all' and team != team_filter:
             continue
         all_stats = loader.get_all_available_stats(player_name)
+        # Populate stats_cache for use by /api/calculate (avoids DB queries on line adjustment)
+        if team_filter == 'all' and stat_filter == 'all':
+            stats_cache[player_name] = all_stats
         for stat_type, stat_values in all_stats.items():
             if stat_type == 'three_pm':
                 display_stat_type = '3PM'
@@ -517,14 +523,22 @@ def calculate_custom():
             stat_type = data['stat_type']
             custom_line = float(data['custom_line'])
             
-            # Get player info
-            player_info = loader.get_player_info(player_name)
+            # Use stats_cache if available (avoids DB queries, makes response instant)
+            if player_name in stats_cache and players_cache["data"]:
+                all_stats = stats_cache[player_name]
+                player_info = next(
+                    ({"team": p["team"], "position": p["position"]}
+                     for p in players_cache["data"]["players"]
+                     if p["name"] == player_name),
+                    None
+                )
+            else:
+                player_info = loader.get_player_info(player_name)
+                all_stats = loader.get_all_available_stats(player_name)
+
             if not player_info:
                 return jsonify({"success": False, "error": "Player not found"}), 404
-            
-            # Get all available stats
-            all_stats = loader.get_all_available_stats(player_name)
-            
+
             # Map display stat type back to internal stat type
             stat_type_lower = stat_type.lower()
 
@@ -546,10 +560,8 @@ def calculate_custom():
             
             stat_values = all_stats[matched_stat]
             
-            # Get opponent info (use defaults or from request)
-            all_teams = loader.get_teams()
-            opponents = [t for t in all_teams if t != player_info["team"]]
-            opponent = data.get('opponent', random.choice(opponents) if opponents else "OPP")
+            # Get opponent info from request (frontend always sends these)
+            opponent = data.get('opponent', "OPP")
             opponent_rank = data.get('opponent_rank', random.randint(5, 25))
             is_home = data.get('is_home', random.choice([True, False]))
             

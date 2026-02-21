@@ -2220,29 +2220,35 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
   // Fetch players from API
   useEffect(() => {
-    const fetchPlayers = async () => {
+    let retryTimeout = null;
+
+    const fetchPlayers = async (attempt = 1) => {
       setLoading(true);
       setError(null);
-      
+
       try {
         const response = await fetch(`${API_BASE_URL}/players`);
         const data = await response.json();
-        
-        if (data.success && data.players) {
+
+        if (data.success && data.players && data.players.length > 0) {
           setPlayers(data.players);
+          setLoading(false);
+        } else if (attempt < 8) {
+          // Backend cache not ready yet - retry every 5 seconds (covers ~35s cold start)
+          retryTimeout = setTimeout(() => fetchPlayers(attempt + 1), 5000);
         } else {
-          throw new Error('Failed to fetch player data');
+          throw new Error('No data after retries');
         }
       } catch (err) {
         console.error('Error fetching players:', err);
         setError('Failed to load player data. Using mock data.');
-        setPlayers(mockPlayers); // Fallback to mock data
-      } finally {
+        setPlayers(mockPlayers);
         setLoading(false);
       }
     };
 
     fetchPlayers();
+    return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, []);
 
   // Apply dark mode to document element
