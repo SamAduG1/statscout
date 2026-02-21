@@ -179,7 +179,7 @@ def get_engine(db_path=None):
             db_path,
             echo=False,
             poolclass=NullPool,
-            connect_args={"connect_timeout": 30, "sslmode": "require"},
+            connect_args={"connect_timeout": 10, "sslmode": "require"},
         )
 
     return create_engine(db_path, echo=False)

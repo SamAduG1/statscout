@@ -65,7 +65,6 @@ class DatabaseLoader:
             'stats':   {player_name: {stat_type: [values...]}}
         }
         """
-        self._ensure_session()
         try:
             all_players = self.session.query(Player).order_by(Player.name).all()
             if not all_players:

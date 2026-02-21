@@ -208,7 +208,7 @@ def _build_players_cache_background():
             except Exception as e:
                 print(f"[CACHE] Attempt {attempt} failed: {e}")
             if attempt < max_attempts:
-                _time.sleep(30)  # Wait 30s before retrying
+                _time.sleep(10)  # Wait 10s before retrying
         print("[CACHE] All cache build attempts failed")
 
     threading.Thread(target=_run, daemon=True).start()
