@@ -60,22 +60,35 @@ def _compute_players_data(team_filter='all', stat_filter='all'):
     players_list = []
     player_id = 1
 
-    player_names = loader.get_player_names()
-    all_teams = loader.get_teams()
+    # Bulk load all players + stats in 2 DB queries (vs ~1944 with per-player queries)
+    if team_filter == 'all' and stat_filter == 'all':
+        bulk = loader.get_all_players_bulk()
+        player_info_map = {p['name']: p for p in bulk['players']}
+        all_stats_map = bulk['stats']
+        stats_cache.update(all_stats_map)
+        player_names = list(player_info_map.keys())
+        all_teams = list(set(p['team'] for p in bulk['players']))
+    else:
+        player_info_map = None
+        all_stats_map = None
+        player_names = loader.get_player_names()
+        all_teams = loader.get_teams()
+
     injury_tracker.get_all_injuries()
     team_game_cache = {}
 
     for player_name in player_names:
-        player_info = loader.get_player_info(player_name)
+        if player_info_map is not None:
+            player_info = player_info_map.get(player_name)
+            all_stats = all_stats_map.get(player_name, {})
+        else:
+            player_info = loader.get_player_info(player_name)
+            all_stats = loader.get_all_available_stats(player_name)
         if not player_info:
             continue
         team = player_info["team"]
         if team_filter != 'all' and team != team_filter:
             continue
-        all_stats = loader.get_all_available_stats(player_name)
-        # Populate stats_cache for use by /api/calculate (avoids DB queries on line adjustment)
-        if team_filter == 'all' and stat_filter == 'all':
-            stats_cache[player_name] = all_stats
         for stat_type, stat_values in all_stats.items():
             if stat_type == 'three_pm':
                 display_stat_type = '3PM'

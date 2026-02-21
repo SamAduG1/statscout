@@ -56,6 +56,61 @@ class DatabaseLoader:
             self.session.rollback()
             return []
 
+    def get_all_players_bulk(self) -> Dict:
+        """
+        Load all players and all their game stats in 2 DB queries.
+        Used by the cache builder to avoid 1000+ individual queries.
+        Returns: {
+            'players': [{name, team, position, games_played, avg_minutes}],
+            'stats':   {player_name: {stat_type: [values...]}}
+        }
+        """
+        self._ensure_session()
+        try:
+            all_players = self.session.query(Player).order_by(Player.name).all()
+            if not all_players:
+                return {'players': [], 'stats': {}}
+
+            player_id_map = {p.id: p for p in all_players}
+
+            all_games = self.session.query(Game).filter(
+                Game.player_id.in_(player_id_map.keys())
+            ).order_by(Game.player_id, Game.date).all()
+
+            games_by_player = {}
+            for game in all_games:
+                games_by_player.setdefault(game.player_id, []).append(game)
+
+            players_info = []
+            stats = {}
+            for player in all_players:
+                games = games_by_player.get(player.id, [])
+                minutes_vals = [g.minutes for g in games if g.minutes is not None]
+                avg_minutes = round(sum(minutes_vals) / len(minutes_vals), 1) if minutes_vals else 0.0
+                players_info.append({
+                    'name': player.name, 'team': player.team,
+                    'position': player.position, 'games_played': len(games),
+                    'avg_minutes': avg_minutes
+                })
+                if games:
+                    stats[player.name] = {
+                        'points':   [g.points for g in games],
+                        'rebounds': [g.rebounds for g in games],
+                        'assists':  [g.assists for g in games],
+                        'steals':   [g.steals for g in games],
+                        'blocks':   [g.blocks for g in games],
+                        'three_pm': [g.three_pm for g in games],
+                        'PRA': [g.points + g.rebounds + g.assists for g in games],
+                        'PA':  [g.points + g.assists for g in games],
+                        'PR':  [g.points + g.rebounds for g in games],
+                        'RA':  [g.rebounds + g.assists for g in games],
+                    }
+            return {'players': players_info, 'stats': stats}
+        except Exception as e:
+            print(f"[ERROR] Failed bulk load: {e}")
+            self.session.rollback()
+            return {'players': [], 'stats': {}}
+
     def get_player_info(self, player_name: str) -> Dict[str, Any]:
         """
         Get basic info about a player
