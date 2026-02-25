@@ -107,7 +107,16 @@ class DatabaseLoader:
             return {'players': players_info, 'stats': stats}
         except Exception as e:
             print(f"[ERROR] Failed bulk load: {e}")
-            self.session.rollback()
+            try:
+                self.session.rollback()
+            except:
+                pass
+            # Recreate session so next attempt starts clean (NullPool = new connection per query)
+            try:
+                self.session.close()
+                self.session = get_session(self.engine)
+            except:
+                pass
             return {'players': [], 'stats': {}}
 
     def get_player_info(self, player_name: str) -> Dict[str, Any]:
