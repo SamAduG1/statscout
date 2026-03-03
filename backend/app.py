@@ -470,8 +470,14 @@ def get_all_players():
                 print(f"[CACHE] Serving players from cache (age: {cache_age:.0f}s)")
                 return jsonify(players_cache["data"])
         else:
-            # Cache not ready - trigger rebuild in THIS process if not already running
-            # (gunicorn master/worker split can cause startup thread to run in wrong process)
+            # Cache empty in this process - another process may have written to disk already
+            disk_data = _load_cache_from_disk()
+            if disk_data:
+                players_cache["data"] = disk_data
+                players_cache["last_updated"] = datetime.now()
+                print(f"[CACHE] Loaded from disk on request ({disk_data['count']} props)")
+                return jsonify(disk_data)
+            # Disk also empty - trigger rebuild or wait
             if not players_cache["building"]:
                 print("[CACHE] Cache empty on request - triggering rebuild in worker process")
                 _build_players_cache_background()
