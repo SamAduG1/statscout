@@ -79,7 +79,7 @@ PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 stats_cache = {}  # {player_name: {stat_type: [values...]}}
 
 
-def _compute_players_data(team_filter='all', stat_filter='all'):
+def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=False):
     """
     Core computation for player props - separated from request handling
     so it can be called from both the route and background threads.
@@ -102,7 +102,8 @@ def _compute_players_data(team_filter='all', stat_filter='all'):
         player_names = loader.get_player_names()
         all_teams = loader.get_teams()
 
-    injury_tracker.get_all_injuries()
+    if not skip_injuries:
+        injury_tracker.get_all_injuries()
     team_game_cache = {}
 
     for player_name in player_names:
@@ -201,11 +202,16 @@ def _compute_players_data(team_filter='all', stat_filter='all'):
             player_id += 1
 
     all_player_names = list(set([p["name"] for p in players_list]))
-    injury_statuses = injury_tracker.get_batch_status(all_player_names)
-    for player in players_list:
-        player_status = injury_statuses.get(player["name"], {"status": "ACTIVE", "source": "default"})
-        player["injuryStatus"] = player_status["status"]
-        player["injurySource"] = player_status.get("source", "default")
+    if not skip_injuries:
+        injury_statuses = injury_tracker.get_batch_status(all_player_names)
+        for player in players_list:
+            player_status = injury_statuses.get(player["name"], {"status": "ACTIVE", "source": "default"})
+            player["injuryStatus"] = player_status["status"]
+            player["injurySource"] = player_status.get("source", "default")
+    else:
+        for player in players_list:
+            player["injuryStatus"] = "ACTIVE"
+            player["injurySource"] = "default"
 
     return {
         "success": True,
@@ -221,27 +227,40 @@ def _build_players_cache_background():
 
     def _run():
         players_cache["building"] = True
-        _time.sleep(8)  # Wait for app to fully initialize
-        max_attempts = 5
-        for attempt in range(1, max_attempts + 1):
-            print(f"[CACHE] Background cache build attempt {attempt}/{max_attempts}...")
+
+        # Phase 1: Fast build without injuries (~10-15s) - saves to disk before Render's
+        # rolling deploy kills the pre-swap worker (~60s window)
+        print("[CACHE] Phase 1: Building props (no injuries)...")
+        for attempt in range(1, 4):
             try:
-                data = _compute_players_data()
+                data = _compute_players_data(skip_injuries=True)
                 if data["count"] > 0:
                     players_cache["data"] = data
                     players_cache["last_updated"] = datetime.now()
-                    players_cache["building"] = False
                     _save_cache_to_disk(data)
-                    print(f"[CACHE] Cache build complete ({data['count']} props)")
-                    return
+                    print(f"[CACHE] Phase 1 complete ({data['count']} props, injuries pending)")
+                    break
                 else:
-                    print(f"[CACHE] Attempt {attempt}: 0 props returned")
+                    print(f"[CACHE] Phase 1 attempt {attempt}: 0 props returned")
             except Exception as e:
-                print(f"[CACHE] Attempt {attempt} failed: {e}")
-            if attempt < max_attempts:
-                _time.sleep(10)  # Wait 10s before retrying
+                print(f"[CACHE] Phase 1 attempt {attempt} failed: {e}")
+            if attempt < 3:
+                _time.sleep(10)
+
         players_cache["building"] = False
-        print("[CACHE] All cache build attempts failed")
+
+        # Phase 2: Refresh with real injury data (~60-90s) - runs after Phase 1 is saved
+        if players_cache["data"] is not None:
+            print("[CACHE] Phase 2: Fetching injury data...")
+            try:
+                data = _compute_players_data(skip_injuries=False)
+                if data["count"] > 0:
+                    players_cache["data"] = data
+                    players_cache["last_updated"] = datetime.now()
+                    _save_cache_to_disk(data)
+                    print(f"[CACHE] Phase 2 complete (injuries updated)")
+            except Exception as e:
+                print(f"[CACHE] Phase 2 (injuries) failed: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
 
