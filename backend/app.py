@@ -43,7 +43,8 @@ odds_cache = {
 # Cache for players response (prevents Render 30s proxy timeout)
 players_cache = {
     "data": None,
-    "last_updated": None
+    "last_updated": None,
+    "building": False  # True when background thread is actively building
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
@@ -192,6 +193,7 @@ def _build_players_cache_background():
     import time as _time
 
     def _run():
+        players_cache["building"] = True
         _time.sleep(8)  # Wait for app to fully initialize
         max_attempts = 5
         for attempt in range(1, max_attempts + 1):
@@ -201,6 +203,7 @@ def _build_players_cache_background():
                 if data["count"] > 0:
                     players_cache["data"] = data
                     players_cache["last_updated"] = datetime.now()
+                    players_cache["building"] = False
                     print(f"[CACHE] Cache build complete ({data['count']} props)")
                     return
                 else:
@@ -209,6 +212,7 @@ def _build_players_cache_background():
                 print(f"[CACHE] Attempt {attempt} failed: {e}")
             if attempt < max_attempts:
                 _time.sleep(10)  # Wait 10s before retrying
+        players_cache["building"] = False
         print("[CACHE] All cache build attempts failed")
 
     threading.Thread(target=_run, daemon=True).start()
@@ -395,15 +399,10 @@ def refresh_odds():
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    try:
-        player_count = len(loader.get_player_names())
-    except:
-        player_count = 0
-
     return jsonify({
         "status": "healthy",
         "message": "StatScout API is running",
-        "players_loaded": player_count
+        "players_loaded": players_cache["data"]["count"] if players_cache["data"] else 0
     })
 
 
@@ -424,8 +423,13 @@ def get_all_players():
                 print(f"[CACHE] Serving players from cache (age: {cache_age:.0f}s)")
                 return jsonify(players_cache["data"])
         else:
-            # Cache not yet built - return empty response immediately (background thread is building it)
-            print("[CACHE] Cache not ready yet, returning empty response")
+            # Cache not ready - trigger rebuild in THIS process if not already running
+            # (gunicorn master/worker split can cause startup thread to run in wrong process)
+            if not players_cache["building"]:
+                print("[CACHE] Cache empty on request - triggering rebuild in worker process")
+                _build_players_cache_background()
+            else:
+                print("[CACHE] Cache not ready yet, build in progress")
             return jsonify({"success": True, "count": 0, "players": []})
 
     try:
