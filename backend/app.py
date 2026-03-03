@@ -79,18 +79,20 @@ PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 stats_cache = {}  # {player_name: {stat_type: [values...]}}
 
 
-def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=False, skip_odds=False):
+def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=False, skip_odds=False, _loader=None):
     """
     Core computation for player props - separated from request handling
     so it can be called from both the route and background threads.
+    Pass _loader to use a thread-local loader instead of the global one.
     Returns the response dict (not a Flask response object).
     """
+    local_loader = _loader if _loader is not None else loader
     players_list = []
     player_id = 1
 
     # Bulk load all players + stats in 2 DB queries (vs ~1944 with per-player queries)
     if team_filter == 'all' and stat_filter == 'all':
-        bulk = loader.get_all_players_bulk()
+        bulk = local_loader.get_all_players_bulk()
         player_info_map = {p['name']: p for p in bulk['players']}
         all_stats_map = bulk['stats']
         all_dates_map = bulk.get('game_dates', {})
@@ -101,8 +103,8 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
         player_info_map = None
         all_stats_map = None
         all_dates_map = {}
-        player_names = loader.get_player_names()
-        all_teams = loader.get_teams()
+        player_names = local_loader.get_player_names()
+        all_teams = local_loader.get_teams()
 
     if not skip_injuries:
         injury_tracker.get_all_injuries()
@@ -113,8 +115,8 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
             player_info = player_info_map.get(player_name)
             all_stats = all_stats_map.get(player_name, {})
         else:
-            player_info = loader.get_player_info(player_name)
-            all_stats = loader.get_all_available_stats(player_name)
+            player_info = local_loader.get_player_info(player_name)
+            all_stats = local_loader.get_all_available_stats(player_name)
         if not player_info:
             continue
         team = player_info["team"]
@@ -234,12 +236,16 @@ def _build_players_cache_background():
     def _run():
         players_cache["building"] = True
 
+        # Each background build gets its own fresh loader to avoid sharing the global
+        # session with request-handling threads (SQLAlchemy sessions are not thread-safe)
+        _fresh_loader = DataLoader()
+
         # Phase 1: Fast build without injuries (~10-15s) - saves to disk before Render's
         # rolling deploy kills the pre-swap worker (~60s window)
         print("[CACHE] Phase 1: Building props (no injuries)...")
         for attempt in range(1, 4):
             try:
-                data = _compute_players_data(skip_injuries=True, skip_odds=True)
+                data = _compute_players_data(skip_injuries=True, skip_odds=True, _loader=_fresh_loader)
                 if data["count"] > 0:
                     players_cache["data"] = data
                     players_cache["last_updated"] = datetime.now()
@@ -250,6 +256,12 @@ def _build_players_cache_background():
                     print(f"[CACHE] Phase 1 attempt {attempt}: 0 props returned")
             except Exception as e:
                 print(f"[CACHE] Phase 1 attempt {attempt} failed: {e}")
+                # Recreate loader on failure in case the session is corrupt
+                try:
+                    _fresh_loader.session.close()
+                except:
+                    pass
+                _fresh_loader = DataLoader()
             if attempt < 3:
                 _time.sleep(10)
 
@@ -259,7 +271,7 @@ def _build_players_cache_background():
         if players_cache["data"] is not None:
             print("[CACHE] Phase 2: Fetching injury data...")
             try:
-                data = _compute_players_data(skip_injuries=False)
+                data = _compute_players_data(skip_injuries=False, _loader=_fresh_loader)
                 if data["count"] > 0:
                     players_cache["data"] = data
                     players_cache["last_updated"] = datetime.now()
@@ -267,6 +279,12 @@ def _build_players_cache_background():
                     print(f"[CACHE] Phase 2 complete (injuries updated)")
             except Exception as e:
                 print(f"[CACHE] Phase 2 (injuries) failed: {e}")
+
+        # Clean up the thread-local loader
+        try:
+            _fresh_loader.session.close()
+        except:
+            pass
 
     threading.Thread(target=_run, daemon=True).start()
 
@@ -515,9 +533,10 @@ def refresh_players_cache():
     import threading
 
     def _refresh():
+        _fresh_loader = DataLoader()
         try:
             print("[CACHE] Background refresh started...")
-            data = _compute_players_data()
+            data = _compute_players_data(_loader=_fresh_loader)
             if data["count"] > 0:
                 players_cache["data"] = data
                 players_cache["last_updated"] = datetime.now()
@@ -526,6 +545,11 @@ def refresh_players_cache():
                 print("[CACHE] Refresh returned 0 props, cache not updated")
         except Exception as e:
             print(f"[CACHE] Background refresh error: {e}")
+        finally:
+            try:
+                _fresh_loader.session.close()
+            except:
+                pass
 
     threading.Thread(target=_refresh, daemon=True).start()
     return jsonify({"success": True, "message": "Cache refresh triggered"})

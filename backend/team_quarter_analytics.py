@@ -15,9 +15,25 @@ class TeamQuarterAnalytics:
         self.engine = get_engine()
         self.session = get_session(self.engine)
 
+    def _ensure_session(self):
+        """Ensure session is valid after cold start / sleep, recreate if needed"""
+        from sqlalchemy import text as _text
+        try:
+            self.session.execute(_text("SELECT 1"))
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            try:
+                self.session.close()
+                self.session = get_session(self.engine)
+            except Exception:
+                pass
+
     def get_team_quarter_averages(self, team_abbr: str, season: str = "2025-26") -> Dict[str, Any]:
         """Get team's average points per quarter"""
-
+        self._ensure_session()
         games = self.session.query(TeamGame).filter_by(
             team=team_abbr,
             season=season
@@ -63,7 +79,7 @@ class TeamQuarterAnalytics:
 
     def get_quarter_win_correlation(self, team_abbr: str, season: str = "2025-26") -> Dict[str, Any]:
         """Analyze correlation between leading after each quarter and winning"""
-
+        self._ensure_session()
         games = self.session.query(TeamGame).filter_by(
             team=team_abbr,
             season=season
