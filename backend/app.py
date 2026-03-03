@@ -15,6 +15,31 @@ from espn_injury_tracker import ESPNInjuryTracker
 from parlay_builder import ParlayBuilder
 from datetime import datetime, timedelta
 import random
+import json
+import os
+
+CACHE_FILE = "/tmp/statscout_players_cache.json"
+
+def _save_cache_to_disk(data):
+    """Persist cache to /tmp so worker restarts load it instantly"""
+    try:
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"[CACHE] Failed to persist to disk: {e}")
+
+def _load_cache_from_disk():
+    """Load cache from /tmp if available - survives gunicorn worker restarts"""
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'r') as f:
+                data = json.load(f)
+            if data.get('count', 0) > 0:
+                print(f"[CACHE] Loaded from disk ({data['count']} props)")
+                return data
+    except Exception as e:
+        print(f"[CACHE] Failed to load from disk: {e}")
+    return None
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
@@ -41,10 +66,12 @@ odds_cache = {
 }
 
 # Cache for players response (prevents Render 30s proxy timeout)
+# Load from disk immediately - survives gunicorn worker restarts within the same deploy
+_disk_cache = _load_cache_from_disk()
 players_cache = {
-    "data": None,
-    "last_updated": None,
-    "building": False  # True when background thread is actively building
+    "data": _disk_cache,
+    "last_updated": datetime.now() if _disk_cache else None,
+    "building": False
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
@@ -204,6 +231,7 @@ def _build_players_cache_background():
                     players_cache["data"] = data
                     players_cache["last_updated"] = datetime.now()
                     players_cache["building"] = False
+                    _save_cache_to_disk(data)
                     print(f"[CACHE] Cache build complete ({data['count']} props)")
                     return
                 else:
