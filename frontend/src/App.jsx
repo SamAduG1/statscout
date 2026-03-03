@@ -2233,8 +2233,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
         if (data.success && data.players && data.players.length > 0) {
           setPlayers(data.players);
           setLoading(false);
-        } else if (attempt < 20) {
-          // Backend cache not ready yet - retry every 5 seconds (covers ~100s cold start)
+        } else if (attempt < 36) {
+          // Backend cache not ready yet - retry every 5 seconds (covers ~180s cold start)
           retryTimeout = setTimeout(() => fetchPlayers(attempt + 1), 5000);
         } else {
           throw new Error('No data after retries');
