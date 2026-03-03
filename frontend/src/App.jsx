@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake, Plus, X, Save, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
+import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake, Plus, X, Save, Trash2, ChevronRight, ChevronLeft, RefreshCw } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -2006,6 +2006,8 @@ export default function StatScoutDashboard() {
   const [players, setPlayers] = useState(mockPlayers);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(30); // Show 30 props per page
   const [showHighConfidenceOnly, setShowHighConfidenceOnly] = useState(false);
@@ -2038,6 +2040,26 @@ export default function StatScoutDashboard() {
       localStorage.setItem('statscout_saved_parlays', JSON.stringify(savedParlays));
     }
   }, [savedParlays]);
+
+// Trigger ESPN stats refresh + cache rebuild
+const handleRefreshStats = async () => {
+  setIsRefreshing(true);
+  setRefreshMessage(null);
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/update-stats`, { method: 'POST' });
+    const data = await response.json();
+    if (data.success) {
+      setRefreshMessage('Stats update started — new games will appear in ~2 min');
+    } else {
+      setRefreshMessage('Update failed. Try again later.');
+    }
+  } catch (err) {
+    setRefreshMessage('Could not reach server.');
+  } finally {
+    setIsRefreshing(false);
+    setTimeout(() => setRefreshMessage(null), 8000);
+  }
+};
 
 // Handle line adjustment
 const handleLineAdjust = (playerId, playerName, statType, newData) => {
@@ -2359,14 +2381,27 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               <div>
                 <h1 className="text-4xl font-bold mb-2">StatScout</h1>
                 <p className="text-blue-100">Data-Backed Player Props • NBA</p>
+                {refreshMessage && (
+                  <p className="text-sm text-blue-200 mt-1">{refreshMessage}</p>
+                )}
               </div>
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-3 rounded-full hover:bg-blue-700 transition-colors"
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefreshStats}
+                  disabled={isRefreshing}
+                  className="p-3 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  title="Refresh stats (fetch last 14 days from ESPN)"
+                >
+                  <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="p-3 rounded-full hover:bg-blue-700 transition-colors"
+                  aria-label="Toggle dark mode"
+                >
+                  {darkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+                </button>
+              </div>
             </div>
 
             {/* View Tabs */}
