@@ -79,7 +79,7 @@ PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 stats_cache = {}  # {player_name: {stat_type: [values...]}}
 
 
-def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=False):
+def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=False, skip_odds=False):
     """
     Core computation for player props - separated from request handling
     so it can be called from both the route and background threads.
@@ -130,7 +130,7 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
             if len(stat_values) < 3:
                 continue
             avg_stat = sum(stat_values) / len(stat_values)
-            cached_odds = get_cached_odds()
+            cached_odds = None if skip_odds else get_cached_odds()
             odds_key = f"{player_name}_{display_stat_type}"
             bookmaker_lines = []
             is_real_line = False
@@ -233,12 +233,12 @@ def _build_players_cache_background():
         print("[CACHE] Phase 1: Building props (no injuries)...")
         for attempt in range(1, 4):
             try:
-                data = _compute_players_data(skip_injuries=True)
+                data = _compute_players_data(skip_injuries=True, skip_odds=True)
                 if data["count"] > 0:
                     players_cache["data"] = data
                     players_cache["last_updated"] = datetime.now()
                     _save_cache_to_disk(data)
-                    print(f"[CACHE] Phase 1 complete ({data['count']} props, injuries pending)")
+                    print(f"[CACHE] Phase 1 complete ({data['count']} props, odds+injuries pending)")
                     break
                 else:
                     print(f"[CACHE] Phase 1 attempt {attempt}: 0 props returned")
