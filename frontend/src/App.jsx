@@ -698,7 +698,8 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 <LineChart data={player.last15Games ? player.last15Games.map((stat, idx) => ({
                   game: `G${idx + 1}`,
                   value: stat,
-                  line: player.line
+                  line: player.line,
+                  date: player.last15GamesDates ? player.last15GamesDates[idx] : null
                 })).reverse() : []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                   <XAxis dataKey="game" stroke="#9CA3AF" style={{ fontSize: '12px' }} />
@@ -709,6 +710,11 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       border: '1px solid #374151',
                       borderRadius: '8px',
                       color: '#F3F4F6'
+                    }}
+                    labelStyle={{ color: '#9CA3AF' }}
+                    labelFormatter={(label, payload) => {
+                      const date = payload?.[0]?.payload?.date;
+                      return date ? `${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : label;
                     }}
                     formatter={(value) => [`${value} ${player.statType}`, 'Performance']}
                   />
@@ -737,7 +743,8 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 <BarChart data={player.last15Games ? player.last15Games.map((stat, idx) => ({
                   game: `G${idx + 1}`,
                   value: stat,
-                  hit: stat > player.line
+                  hit: stat > player.line,
+                  date: player.last15GamesDates ? player.last15GamesDates[idx] : null
                 })).reverse() : []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                   <XAxis dataKey="game" stroke="#9CA3AF" style={{ fontSize: '12px' }} />
@@ -748,6 +755,11 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       border: '1px solid #374151',
                       borderRadius: '8px',
                       color: '#F3F4F6'
+                    }}
+                    labelStyle={{ color: '#9CA3AF' }}
+                    labelFormatter={(label, payload) => {
+                      const date = payload?.[0]?.payload?.date;
+                      return date ? `${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : label;
                     }}
                     formatter={(value, name, props) => [
                       `${value} ${player.statType}`,
@@ -772,7 +784,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
               <table className="w-full">
                 <thead className="bg-gray-200 dark:bg-gray-600">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Game</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Date</th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">{player.statType}</th>
                     <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300">vs Line</th>
                     <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300">Result</th>
@@ -781,9 +793,13 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 <tbody>
                   {player.last15Games && player.last15Games.slice(0, 10).map((stat, idx) => {
                     const hitLine = stat > player.line;
+                    const gameDate = player.last15GamesDates?.[idx];
+                    const dateLabel = gameDate
+                      ? new Date(gameDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : `G${idx + 1}`;
                     return (
                       <tr key={idx} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600">
-                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">Game {idx + 1}</td>
+                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{dateLabel}</td>
                         <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{stat}</td>
                         <td className={`px-4 py-2 text-center text-sm font-semibold ${hitLine ? 'text-green-600' : 'text-red-600'}`}>
                           {hitLine ? '+' : ''}{(stat - player.line).toFixed(1)}
@@ -1250,8 +1266,13 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
   const [customLine, setCustomLine] = React.useState(player.line);
   const [isAdjusting, setIsAdjusting] = React.useState(false);
 
+  // Keep input in sync when parent updates player.line (e.g. after a successful adjustment)
+  React.useEffect(() => {
+    setCustomLine(player.line);
+  }, [player.line]);
+
   const handleLineChange = async () => {
-  if (customLine === player.line) return;
+  if (parseFloat(customLine) === player.line) return;
   
   console.log('Adjusting line for:', player.name, player.statType, 'from', player.line, 'to', customLine);
   
@@ -1475,12 +1496,17 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
           {displayGames.map((stat, idx) => {
             const isOver = stat > player.line;
             const height = (stat / Math.max(...displayGames)) * 100;
+            const displayDates = timeRange === 5 ? player.last5GamesDates : timeRange === 15 ? player.last15GamesDates : player.lastGamesDates;
+            const gameDate = displayDates?.[idx];
+            const dateLabel = gameDate
+              ? new Date(gameDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              : `G${idx + 1}`;
             return (
               <div
                 key={idx}
                 className={`flex-1 rounded-t ${isOver ? 'bg-green-400 hover:bg-green-500' : 'bg-red-400 hover:bg-red-500'} transition-all cursor-pointer`}
                 style={{ height: `${height}%` }}
-                title={`Game ${idx + 1}: ${stat} (${isOver ? 'Over' : 'Under'})`}
+                title={`${dateLabel}: ${stat} (${isOver ? 'Over' : 'Under'})`}
               />
             );
           })}

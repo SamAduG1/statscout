@@ -93,12 +93,14 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
         bulk = loader.get_all_players_bulk()
         player_info_map = {p['name']: p for p in bulk['players']}
         all_stats_map = bulk['stats']
+        all_dates_map = bulk.get('game_dates', {})
         stats_cache.update(all_stats_map)
         player_names = list(player_info_map.keys())
         all_teams = list(set(p['team'] for p in bulk['players']))
     else:
         player_info_map = None
         all_stats_map = None
+        all_dates_map = {}
         player_names = loader.get_player_names()
         all_teams = loader.get_teams()
 
@@ -118,6 +120,7 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
         team = player_info["team"]
         if team_filter != 'all' and team != team_filter:
             continue
+        all_dates = all_dates_map.get(player_name, [])
         for stat_type, stat_values in all_stats.items():
             if stat_type == 'three_pm':
                 display_stat_type = '3PM'
@@ -186,6 +189,9 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
                 "lastGames": analysis["last_games"],
                 "last5Games": analysis["last_5_games"],
                 "last15Games": analysis["last_15_games"],
+                "lastGamesDates": all_dates[-10:] if len(all_dates) >= 10 else all_dates,
+                "last5GamesDates": all_dates[-5:] if len(all_dates) >= 5 else all_dates,
+                "last15GamesDates": all_dates[-15:] if len(all_dates) >= 15 else all_dates,
                 "recentForm": analysis["recent_form"],
                 "opponent": opponent,
                 "opponentRank": opponent_rank,
@@ -525,6 +531,30 @@ def refresh_players_cache():
     return jsonify({"success": True, "message": "Cache refresh triggered"})
 
 
+@app.route('/api/admin/update-stats', methods=['POST'])
+def admin_update_stats():
+    """Trigger ESPN recent-games update in background (fetches last 14 days)"""
+    import threading
+    from models import get_session as _get_session
+
+    def _run_update():
+        try:
+            from update_stats import add_espn_recent_games
+            session = _get_session(loader.engine)
+            added = add_espn_recent_games(session, days_back=14)
+            session.close()
+            print(f"[UPDATE] ESPN update complete: {added} new games added")
+            # Invalidate cache so next /api/players request rebuilds with new data
+            players_cache["data"] = None
+            players_cache["last_updated"] = None
+            _build_players_cache_background()
+        except Exception as e:
+            print(f"[UPDATE] ESPN update failed: {e}")
+
+    threading.Thread(target=_run_update, daemon=True).start()
+    return jsonify({"success": True, "message": "Stats update triggered (last 14 days from ESPN)"})
+
+
 @app.route('/api/player/<player_name>', methods=['GET'])
 def get_player(player_name):
     """Get specific player's props"""
@@ -603,8 +633,22 @@ def calculate_custom():
                     None
                 )
             else:
-                player_info = loader.get_player_info(player_name)
-                all_stats = loader.get_all_available_stats(player_name)
+                try:
+                    player_info = loader.get_player_info(player_name)
+                    all_stats = loader.get_all_available_stats(player_name)
+                except Exception as db_err:
+                    print(f"[CALCULATE] DB fallback failed: {db_err}, using players_cache")
+                    # Last resort: extract from players_cache (last 15 games only)
+                    player_info = None
+                    all_stats = {}
+                    if players_cache["data"]:
+                        for p in players_cache["data"]["players"]:
+                            if p["name"] == player_name:
+                                if player_info is None:
+                                    player_info = {"team": p["team"], "position": p["position"]}
+                                if p["statType"] == data['stat_type']:
+                                    all_stats = {data['stat_type'].lower(): p.get("last15Games", p.get("lastGames", []))}
+                                    break
 
             if not player_info:
                 return jsonify({"success": False, "error": "Player not found"}), 404

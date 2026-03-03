@@ -82,6 +82,7 @@ class DatabaseLoader:
 
             players_info = []
             stats = {}
+            game_dates = {}
             for player in all_players:
                 games = games_by_player.get(player.id, [])
                 minutes_vals = [g.minutes for g in games if g.minutes is not None]
@@ -104,7 +105,8 @@ class DatabaseLoader:
                         'PR':  [g.points + g.rebounds for g in games],
                         'RA':  [g.rebounds + g.assists for g in games],
                     }
-            return {'players': players_info, 'stats': stats}
+                    game_dates[player.name] = [str(g.date) for g in games]
+            return {'players': players_info, 'stats': stats, 'game_dates': game_dates}
         except Exception as e:
             print(f"[ERROR] Failed bulk load: {e}")
             try:
