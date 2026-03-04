@@ -205,6 +205,7 @@ const TeamQuarterInsights = ({ allTeams }) => {
   const [loading, setLoading] = useState(false);
   const [selectedTeam1, setSelectedTeam1] = useState('');
   const [selectedTeam2, setSelectedTeam2] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Set default teams when component mounts
   useEffect(() => {
@@ -243,169 +244,165 @@ const TeamQuarterInsights = ({ allTeams }) => {
   const { team1: t1Data, team2: t2Data, insights } = quarterData || {};
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow-lg p-4 sm:p-6 mb-8 overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-blue-500 flex-shrink-0" />
+    <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 mb-8 overflow-hidden">
+      {/* Collapsible Header */}
+      <button
+        onClick={() => setIsExpanded(prev => !prev)}
+        className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+      >
+        <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <span className="w-[3px] h-5 bg-blue-500 rounded-full flex-shrink-0" />
+          <TrendingUp className="w-4 h-4 text-blue-500 flex-shrink-0" />
           Quarter Performance Insights
         </h2>
+        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} />
+      </button>
 
-        {/* Team Selectors */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Team 1:</label>
-            <select
-              value={selectedTeam1}
-              onChange={(e) => setSelectedTeam1(e.target.value)}
-              className="px-2 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 max-w-[130px]"
-            >
-              {allTeams.map(team => (
-                <option key={team} value={team}>{team}</option>
-              ))}
-            </select>
-          </div>
-
-          <span className="text-gray-400 dark:text-gray-500 font-bold text-xs">VS</span>
-
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Team 2:</label>
-            <select
-              value={selectedTeam2}
-              onChange={(e) => setSelectedTeam2(e.target.value)}
-              className="px-2 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 max-w-[130px]"
-            >
-              {allTeams.map(team => (
-                <option key={team} value={team}>{team}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {loading && (
-        <div className="text-center py-8">
-          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Loading quarter data...</p>
-        </div>
-      )}
-
-      {!loading && !quarterData && (
-        <div className="text-center py-8 text-gray-600 dark:text-gray-400">
-          No quarter data available for this matchup
-        </div>
-      )}
-
-      {!loading && quarterData && t1Data && t2Data && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Team 1 */}
-            <div className="bg-white dark:bg-gray-900 rounded-lg p-4 shadow">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t1Data.team}</h3>
-
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q1</div>
-              <div className="text-xl font-bold text-blue-600">{t1Data.q1_avg}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q2</div>
-              <div className="text-xl font-bold text-blue-600">{t1Data.q2_avg}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q3</div>
-              <div className="text-xl font-bold text-blue-600">{t1Data.q3_avg}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q4</div>
-              <div className="text-xl font-bold text-blue-600">{t1Data.q4_avg}</div>
-            </div>
-          </div>
-
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">First Half Avg:</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{t1Data.first_half_avg} pts</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Second Half Avg:</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{t1Data.second_half_avg} pts</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Through 3Q:</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{t1Data.three_quarter_avg} pts</span>
-            </div>
-            <div className="flex justify-between border-t pt-2 mt-2 border-gray-200 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Reach 100+ by Q3:</span>
-              <span className={`font-bold ${t1Data.reached_100_by_q3_pct >= 50 ? 'text-green-600' : 'text-orange-600'}`}>
-                {t1Data.reached_100_by_q3_pct}% ({t1Data.reached_100_by_q3_count}/{t1Data.total_games})
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Team 2 */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 shadow">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t2Data.team}</h3>
-
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q1</div>
-              <div className="text-xl font-bold text-purple-600">{t2Data.q1_avg}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q2</div>
-              <div className="text-xl font-bold text-purple-600">{t2Data.q2_avg}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q3</div>
-              <div className="text-xl font-bold text-purple-600">{t2Data.q3_avg}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Q4</div>
-              <div className="text-xl font-bold text-purple-600">{t2Data.q4_avg}</div>
-            </div>
-          </div>
-
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">First Half Avg:</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{t2Data.first_half_avg} pts</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Second Half Avg:</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{t2Data.second_half_avg} pts</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Through 3Q:</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{t2Data.three_quarter_avg} pts</span>
-            </div>
-            <div className="flex justify-between border-t pt-2 mt-2 border-gray-200 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Reach 100+ by Q3:</span>
-              <span className={`font-bold ${t2Data.reached_100_by_q3_pct >= 50 ? 'text-green-600' : 'text-orange-600'}`}>
-                {t2Data.reached_100_by_q3_pct}% ({t2Data.reached_100_by_q3_count}/{t2Data.total_games})
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-          {/* Insights */}
-          {insights && insights.length > 0 && (
-            <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                <Flame className="w-4 h-4 text-orange-500" />
-                Key Insights
-              </h4>
-              <ul className="space-y-1">
-                {insights.map((insight, idx) => (
-                  <li key={idx} className="text-sm text-gray-700 dark:text-gray-300">
-                    • {insight}
-                  </li>
+      {isExpanded && (
+        <div className="border-t border-gray-200 dark:border-gray-800 p-4 sm:p-5">
+          {/* Team Selectors */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-5">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Team 1:</label>
+              <select
+                value={selectedTeam1}
+                onChange={(e) => setSelectedTeam1(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 max-w-[130px]"
+              >
+                {allTeams.map(team => (
+                  <option key={team} value={team}>{team}</option>
                 ))}
-              </ul>
+              </select>
+            </div>
+
+            <span className="text-xs font-bold text-gray-400 dark:text-gray-500">VS</span>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Team 2:</label>
+              <select
+                value={selectedTeam2}
+                onChange={(e) => setSelectedTeam2(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 max-w-[130px]"
+              >
+                {allTeams.map(team => (
+                  <option key={team} value={team}>{team}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {loading && (
+            <div className="py-4 space-y-2 animate-pulse">
+              <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
+              <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2" />
+              <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
             </div>
           )}
-        </>
+
+          {!loading && !quarterData && (
+            <p className="text-sm text-center py-6 text-gray-500 dark:text-gray-400">
+              No quarter data available for this matchup
+            </p>
+          )}
+
+          {!loading && quarterData && t1Data && t2Data && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Team 1 */}
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                    {t1Data.team}
+                  </h3>
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {[['Q1', t1Data.q1_avg], ['Q2', t1Data.q2_avg], ['Q3', t1Data.q3_avg], ['Q4', t1Data.q4_avg]].map(([q, val]) => (
+                      <div key={q} className="text-center">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{q}</div>
+                        <div className="text-xl font-bold tabular-nums text-blue-500">{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5 text-sm border-t border-gray-200 dark:border-gray-800 pt-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">First Half Avg</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{t1Data.first_half_avg} pts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">Second Half Avg</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{t1Data.second_half_avg} pts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">Through 3Q</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{t1Data.three_quarter_avg} pts</span>
+                    </div>
+                    <div className="flex justify-between pt-1.5 mt-1 border-t border-gray-200 dark:border-gray-800">
+                      <span className="text-gray-500 dark:text-gray-400">100+ by Q3</span>
+                      <span className={`font-bold tabular-nums ${t1Data.reached_100_by_q3_pct >= 50 ? 'text-green-500' : 'text-amber-500'}`}>
+                        {t1Data.reached_100_by_q3_pct}%
+                        <span className="font-normal text-gray-500 dark:text-gray-400 ml-1">({t1Data.reached_100_by_q3_count}/{t1Data.total_games})</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Team 2 */}
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                    {t2Data.team}
+                  </h3>
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {[['Q1', t2Data.q1_avg], ['Q2', t2Data.q2_avg], ['Q3', t2Data.q3_avg], ['Q4', t2Data.q4_avg]].map(([q, val]) => (
+                      <div key={q} className="text-center">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">{q}</div>
+                        <div className="text-xl font-bold tabular-nums text-amber-500">{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5 text-sm border-t border-gray-200 dark:border-gray-800 pt-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">First Half Avg</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{t2Data.first_half_avg} pts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">Second Half Avg</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{t2Data.second_half_avg} pts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 dark:text-gray-400">Through 3Q</span>
+                      <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{t2Data.three_quarter_avg} pts</span>
+                    </div>
+                    <div className="flex justify-between pt-1.5 mt-1 border-t border-gray-200 dark:border-gray-800">
+                      <span className="text-gray-500 dark:text-gray-400">100+ by Q3</span>
+                      <span className={`font-bold tabular-nums ${t2Data.reached_100_by_q3_pct >= 50 ? 'text-green-500' : 'text-amber-500'}`}>
+                        {t2Data.reached_100_by_q3_pct}%
+                        <span className="font-normal text-gray-500 dark:text-gray-400 ml-1">({t2Data.reached_100_by_q3_count}/{t2Data.total_games})</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Insights */}
+              {insights && insights.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-amber-500" />
+                    Key Insights
+                  </h4>
+                  <ul className="space-y-1">
+                    {insights.map((insight, idx) => (
+                      <li key={idx} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-1.5">
+                        <span className="text-blue-500 mt-0.5 flex-shrink-0">•</span>
+                        {insight}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -495,9 +492,9 @@ const BookmakerSelector = ({ bookmakerLines }) => {
       </div>
 
       {/* Display the selected line */}
-      <div className="mt-2 flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-2">
-        <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Line:</span>
-        <span className="text-lg font-bold text-gray-900 dark:text-white">{currentBookmaker.line}</span>
+      <div className="mt-2 flex items-center justify-between bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg p-2">
+        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Line</span>
+        <span className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{currentBookmaker.line}</span>
       </div>
     </div>
   );
