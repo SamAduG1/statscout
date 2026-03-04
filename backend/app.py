@@ -559,9 +559,9 @@ def refresh_players_cache():
 def admin_db_status():
     """Show most recent game date and total game count in the DB"""
     try:
-        from models import Game as _Game
+        from models import get_session as _gs, Game as _Game
         from sqlalchemy import func as _func
-        session = get_session(loader.engine)
+        session = _gs(loader.engine)
         latest = session.query(_func.max(_Game.date)).scalar()
         total = session.query(_func.count(_Game.id)).scalar()
         session.close()
@@ -571,7 +571,8 @@ def admin_db_status():
             "total_games": total
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        import traceback
+        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
 
 
 @app.route('/api/admin/test-espn', methods=['GET'])
@@ -579,15 +580,15 @@ def admin_test_espn():
     """Test ESPN scraper for a single date - use ?date=YYYYMMDD or defaults to yesterday"""
     try:
         from espn_recent_games_scraper import ESPNAPIClient as _ESPN
+        from models import get_session as _gs, Player as _Player
         date_str = request.args.get('date', (datetime.now() - timedelta(days=1)).strftime('%Y%m%d'))
         client = _ESPN()
         stats = client.get_player_stats_from_date(date_str)
-        # Check how many match the DB
-        session = get_session(loader.engine)
+        session = _gs(loader.engine)
         matched = 0
         unmatched = []
         for s in stats:
-            p = session.query(__import__('models', fromlist=['Player']).Player).filter_by(name=s['player_name']).first()
+            p = session.query(_Player).filter_by(name=s['player_name']).first()
             if p:
                 matched += 1
             else:
@@ -619,7 +620,13 @@ def admin_update_stats():
             added = add_espn_recent_games(session, days_back=90)
             session.close()
             print(f"[UPDATE] ESPN update complete: {added} new games added")
-            # Invalidate cache so next /api/players request rebuilds with new data
+            # Wipe disk cache too so worker doesn't re-serve stale data
+            try:
+                import os as _os
+                if _os.path.exists(CACHE_FILE):
+                    _os.remove(CACHE_FILE)
+            except Exception:
+                pass
             players_cache["data"] = None
             players_cache["last_updated"] = None
             _build_players_cache_background()
