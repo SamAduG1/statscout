@@ -1270,6 +1270,83 @@ const PlayerDetailModal = ({ player, onClose }) => {
   );
 };
 
+const SoccerMatchCard = ({ match }) => {
+  const getRateColor = (rate) => {
+    if (rate === null || rate === undefined) return 'text-gray-400 dark:text-gray-500';
+    if (rate >= 70) return 'text-green-500';
+    if (rate >= 55) return 'text-blue-500';
+    return 'text-red-400';
+  };
+  const fmtOdds = (o) => (o > 0 ? `+${o}` : `${o}`);
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-5 flex flex-col">
+      {/* Teams */}
+      <div className="mb-3">
+        <div className="text-base font-bold text-gray-900 dark:text-white leading-snug">
+          {match.homeTeam} <span className="text-gray-400 dark:text-gray-500 font-normal text-sm">vs</span> {match.awayTeam}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {match.gameDate} · {match.gameTime}
+        </div>
+      </div>
+
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mb-3">
+        {/* 3-col stats */}
+        <div className="grid grid-cols-3 gap-2 text-center mb-3">
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">O/U</div>
+            <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{match.overUnderLine}</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Over%</div>
+            <div className={`text-xl font-bold tabular-nums ${getRateColor(match.overHitRate)}`}>
+              {match.overHitRate != null ? `${match.overHitRate}%` : '—'}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">BTTS%</div>
+            <div className={`text-xl font-bold tabular-nums ${getRateColor(match.bttsRate)}`}>
+              {match.bttsRate != null ? `${match.bttsRate}%` : '—'}
+            </div>
+          </div>
+        </div>
+
+        {/* Expected total breakdown */}
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500 dark:text-gray-400">Expected total</span>
+            <span className={`font-semibold tabular-nums ${match.expectedTotal > match.overUnderLine ? 'text-green-500' : 'text-red-400'}`}>
+              {match.expectedTotal} {match.expectedTotal > match.overUnderLine ? '▲ Over' : '▼ Under'}
+            </span>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>{match.homeTeam.split(' ')[0]} avg (home)</span>
+            <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.homeAvgGoals}</span>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>{match.awayTeam.split(' ')[0]} avg (away)</span>
+            <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.awayAvgGoals}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Odds footer */}
+      <div className="mt-auto pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
+        {match.overOdds != null ? (
+          <>
+            <span className="text-sm font-bold text-green-500 tabular-nums">O {fmtOdds(match.overOdds)}</span>
+            <span className="text-xs text-gray-400 truncate">{match.bookmaker || ''}</span>
+            <span className="text-sm font-bold text-red-400 tabular-nums">U {fmtOdds(match.underOdds)}</span>
+          </>
+        ) : (
+          <span className="text-xs text-gray-400 w-full text-center">Odds unavailable</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
   const [customLine, setCustomLine] = React.useState(player.line);
   const [isAdjusting, setIsAdjusting] = React.useState(false);
@@ -2011,6 +2088,10 @@ const ParlayBuilder = ({ darkMode }) => {
 };
 
 export default function StatScoutDashboard() {
+  const [currentSport, setCurrentSport] = useState('nba'); // 'nba' or 'soccer'
+  const [soccerMatches, setSoccerMatches] = useState([]);
+  const [soccerLoading, setSoccerLoading] = useState(false);
+  const [soccerError, setSoccerError] = useState(null);
   const [currentView, setCurrentView] = useState('props'); // 'props' or 'parlay'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
@@ -2329,6 +2410,34 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, []);
 
+  // Fetch soccer data when switching to Soccer tab (lazy — only on first visit)
+  useEffect(() => {
+    if (currentSport !== 'soccer' || soccerMatches.length > 0) return;
+    setSoccerLoading(true);
+    setSoccerError(null);
+    let retryTimeout = null;
+    const fetchSoccer = async (attempt = 1) => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/soccer/matches`);
+        const data = await res.json();
+        if (data.success && data.matches && data.matches.length > 0) {
+          setSoccerMatches(data.matches);
+          setSoccerLoading(false);
+        } else if (attempt < 12) {
+          retryTimeout = setTimeout(() => fetchSoccer(attempt + 1), 5000);
+        } else {
+          setSoccerError('No upcoming Premier League matches found.');
+          setSoccerLoading(false);
+        }
+      } catch {
+        setSoccerError('Failed to load soccer data.');
+        setSoccerLoading(false);
+      }
+    };
+    fetchSoccer();
+    return () => { if (retryTimeout) clearTimeout(retryTimeout); };
+  }, [currentSport]);
+
   // Apply dark mode to document element
   useEffect(() => {
     if (darkMode) {
@@ -2447,8 +2556,25 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               </div>
             </div>
 
-            {/* View Tabs */}
-            <div className="flex gap-2">
+            {/* Sport Tabs */}
+            <div className="flex gap-1 mb-2">
+              {['nba', 'soccer'].map(sport => (
+                <button
+                  key={sport}
+                  onClick={() => setCurrentSport(sport)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                    currentSport === sport
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {sport === 'nba' ? 'NBA' : 'Soccer'}
+                </button>
+              ))}
+            </div>
+
+            {/* View Tabs — NBA only */}
+            <div className={`flex gap-2 ${currentSport !== 'nba' ? 'hidden' : ''}`}>
               <button
                 onClick={() => setCurrentView('props')}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
@@ -2475,7 +2601,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
         <div className="max-w-7xl mx-auto px-6 py-8">
           {/* Loading State — Skeleton Cards */}
-          {loading && (
+          {currentSport === 'nba' && loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {Array.from({ length: 9 }).map((_, i) => (
                 <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 animate-pulse">
@@ -2504,7 +2630,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           )}
 
           {/* Error State */}
-          {error && (
+          {currentSport === 'nba' && error && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6 flex items-center gap-3">
               <div className="w-1 h-8 bg-amber-500 rounded-full flex-shrink-0" />
               <div>
@@ -2515,12 +2641,12 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           )}
 
           {/* Parlay Builder View */}
-          {currentView === 'parlay' && (
+          {currentSport === 'nba' && currentView === 'parlay' && (
             <ParlayBuilder darkMode={darkMode} />
           )}
 
           {/* Player Props View */}
-          {currentView === 'props' && !loading && (
+          {currentSport === 'nba' && currentView === 'props' && !loading && (
             <>
           {/* Stats Overview */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -2937,10 +3063,67 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           </div>
             </>
           )}
+
+          {/* Soccer View */}
+          {currentSport === 'soccer' && (
+            <div>
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-1 h-5 bg-blue-500 rounded-full" />
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Premier League — Match Totals</h2>
+              </div>
+
+              {soccerLoading && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 animate-pulse">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-4" />
+                      <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
+                        <div className="grid grid-cols-3 gap-2 mb-3">
+                          {[0,1,2].map(j => (
+                            <div key={j} className="text-center">
+                              <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-2/3 mx-auto mb-2" />
+                              <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mx-auto" />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded-lg mb-3" />
+                        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {soccerError && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-1 h-8 bg-amber-500 rounded-full flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-semibold text-amber-700 dark:text-amber-300">Notice</div>
+                    <div className="text-sm text-amber-600 dark:text-amber-400">{soccerError}</div>
+                  </div>
+                </div>
+              )}
+
+              {!soccerLoading && !soccerError && soccerMatches.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <p className="text-gray-500 dark:text-gray-400">No upcoming matches found.</p>
+                </div>
+              )}
+
+              {!soccerLoading && soccerMatches.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {soccerMatches.map(match => (
+                    <SoccerMatchCard key={match.id} match={match} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Custom Parlay Builder Sidebar */}
-        {currentView === 'props' && (
+        {currentSport === 'nba' && currentView === 'props' && (
           <>
             {/* Floating Toggle Button (when sidebar is closed) */}
             {!isParlaySidebarOpen && customParlayLegs.length > 0 && (
