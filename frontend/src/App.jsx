@@ -2505,8 +2505,12 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
           {/* Error State */}
           {error && (
-            <div className="bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-200 px-4 py-3 rounded mb-4">
-              {error}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6 flex items-center gap-3">
+              <div className="w-1 h-8 bg-amber-500 rounded-full flex-shrink-0" />
+              <div>
+                <div className="text-sm font-semibold text-amber-700 dark:text-amber-300">Notice</div>
+                <div className="text-sm text-amber-600 dark:text-amber-400">{error}</div>
+              </div>
             </div>
           )}
 
@@ -2828,18 +2832,47 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedPlayers.map(player => (
-                <PlayerCard
-                  key={player.id}
-                  player={player}
-                  timeRange={timeRange}
-                  onLineAdjust={handleLineAdjust}
-                  onClick={() => setSelectedPlayer(player)}
-                  onAddToParlay={addToCustomParlay}
-                />
-              ))}
-            </div>
+            {filteredAndSortedPlayers.length === 0 ? (
+              <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-12 text-center">
+                <div className="flex justify-center mb-4">
+                  <Search className="w-10 h-10 text-gray-300 dark:text-gray-700" />
+                </div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white mb-1">No props match your filters</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 mb-6">Try broadening your search or clearing some filters</div>
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedTeams([]);
+                    setSelectedTeam('all');
+                    setSelectedStat('all');
+                    setHomeAwayFilter('all');
+                    setMinTrustScore(0);
+                    setMinMinutes(0);
+                    setTimeRange(10);
+                    setSortBy('trustScore');
+                    setShowHighConfidenceOnly(false);
+                    setShowGamesTodayOnly(false);
+                    setShowLiveOddsOnly(false);
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-colors"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedPlayers.map(player => (
+                  <PlayerCard
+                    key={player.id}
+                    player={player}
+                    timeRange={timeRange}
+                    onLineAdjust={handleLineAdjust}
+                    onClick={() => setSelectedPlayer(player)}
+                    onAddToParlay={addToCustomParlay}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Player Detail Modal */}
             {selectedPlayer && (
