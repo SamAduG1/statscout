@@ -112,36 +112,39 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
     return games_added
 
 
+def _ascii_name(name):
+    """Normalize to ASCII lowercase: strips accents (Schröder→schroder),
+    dots from initials (P.J.→PJ), and extra spaces."""
+    import unicodedata
+    nfkd = unicodedata.normalize('NFKD', name)
+    ascii_only = ''.join(c for c in nfkd if not unicodedata.combining(c))
+    return ascii_only.replace('.', '').replace('  ', ' ').strip().lower()
+
+
 def _build_player_name_map(session):
     """
     Build a lookup dict from normalized name -> Player object.
-    Handles ESPN vs nba_api differences like P.J. vs PJ, Jr. variants, etc.
+    Handles ESPN vs nba_api name differences:
+      - Dots in initials: P.J. vs PJ
+      - Accents/umlauts: Schröder vs Schroder
+      - Suffixes: Jr., II, III
     """
     all_players = session.query(Player).all()
     name_map = {}
     for p in all_players:
-        # Exact name
         name_map[p.name.lower()] = p
-        # Strip dots from initials: "P.J." -> "PJ"
-        stripped = p.name.replace('.', '').replace('  ', ' ').strip()
-        name_map[stripped.lower()] = p
-        # Strip Jr./Sr./II/III suffixes
+        name_map[_ascii_name(p.name)] = p
         for suffix in [' Jr.', ' Sr.', ' II', ' III', ' IV']:
             if p.name.endswith(suffix):
-                name_map[p.name[:-len(suffix)].strip().lower()] = p
+                base = p.name[:-len(suffix)].strip()
+                name_map[base.lower()] = p
+                name_map[_ascii_name(base)] = p
     return name_map
 
 
 def _lookup_player(name_map, espn_name):
     """Look up a player by ESPN display name using normalized matching."""
-    key = espn_name.lower()
-    if key in name_map:
-        return name_map[key]
-    # Strip dots from initials
-    stripped = espn_name.replace('.', '').replace('  ', ' ').strip().lower()
-    if stripped in name_map:
-        return name_map[stripped]
-    return None
+    return name_map.get(espn_name.lower()) or name_map.get(_ascii_name(espn_name))
 
 
 def add_espn_recent_games(session, days_back=7):
