@@ -1670,8 +1670,11 @@ const ParlayBuilder = ({ darkMode }) => {
   return (
     <div className="space-y-6">
       {/* Parlay Builder Controls */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Build Your Parlay</h2>
+      <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-6">
+          <span className="w-[3px] h-6 bg-blue-500 rounded-full flex-shrink-0" />
+          Build Your Parlay
+        </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Target Odds */}
@@ -1682,7 +1685,7 @@ const ParlayBuilder = ({ darkMode }) => {
             <select
               value={targetOdds}
               onChange={(e) => setTargetOdds(Number(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             >
               <option value={200}>+200</option>
               <option value={300}>+300</option>
@@ -1704,7 +1707,7 @@ const ParlayBuilder = ({ darkMode }) => {
             <select
               value={safetyLevel}
               onChange={(e) => setSafetyLevel(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             >
               <option value="conservative">Conservative (70%+ trust)</option>
               <option value="moderate">Moderate (60%+ trust)</option>
@@ -1726,7 +1729,7 @@ const ParlayBuilder = ({ darkMode }) => {
                   setSelectedGames([]);
                 }
               }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             >
               <option value="any">Different Games (avoid correlation)</option>
               <option value="single">Same Game Parlay ⚠️</option>
@@ -1742,7 +1745,7 @@ const ParlayBuilder = ({ darkMode }) => {
             <select
               value={numSuggestions}
               onChange={(e) => setNumSuggestions(Number(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             >
               <option value={1}>1 parlay</option>
               <option value={3}>3 parlays</option>
@@ -1772,7 +1775,7 @@ const ParlayBuilder = ({ darkMode }) => {
                     setMaxLegs(newMin);
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
               >
                 <option value={2}>2 legs</option>
                 <option value={3}>3 legs</option>
@@ -1797,7 +1800,7 @@ const ParlayBuilder = ({ darkMode }) => {
                     setMinLegs(newMax);
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
               >
                 <option value={2}>2 legs</option>
                 <option value={3}>3 legs</option>
@@ -1842,7 +1845,7 @@ const ParlayBuilder = ({ darkMode }) => {
               {bannedPlayers.map((player, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-sm"
+                  className="inline-flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-full text-sm"
                 >
                   {player}
                   <button
@@ -1866,17 +1869,17 @@ const ParlayBuilder = ({ darkMode }) => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               Select Games ({selectedGames.length} selected)
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-600">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
               {availableGames.map(game => (
                 <label
                   key={game.id}
-                  className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
+                  className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 cursor-pointer transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={selectedGames.includes(game.id)}
                     onChange={() => toggleGameSelection(game.id)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-900 dark:border-gray-600"
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">
                     {game.display}
@@ -1891,7 +1894,7 @@ const ParlayBuilder = ({ darkMode }) => {
         <button
           onClick={generateParlays}
           disabled={loading || (gameFilter === 'specific' && selectedGames.length === 0)}
-          className="mt-6 w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Generating Parlays...' : 'Generate Parlays'}
         </button>
@@ -1905,7 +1908,7 @@ const ParlayBuilder = ({ darkMode }) => {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl">
           <p className="font-semibold">Error</p>
           <p>{error}</p>
         </div>
@@ -1916,17 +1919,16 @@ const ParlayBuilder = ({ darkMode }) => {
         <div className="space-y-6">
           {/* Regenerate Button */}
           <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
               Parlay Suggestions
             </h3>
             <button
               onClick={generateParlays}
               disabled={loading}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl border border-gray-200 dark:border-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-              </svg>
+              <RefreshCw className="w-4 h-4" />
               {loading ? 'Generating...' : 'Regenerate'}
             </button>
           </div>
@@ -1935,7 +1937,7 @@ const ParlayBuilder = ({ darkMode }) => {
             // Handle error parlays
             if (parlay.error) {
               return (
-                <div key={index} className="bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 px-6 py-4 rounded-lg">
+                <div key={index} className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 px-6 py-4 rounded-xl">
                   <p className="font-semibold">{parlay.error}</p>
                   <p className="text-sm mt-1">{parlay.suggestion}</p>
                   {parlay.available_props && (
@@ -1946,54 +1948,57 @@ const ParlayBuilder = ({ darkMode }) => {
             }
 
             return (
-              <div key={index} className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+              <div key={index} className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                 {/* Parlay Header */}
-                <div className="bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 text-white px-6 py-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">Parlay #{index + 1}</h3>
+                <div className="bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <span className="w-[3px] h-6 bg-green-500 rounded-full flex-shrink-0" />
+                      <div>
+                        <div className="text-base font-bold text-gray-900 dark:text-white">Parlay #{index + 1}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{parlay.num_legs} legs • ${parlay.payout_per_dollar.toFixed(2)} per $1</div>
+                      </div>
+                    </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold">{parlay.parlay_odds_display}</div>
-                      <div className="text-sm opacity-90">{parlay.num_legs} legs • ${parlay.payout_per_dollar.toFixed(2)} per $1</div>
+                      <div className="text-2xl font-bold tabular-nums text-green-500">{parlay.parlay_odds_display}</div>
                     </div>
                   </div>
-                  <div className="flex gap-4 mt-3">
-                    <div className="bg-white/20 rounded px-3 py-1">
-                      <div className="text-xs opacity-75">Avg Trust</div>
-                      <div className="font-semibold">{parlay.avg_trust}%</div>
+                  <div className="flex gap-3 mt-3">
+                    <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-1.5">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Avg Trust</div>
+                      <div className="font-bold tabular-nums text-gray-900 dark:text-white">{parlay.avg_trust}%</div>
                     </div>
-                    <div className="bg-white/20 rounded px-3 py-1">
-                      <div className="text-xs opacity-75">True Win Rate</div>
-                      <div className="font-semibold">{parlay.true_win_rate}%</div>
+                    <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-1.5">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Win Rate</div>
+                      <div className="font-bold tabular-nums text-gray-900 dark:text-white">{parlay.true_win_rate}%</div>
                     </div>
-                    <div className="bg-white/20 rounded px-3 py-1">
-                      <div className="text-xs opacity-75">Safety</div>
-                      <div className="font-semibold capitalize">{parlay.safety_level}</div>
+                    <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-1.5">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Safety</div>
+                      <div className="font-bold capitalize text-gray-900 dark:text-white">{parlay.safety_level}</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Parlay Legs */}
-                <div className="p-6 space-y-3">
+                <div className="p-5 space-y-2">
                   {parlay.legs.map((leg, legIndex) => (
-                    <div key={legIndex} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                    <div key={legIndex} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
                       <div>
                         <div className="font-semibold text-gray-900 dark:text-white">{leg.player_name}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                           {leg.team} vs {leg.opponent} • {leg.stat_type} O{leg.line}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-gray-900 dark:text-white">
+                        <div className="font-bold tabular-nums text-gray-900 dark:text-white">
                           {leg.odds > 0 ? `+${leg.odds}` : leg.odds}
                         </div>
-                        <div className="text-sm">
-                          <span className={`font-medium ${
-                            leg.trust_score >= 70 ? 'text-green-600 dark:text-green-400' :
-                            leg.trust_score >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
-                            'text-red-600 dark:text-red-400'
-                          }`}>
-                            {leg.trust_score}% trust
-                          </span>
+                        <div className={`text-sm font-semibold tabular-nums ${
+                          leg.trust_score >= 70 ? 'text-green-500' :
+                          leg.trust_score >= 60 ? 'text-amber-500' :
+                          'text-red-500'
+                        }`}>
+                          {leg.trust_score}% trust
                         </div>
                       </div>
                     </div>
