@@ -257,7 +257,7 @@ const TeamQuarterInsights = ({ allTeams }) => {
             <select
               value={selectedTeam1}
               onChange={(e) => setSelectedTeam1(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             >
               {allTeams.map(team => (
                 <option key={team} value={team}>{team}</option>
@@ -272,7 +272,7 @@ const TeamQuarterInsights = ({ allTeams }) => {
             <select
               value={selectedTeam2}
               onChange={(e) => setSelectedTeam2(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             >
               {allTeams.map(team => (
                 <option key={team} value={team}>{team}</option>
@@ -463,7 +463,7 @@ const BookmakerSelector = ({ bookmakerLines }) => {
               e.stopPropagation();
               setIsOpen(!isOpen);
             }}
-            className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-900 rounded text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
             {currentBookmaker.bookmaker}
             <svg className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -473,7 +473,7 @@ const BookmakerSelector = ({ bookmakerLines }) => {
 
           {/* Dropdown menu */}
           {isOpen && uniqueBookmakers.length > 1 && (
-            <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10">
+            <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10">
               {uniqueBookmakers.map((bm, idx) => (
                 <button
                   key={idx}
@@ -617,7 +617,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -670,14 +670,14 @@ const PlayerDetailModal = ({ player, onClose }) => {
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Performance Overview</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                 <div className="text-sm text-gray-600 dark:text-gray-400">Last 5 Games Average</div>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white">{last5Avg}</div>
                 <div className={`text-sm font-semibold ${last5Avg > player.line ? 'text-green-600' : 'text-red-600'}`}>
                   {last5Avg > player.line ? `+${(last5Avg - player.line).toFixed(1)} vs line` : `${(last5Avg - player.line).toFixed(1)} vs line`}
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                 <div className="text-sm text-gray-600 dark:text-gray-400">Last 15 Games Average</div>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white">{last15Avg}</div>
                 <div className={`text-sm font-semibold ${last15Avg > player.line ? 'text-green-600' : 'text-red-600'}`}>
@@ -692,7 +692,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Performance Trends</h3>
 
             {/* Line Chart - Performance over time */}
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-4">
               <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Last 15 Games Performance</div>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={player.last15Games ? player.last15Games.map((stat, idx) => ({
@@ -738,7 +738,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
             </div>
 
             {/* Bar Chart - Hit/Miss Visualization */}
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
               <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Over/Under Results</div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={player.last15Games ? player.last15Games.map((stat, idx) => ({
@@ -782,7 +782,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
           {/* Game Log */}
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Recent Game Log</h3>
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-200 dark:bg-gray-600">
                   <tr>
@@ -905,7 +905,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                   <div className={`rounded-lg p-4 border ${
                     player.isHome
                       ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
-                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                      : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium text-gray-600 dark:text-gray-400">🏠 Home</div>
@@ -927,7 +927,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                   <div className={`rounded-lg p-4 border ${
                     !player.isHome
                       ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
-                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                      : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium text-gray-600 dark:text-gray-400">✈️ Away</div>
@@ -1010,7 +1010,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 </div>
 
                 {/* Live Projection Calculator */}
-                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-3">🎯 Live Projection Calculator</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Enter player's current {player.statType.toLowerCase()} at halftime:
@@ -1023,7 +1023,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       onChange={(e) => setLiveInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && calculateLiveProjection()}
                       placeholder={`e.g., ${Math.floor(halfTendency.first_half_avg)}`}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       onClick={() => {
@@ -1163,7 +1163,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 </div>
 
                 {/* All Stats */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-4">
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-4">
                   <div className="grid grid-cols-6 gap-3">
                     <div className="text-center">
                       <div className="text-xs text-gray-600 dark:text-gray-400">PTS</div>
@@ -1193,7 +1193,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 </div>
 
                 {/* Game by Game Breakdown */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
                   <table className="w-full">
                     <thead className="bg-gray-200 dark:bg-gray-600">
                       <tr>
@@ -1227,13 +1227,13 @@ const PlayerDetailModal = ({ player, onClose }) => {
             )}
 
             {!loadingMatchup && matchupHistory && matchupHistory.games_played === 0 && (
-              <div className="text-center py-8 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div className="text-center py-8 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 No previous games found against {player.opponent} this season
               </div>
             )}
 
             {!loadingMatchup && !matchupHistory && (
-              <div className="text-center py-8 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div className="text-center py-8 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 Unable to load matchup history
               </div>
             )}
@@ -1311,7 +1311,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 };
   const getTrustColor = (score) => {
     if (score >= 80) return 'bg-green-500';
-    if (score >= 70) return 'bg-blue-500';
+    if (score >= 70) return 'bg-amber-500';
     if (score >= 60) return 'bg-yellow-500';
     return 'bg-red-500';
   };
@@ -1345,7 +1345,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 
   return (
     <div
-      className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer"
       onClick={onClick}
     >
       <div className="flex justify-between items-start mb-3">
@@ -1384,7 +1384,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
         </div>
       </div>
 
-      <div className="mb-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-3" onClick={(e) => e.stopPropagation()}>
+      <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-1">
           <div className="flex items-center gap-2">
             <span className="text-gray-700 dark:text-gray-300 font-medium">{player.statType}</span>
@@ -1412,14 +1412,14 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
               }}
               onClick={(e) => e.stopPropagation()}
               onFocus={(e) => e.stopPropagation()}
-              className="w-20 px-2 py-1 text-right text-xl font-bold border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded focus:ring-2 focus:ring-blue-500"
+              className="w-20 px-2 py-1 text-right text-xl font-bold tabular-nums border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded focus:ring-2 focus:ring-blue-500"
               disabled={isAdjusting}
             />
             {isAdjusting && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
           </div>
         </div>
         <div className="text-sm text-gray-600 dark:text-gray-400">
-          Avg Last {timeRange}: <span className="font-semibold">{player.avgLastN}</span>
+          Avg Last {timeRange}: <span className="font-semibold tabular-nums">{player.avgLastN}</span>
           <span className={`ml-2 font-semibold ${lineDiffColor}`}>
             ({lineDiff > 0 ? '+' : ''}{lineDiff})
           </span>
@@ -1446,29 +1446,30 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
       </div>
 
       <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Hit Rate</span>
-          <div className="text-right">
-            <div className="text-lg font-semibold dark:text-white">{player.hitRate}%</div>
-            <div className="text-xs text-gray-500 dark:text-gray-500">
-              Season: {player.season_hits || Math.round((player.hitRate / 100) * (player.total_games || 20))}/{player.total_games || 20}
-            </div>
-          </div>
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Hit Rate</span>
+          <span className={`text-2xl font-bold tabular-nums ${
+            player.hitRate >= 70 ? 'text-green-500' : player.hitRate >= 55 ? 'text-blue-500' : 'text-red-400'
+          }`}>
+            {player.hitRate}%
+          </span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all"
-            style={{ width: `${player.hitRate}%` }}
+            className={`h-1.5 rounded-full transition-all ${
+              player.hitRate >= 70 ? 'bg-green-500' : player.hitRate >= 55 ? 'bg-blue-500' : 'bg-red-400'
+            }`}
+            style={{ width: `${Math.min(player.hitRate, 100)}%` }}
           />
         </div>
         {player.recent_hit_rate !== undefined && player.recent_total >= 5 && (
           <div className="mt-2 text-xs">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600 dark:text-gray-400">Last {player.recent_total} Games</span>
-              <span className={`font-semibold ${
-                player.recent_hit_rate > player.hitRate ? 'text-green-600 dark:text-green-400' :
-                player.recent_hit_rate < player.hitRate ? 'text-red-600 dark:text-red-400' :
-                'text-gray-700 dark:text-gray-300'
+              <span className="text-gray-500 dark:text-gray-400">Last {player.recent_total} Games</span>
+              <span className={`font-semibold tabular-nums ${
+                player.recent_hit_rate > player.hitRate ? 'text-green-500 dark:text-green-400' :
+                player.recent_hit_rate < player.hitRate ? 'text-red-500 dark:text-red-400' :
+                'text-gray-600 dark:text-gray-300'
               }`}>
                 {player.recent_hit_rate}% ({player.recent_hits}/{player.recent_total})
                 {player.recent_hit_rate > player.hitRate && ' ↗'}
@@ -1480,13 +1481,13 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
       </div>
 
       <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Trust Score</span>
-          <span className="text-lg font-semibold dark:text-white">{player.trustScore}</span>
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Trust Score</span>
+          <span className="text-2xl font-bold tabular-nums dark:text-white">{player.trustScore}</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div 
-            className={`h-2 rounded-full transition-all ${getTrustColor(player.trustScore)}`}
+        <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
+          <div
+            className={`h-1.5 rounded-full transition-all ${getTrustColor(player.trustScore)}`}
             style={{ width: `${player.trustScore}%` }}
           />
         </div>
@@ -1654,7 +1655,7 @@ const ParlayBuilder = ({ darkMode }) => {
   return (
     <div className="space-y-6">
       {/* Parlay Builder Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Build Your Parlay</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1666,7 +1667,7 @@ const ParlayBuilder = ({ darkMode }) => {
             <select
               value={targetOdds}
               onChange={(e) => setTargetOdds(Number(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
             >
               <option value={200}>+200</option>
               <option value={300}>+300</option>
@@ -1688,7 +1689,7 @@ const ParlayBuilder = ({ darkMode }) => {
             <select
               value={safetyLevel}
               onChange={(e) => setSafetyLevel(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
             >
               <option value="conservative">Conservative (70%+ trust)</option>
               <option value="moderate">Moderate (60%+ trust)</option>
@@ -1710,7 +1711,7 @@ const ParlayBuilder = ({ darkMode }) => {
                   setSelectedGames([]);
                 }
               }}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
             >
               <option value="any">Different Games (avoid correlation)</option>
               <option value="single">Same Game Parlay ⚠️</option>
@@ -1726,7 +1727,7 @@ const ParlayBuilder = ({ darkMode }) => {
             <select
               value={numSuggestions}
               onChange={(e) => setNumSuggestions(Number(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
             >
               <option value={1}>1 parlay</option>
               <option value={3}>3 parlays</option>
@@ -1756,7 +1757,7 @@ const ParlayBuilder = ({ darkMode }) => {
                     setMaxLegs(newMin);
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
               >
                 <option value={2}>2 legs</option>
                 <option value={3}>3 legs</option>
@@ -1781,7 +1782,7 @@ const ParlayBuilder = ({ darkMode }) => {
                     setMinLegs(newMax);
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
               >
                 <option value={2}>2 legs</option>
                 <option value={3}>3 legs</option>
@@ -1812,7 +1813,7 @@ const ParlayBuilder = ({ darkMode }) => {
               onChange={(e) => setBanInput(e.target.value)}
               onKeyPress={handleBanKeyPress}
               placeholder="Type player name and press Enter..."
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:text-white"
             />
             <button
               onClick={addBannedPlayer}
@@ -1854,13 +1855,13 @@ const ParlayBuilder = ({ darkMode }) => {
               {availableGames.map(game => (
                 <label
                   key={game.id}
-                  className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
+                  className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
                 >
                   <input
                     type="checkbox"
                     checked={selectedGames.includes(game.id)}
                     onChange={() => toggleGameSelection(game.id)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-900 dark:border-gray-600"
                   />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">
                     {game.display}
@@ -1930,7 +1931,7 @@ const ParlayBuilder = ({ darkMode }) => {
             }
 
             return (
-              <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+              <div key={index} className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden">
                 {/* Parlay Header */}
                 <div className="bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 text-white px-6 py-4">
                   <div className="flex justify-between items-center">
@@ -1959,7 +1960,7 @@ const ParlayBuilder = ({ darkMode }) => {
                 {/* Parlay Legs */}
                 <div className="p-6 space-y-3">
                   {parlay.legs.map((leg, legIndex) => (
-                    <div key={legIndex} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div key={legIndex} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                       <div>
                         <div className="font-semibold text-gray-900 dark:text-white">{leg.player_name}</div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -2004,7 +2005,10 @@ export default function StatScoutDashboard() {
   const [sortBy, setSortBy] = useState('trustScore');
   const [homeAwayFilter, setHomeAwayFilter] = useState('all');
   const [timeRange, setTimeRange] = useState(10);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('statscout-dark-mode');
+    return saved !== null ? saved === 'true' : true; // default: dark
+  });
   const [players, setPlayers] = useState(mockPlayers);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -2042,6 +2046,12 @@ export default function StatScoutDashboard() {
       localStorage.setItem('statscout_saved_parlays', JSON.stringify(savedParlays));
     }
   }, [savedParlays]);
+
+const handleDarkModeToggle = () => {
+  const next = !darkMode;
+  setDarkMode(next);
+  localStorage.setItem('statscout-dark-mode', String(next));
+};
 
 // Trigger ESPN stats refresh + cache rebuild
 const handleRefreshStats = async () => {
@@ -2375,55 +2385,57 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   }, [searchTerm, selectedTeam, selectedTeams, selectedStat, minTrustScore, homeAwayFilter, showHighConfidenceOnly, showGamesTodayOnly, showLiveOddsOnly, minMinutes]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 dark:from-blue-800 dark:to-blue-950 text-white shadow-lg">
-          <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="flex justify-between items-center mb-6">
+        <div className="bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="max-w-7xl mx-auto px-6 py-5">
+            <div className="flex justify-between items-center mb-5">
               <div>
-                <h1 className="text-4xl font-bold mb-2">StatScout</h1>
-                <p className="text-blue-100">Data-Backed Player Props • NBA</p>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+                  <span className="text-blue-500">Stat</span>Scout
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Data-Backed Player Props • NBA</p>
                 {refreshMessage && (
-                  <p className="text-sm text-blue-200 mt-1">{refreshMessage}</p>
+                  <p className="text-xs text-amber-500 dark:text-amber-400 mt-1">{refreshMessage}</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleRefreshStats}
                   disabled={isRefreshing}
-                  className="p-3 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  title="Refresh stats (fetch last 14 days from ESPN)"
+                  className="p-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  title="Refresh stats"
                 >
                   <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
                 <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="p-3 rounded-full hover:bg-blue-700 transition-colors"
+                  onClick={handleDarkModeToggle}
+                  className="p-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   aria-label="Toggle dark mode"
                 >
-                  {darkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
+                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </button>
               </div>
             </div>
 
             {/* View Tabs */}
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <button
                 onClick={() => setCurrentView('props')}
-                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
                   currentView === 'props'
-                    ? 'bg-white text-blue-600'
-                    : 'bg-blue-700 text-white hover:bg-blue-600'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
               >
                 Player Props
               </button>
               <button
                 onClick={() => setCurrentView('parlay')}
-                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
                   currentView === 'parlay'
-                    ? 'bg-white text-blue-600'
-                    : 'bg-blue-700 text-white hover:bg-blue-600'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
               >
                 Parlay Builder
@@ -2433,11 +2445,32 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Loading State */}
+          {/* Loading State — Skeleton Cards */}
           {loading && (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading player data...</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 animate-pulse">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-32 mb-2" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-20" />
+                    </div>
+                    <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-16" />
+                  </div>
+                  <div className="h-24 bg-gray-100 dark:bg-gray-800 rounded-lg mb-4" />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-16" />
+                    <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-12" />
+                  </div>
+                  <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full mb-4" />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-20" />
+                    <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-10" />
+                  </div>
+                  <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full mb-4" />
+                  <div className="h-12 bg-gray-100 dark:bg-gray-800 rounded" />
+                </div>
+              ))}
             </div>
           )}
 
@@ -2457,36 +2490,36 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {currentView === 'props' && !loading && (
             <>
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 transition-colors">
-              <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Props</div>
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">{filteredAndSortedPlayers.length}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Total Props</div>
+              <div className="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{filteredAndSortedPlayers.length}</div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 transition-colors">
-              <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Avg Trust Score</div>
-              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Avg Trust</div>
+              <div className="text-3xl font-bold tabular-nums text-amber-500">
                 {Math.round(filteredAndSortedPlayers.reduce((acc, p) => acc + p.trustScore, 0) / filteredAndSortedPlayers.length || 0)}
               </div>
             </div>
             <div
-              className={`rounded-lg shadow p-5 transition-all cursor-pointer transform hover:scale-105 ${
+              className={`rounded-xl border p-5 cursor-pointer transition-all ${
                 showHighConfidenceOnly
-                  ? 'bg-green-600 dark:bg-green-700 ring-4 ring-green-300 dark:ring-green-500'
-                  : 'bg-white dark:bg-gray-800 hover:shadow-lg'
+                  ? 'bg-green-600 border-green-500 ring-2 ring-green-400 ring-offset-2 dark:ring-offset-gray-950'
+                  : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-green-400 dark:hover:border-green-600'
               }`}
               onClick={() => setShowHighConfidenceOnly(!showHighConfidenceOnly)}
               title="Click to filter high confidence props only"
             >
-              <div className={`text-sm mb-1 ${showHighConfidenceOnly ? 'text-green-100' : 'text-gray-600 dark:text-gray-400'}`}>
-                High Confidence {showHighConfidenceOnly && '(Active)'}
+              <div className={`text-xs font-semibold uppercase tracking-wider mb-2 ${showHighConfidenceOnly ? 'text-green-100' : 'text-gray-400 dark:text-gray-500'}`}>
+                High Confidence {showHighConfidenceOnly && '✓'}
               </div>
-              <div className={`text-3xl font-bold ${showHighConfidenceOnly ? 'text-white' : 'text-green-600 dark:text-green-400'}`}>
+              <div className={`text-3xl font-bold tabular-nums ${showHighConfidenceOnly ? 'text-white' : 'text-green-500'}`}>
                 {players.filter(p => p.trustScore >= 80).length}
               </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5 transition-colors">
-              <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Avg Hit Rate</div>
-              <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Avg Hit Rate</div>
+              <div className="text-3xl font-bold tabular-nums text-blue-500">
                 {Math.round(filteredAndSortedPlayers.reduce((acc, p) => acc + p.hitRate, 0) / filteredAndSortedPlayers.length || 0)}%
               </div>
             </div>
@@ -2502,10 +2535,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           })()}
 
           {/* Filters */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8 transition-colors">
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 mb-8">
             <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Filters & Search</h2>
+              <Filter className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filters & Search</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -2518,7 +2551,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     placeholder="Search..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -2531,7 +2564,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 {/* Dropdown Button */}
                 <button
                   onClick={() => setTeamDropdownOpen(!teamDropdownOpen)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left flex items-center justify-between"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left flex items-center justify-between"
                 >
                   <span>
                     {selectedTeams.length === 0
@@ -2550,7 +2583,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
                 {/* Dropdown Menu */}
                 {teamDropdownOpen && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg">
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg">
                     {/* Selected teams pills */}
                     {selectedTeams.length > 0 && (
                       <div className="p-3 border-b border-gray-200 dark:border-gray-600">
@@ -2632,7 +2665,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <select
                   value={selectedStat}
                   onChange={(e) => setSelectedStat(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {statTypes.map(stat => (
                     <option key={stat} value={stat}>{stat === 'all' ? 'All Stats' : stat}</option>
@@ -2645,7 +2678,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <select
                   value={homeAwayFilter}
                   onChange={(e) => setHomeAwayFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="all">All Games</option>
                   <option value="home">Home Only</option>
@@ -2658,7 +2691,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <select
                   value={timeRange}
                   onChange={(e) => setTimeRange(parseInt(e.target.value))}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value={5}>Last 5 Games</option>
                   <option value={10}>Last 10 Games</option>
@@ -2671,7 +2704,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="trustScore">Trust Score</option>
                   <option value="hitRate">Hit Rate</option>
@@ -2723,7 +2756,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all transform hover:scale-105 ${
                     showGamesTodayOnly
                       ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                      : 'bg-gray-200 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                   }`}
                 >
                   {showGamesTodayOnly ? '📅 Games Today (Active)' : '📅 Games Today'}
@@ -2733,7 +2766,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all transform hover:scale-105 ${
                     showLiveOddsOnly
                       ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                      : 'bg-gray-200 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                   }`}
                 >
                   {showLiveOddsOnly ? '🎲 Live Odds Only (Active)' : '🎲 Live Odds Only'}
@@ -2792,7 +2825,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                           className={`px-4 py-2 rounded-lg transition-colors ${
                             currentPage === pageNum
                               ? 'bg-blue-600 text-white'
-                              : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                              : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
                           }`}
                         >
                           {pageNum}
@@ -2842,7 +2875,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             )}
 
             {/* Sidebar Panel */}
-            <div className={`fixed right-0 top-0 h-full w-96 bg-white dark:bg-gray-800 shadow-2xl transform transition-transform duration-300 z-50 ${
+            <div className={`fixed right-0 top-0 h-full w-96 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 z-50 ${
               isParlaySidebarOpen ? 'translate-x-0' : 'translate-x-full'
             }`}>
               <div className="h-full flex flex-col">
@@ -2868,7 +2901,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 ) : (
                   <>
                     {/* Parlay Stats Summary */}
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                    <div className="p-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-600">
                       {(() => {
                         const metrics = calculateParlayMetrics();
                         return (
@@ -2913,7 +2946,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     {/* Parlay Legs List */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
                       {customParlayLegs.map((leg, index) => (
-                        <div key={leg.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                        <div key={leg.id} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
                               <div className="font-semibold text-gray-900 dark:text-white">{leg.playerName}</div>
@@ -2966,7 +2999,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                         placeholder="Parlay Name (optional)"
                         value={currentParlayName}
                         onChange={(e) => setCurrentParlayName(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <button
