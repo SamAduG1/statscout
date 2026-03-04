@@ -1345,7 +1345,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 
   return (
     <div
-      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 shadow-sm p-5 hover:shadow-lg hover:border-l-blue-400 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer"
+      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 shadow-sm p-5 hover:shadow-lg hover:border-l-blue-400 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer flex flex-col"
       onClick={onClick}
     >
       <div className="flex justify-between items-start mb-3">
@@ -1444,7 +1444,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
               <div className="text-xs font-semibold text-gray-300 dark:text-gray-600 uppercase tracking-wider">Sportsbook Line</div>
               <span className="text-xs text-gray-300 dark:text-gray-600">No live odds</span>
             </div>
-            <div className="mt-2 h-9 bg-gray-50 dark:bg-gray-800 rounded-lg" />
+            <div className="mt-2 h-11 bg-gray-50 dark:bg-gray-800 rounded-lg" />
           </div>
         )}
       </div>
@@ -1466,8 +1466,8 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
             style={{ width: `${Math.min(player.hitRate, 100)}%` }}
           />
         </div>
-        {player.recent_hit_rate !== undefined && player.recent_total >= 5 && (
-          <div className="mt-2 text-xs">
+        <div className="mt-2 text-xs h-4">
+          {player.recent_hit_rate !== undefined && player.recent_total >= 5 && (
             <div className="flex justify-between items-center">
               <span className="text-gray-500 dark:text-gray-400">Last {player.recent_total} Games</span>
               <span className={`font-semibold tabular-nums ${
@@ -1480,8 +1480,8 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
                 {player.recent_hit_rate < player.hitRate && ' ↘'}
               </span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="mb-4">
@@ -1524,14 +1524,14 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
         </div>
       </div>
 
-      {/* Add to Parlay Button */}
+      {/* Add to Parlay Button — mt-auto pins it to the card bottom */}
       {onAddToParlay && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             onAddToParlay(player);
           }}
-          className="mt-4 w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+          className="mt-auto pt-4 w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add to Custom Parlay
