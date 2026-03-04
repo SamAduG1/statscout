@@ -1345,16 +1345,11 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 
   return (
     <div
-      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm p-5 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer"
+      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 shadow-sm p-5 hover:shadow-lg hover:border-l-blue-400 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer"
       onClick={onClick}
     >
       <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-3">
-          {/* Team color indicator */}
-          <div 
-            className="w-1 h-16 rounded-full" 
-            style={{ backgroundColor: player.teamColor }}
-          />
+        <div className="flex items-center gap-2">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-lg text-gray-900 dark:text-white">{player.name}</h3>
@@ -1372,7 +1367,8 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: player.teamColor }} />
               {player.team} • {player.position}
               {player.isHome ? <Home className="w-3 h-3" /> : <Plane className="w-3 h-3" />}
             </p>
@@ -2545,7 +2541,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {/* Filters */}
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 mb-8">
             <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+              <Filter className="w-4 h-4 text-blue-500" />
               <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filters & Search</h2>
             </div>
             
@@ -2732,7 +2728,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   max="100"
                   value={minTrustScore}
                   onChange={(e) => setMinTrustScore(parseInt(e.target.value))}
-                  className="w-full"
+                  className="w-full accent-blue-500"
                 />
               </div>
               <div>
@@ -2746,7 +2742,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   step="5"
                   value={minMinutes}
                   onChange={(e) => setMinMinutes(parseInt(e.target.value))}
-                  className="w-full"
+                  className="w-full accent-blue-500"
                 />
               </div>
             </div>
@@ -2756,7 +2752,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           <div>
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className="w-1 h-5 bg-blue-500 rounded-full inline-block" />
                   Player Props ({filteredAndSortedPlayers.length})
                 </h2>
                 <div className="flex gap-2">
@@ -2814,7 +2811,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
@@ -2834,8 +2831,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                           onClick={() => setCurrentPage(pageNum)}
                           className={`px-4 py-2 rounded-lg transition-colors ${
                             currentPage === pageNum
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                              ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                              : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-blue-400'
                           }`}
                         >
                           {pageNum}
@@ -2854,7 +2851,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
                   Next
                 </button>
