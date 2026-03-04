@@ -285,6 +285,7 @@ class DatabaseLoader:
         Returns:
             Dictionary with matchup stats and game history
         """
+        self._ensure_session()
         player = self.session.query(Player).filter(Player.name == player_name).first()
 
         if not player:
@@ -365,6 +366,7 @@ class DatabaseLoader:
         Returns:
             Dictionary with home/away averages and counts
         """
+        self._ensure_session()
         player = self.session.query(Player).filter(Player.name == player_name).first()
 
         if not player:
@@ -643,6 +645,7 @@ class DatabaseLoader:
         Returns:
             Dictionary with half splits and tendencies
         """
+        self._ensure_session()
         player = self.session.query(Player).filter(Player.name == player_name).first()
 
         if not player:
