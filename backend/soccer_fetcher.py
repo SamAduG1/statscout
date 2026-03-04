@@ -52,8 +52,8 @@ class SoccerFetcher:
     AF_BASE = "https://v3.football.api-sports.io"
 
     def __init__(self):
-        self.api_key = os.getenv('API_FOOTBALL_KEY')
-        self.odds_key = os.getenv('ODDS_API_KEY')
+        self.api_key = (os.getenv('API_FOOTBALL_KEY') or '').strip()
+        self.odds_key = (os.getenv('ODDS_API_KEY') or '').strip()
         self.af_headers = {"x-apisports-key": self.api_key}
 
         if not self.api_key:
