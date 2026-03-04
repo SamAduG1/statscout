@@ -615,71 +615,81 @@ const PlayerDetailModal = ({ player, onClose }) => {
     : 0;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+        <div className="sticky top-0 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 p-5 rounded-t-xl z-10">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-3xl font-bold">{player.name}</h2>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-semibold">
-                  {player.team}
-                </span>
-                <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-semibold">
-                  {player.position}
-                </span>
-                <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-semibold">
-                  {player.statType}
-                </span>
+              <div className="flex items-center gap-2">
+                <span className="w-[3px] h-6 bg-blue-500 rounded-full flex-shrink-0" />
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{player.name}</h2>
+                {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${
+                    player.injuryStatus === 'OUT'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-300 dark:border-red-800'
+                      : player.injuryStatus === 'QUESTIONABLE'
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-300 dark:border-yellow-800'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                  }`}>{player.injuryStatus}</span>
+                )}
               </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5 ml-3">
+                <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: player.teamColor }} />
+                {player.team} • {player.position} • {player.statType}
+              </p>
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            <div className="bg-white/10 rounded-lg p-3">
-              <div className="text-xs opacity-90">Line</div>
-              <div className="text-2xl font-bold">{player.line}</div>
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Line</div>
+              <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{player.line}</div>
             </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <div className="text-xs opacity-90">Hit Rate</div>
-              <div className="text-2xl font-bold">{player.hitRate}%</div>
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Hit Rate</div>
+              <div className={`text-2xl font-bold tabular-nums ${
+                player.hitRate >= 70 ? 'text-green-500' : player.hitRate >= 55 ? 'text-blue-500' : 'text-red-400'
+              }`}>{player.hitRate}%</div>
             </div>
-            <div className="bg-white/10 rounded-lg p-3">
-              <div className="text-xs opacity-90">Trust Score</div>
-              <div className="text-2xl font-bold">{player.trustScore}</div>
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Trust</div>
+              <div className={`text-2xl font-bold tabular-nums ${
+                player.trustScore >= 80 ? 'text-green-500' : player.trustScore >= 70 ? 'text-amber-500' : player.trustScore >= 60 ? 'text-yellow-500' : 'text-red-500'
+              }`}>{player.trustScore}</div>
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-5 space-y-6">
           {/* Performance Overview */}
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Performance Overview</h3>
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+              Performance Overview
+            </h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                 <div className="text-sm text-gray-600 dark:text-gray-400">Last 5 Games Average</div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">{last5Avg}</div>
+                <div className="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{last5Avg}</div>
                 <div className={`text-sm font-semibold ${last5Avg > player.line ? 'text-green-600' : 'text-red-600'}`}>
                   {last5Avg > player.line ? `+${(last5Avg - player.line).toFixed(1)} vs line` : `${(last5Avg - player.line).toFixed(1)} vs line`}
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                 <div className="text-sm text-gray-600 dark:text-gray-400">Last 15 Games Average</div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">{last15Avg}</div>
+                <div className="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{last15Avg}</div>
                 <div className={`text-sm font-semibold ${last15Avg > player.line ? 'text-green-600' : 'text-red-600'}`}>
                   {last15Avg > player.line ? `+${(last15Avg - player.line).toFixed(1)} vs line` : `${(last15Avg - player.line).toFixed(1)} vs line`}
                 </div>
@@ -688,11 +698,14 @@ const PlayerDetailModal = ({ player, onClose }) => {
           </div>
 
           {/* Performance Charts */}
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Performance Trends</h3>
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+              Performance Trends
+            </h3>
 
             {/* Line Chart - Performance over time */}
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-4">
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4 mb-4">
               <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Last 15 Games Performance</div>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={player.last15Games ? player.last15Games.map((stat, idx) => ({
@@ -738,7 +751,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
             </div>
 
             {/* Bar Chart - Hit/Miss Visualization */}
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
               <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Over/Under Results</div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={player.last15Games ? player.last15Games.map((stat, idx) => ({
@@ -780,16 +793,19 @@ const PlayerDetailModal = ({ player, onClose }) => {
           </div>
 
           {/* Game Log */}
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Recent Game Log</h3>
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+              Recent Game Log
+            </h3>
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden">
               <table className="w-full">
-                <thead className="bg-gray-200 dark:bg-gray-600">
+                <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">{player.statType}</th>
-                    <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300">vs Line</th>
-                    <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300">Result</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{player.statType}</th>
+                    <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">vs Line</th>
+                    <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Result</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -800,10 +816,10 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       ? new Date(gameDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                       : `G${idx + 1}`;
                     return (
-                      <tr key={idx} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600">
+                      <tr key={idx} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
                         <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{dateLabel}</td>
-                        <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{stat}</td>
-                        <td className={`px-4 py-2 text-center text-sm font-semibold ${hitLine ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className="px-4 py-2 text-right text-sm font-bold tabular-nums text-gray-900 dark:text-white">{stat}</td>
+                        <td className={`px-4 py-2 text-center text-sm font-semibold tabular-nums ${hitLine ? 'text-green-600' : 'text-red-600'}`}>
                           {hitLine ? '+' : ''}{(stat - player.line).toFixed(1)}
                         </td>
                         <td className="px-4 py-2 text-center">
@@ -827,8 +843,11 @@ const PlayerDetailModal = ({ player, onClose }) => {
 
           {/* Sportsbook Lines Comparison */}
           {player.bookmakerLines && player.bookmakerLines.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Sportsbook Lines</h3>
+            <div>
+              <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                Sportsbook Lines
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {(() => {
                   // Get unique bookmakers with their best lines
@@ -839,24 +858,16 @@ const PlayerDetailModal = ({ player, onClose }) => {
                     }
                   });
                   return Object.values(bookmakerMap).map((bm, idx) => (
-                    <div key={idx} className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                    <div key={idx} className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                       <div className="flex justify-between items-center">
                         <div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">{bm.bookmaker}</div>
-                          <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{bm.line}</div>
+                          <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">{bm.bookmaker}</div>
+                          <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{bm.line}</div>
                         </div>
-                        {bm.over_odds && (
-                          <div className="text-right">
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Over</div>
-                            <div className="text-sm font-semibold text-gray-700 dark:text-gray-300">{bm.over_odds > 0 ? `+${bm.over_odds}` : bm.over_odds}</div>
-                          </div>
-                        )}
-                        {bm.under_odds && (
-                          <div className="text-right">
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Under</div>
-                            <div className="text-sm font-semibold text-gray-700 dark:text-gray-300">{bm.under_odds > 0 ? `+${bm.under_odds}` : bm.under_odds}</div>
-                          </div>
-                        )}
+                        <div className="text-right space-y-1">
+                          {bm.over_odds && <div className="text-xs text-green-500 font-semibold">O {bm.over_odds > 0 ? `+${bm.over_odds}` : bm.over_odds}</div>}
+                          {bm.under_odds && <div className="text-xs text-red-400 font-semibold">U {bm.under_odds > 0 ? `+${bm.under_odds}` : bm.under_odds}</div>}
+                        </div>
                       </div>
                     </div>
                   ));
@@ -866,15 +877,17 @@ const PlayerDetailModal = ({ player, onClose }) => {
           )}
 
           {/* Location Split (Home vs Away) */}
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <span>📍</span> Home vs Away Performance
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+              Home vs Away Performance
             </h3>
 
             {loadingSplit && (
-              <div className="text-center py-8">
-                <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading location split...</p>
+              <div className="py-4 space-y-2 animate-pulse">
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
               </div>
             )}
 
@@ -902,10 +915,10 @@ const PlayerDetailModal = ({ player, onClose }) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Home Stats */}
-                  <div className={`rounded-lg p-4 border ${
+                  <div className={`rounded-xl p-4 border ${
                     player.isHome
-                      ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
-                      : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700'
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 ring-2 ring-blue-400 dark:ring-blue-600'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium text-gray-600 dark:text-gray-400">🏠 Home</div>
@@ -924,10 +937,10 @@ const PlayerDetailModal = ({ player, onClose }) => {
                   </div>
 
                   {/* Away Stats */}
-                  <div className={`rounded-lg p-4 border ${
+                  <div className={`rounded-xl p-4 border ${
                     !player.isHome
-                      ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-2 ring-blue-400'
-                      : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700'
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 ring-2 ring-blue-400 dark:ring-blue-600'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium text-gray-600 dark:text-gray-400">✈️ Away</div>
@@ -969,35 +982,37 @@ const PlayerDetailModal = ({ player, onClose }) => {
           </div>
 
           {/* Halftime Betting Tool */}
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <span>⏱️</span> Halftime Betting Tool
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+              Halftime Betting Tool
             </h3>
 
             {loadingHalf && (
-              <div className="text-center py-8">
-                <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading halftime data...</p>
+              <div className="py-4 space-y-2 animate-pulse">
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
               </div>
             )}
 
             {!loadingHalf && halfTendency && halfTendency.has_data && (
               <div>
                 {/* First Half / Second Half Expectations */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-4 mb-4 border border-blue-200 dark:border-blue-800">
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4 mb-4">
                   <div className="grid grid-cols-3 gap-4 mb-3">
                     <div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Season Avg</div>
-                      <div className="text-xl font-bold text-gray-900 dark:text-white">{halfTendency.season_avg}</div>
+                      <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{halfTendency.season_avg}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Expected 1H</div>
-                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{halfTendency.first_half_avg}</div>
+                      <div className="text-xl font-bold tabular-nums text-blue-500">{halfTendency.first_half_avg}</div>
                       <div className="text-xs text-gray-500">({(halfTendency.first_half_pct * 100).toFixed(0)}%)</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Expected 2H</div>
-                      <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{halfTendency.second_half_avg}</div>
+                      <div className="text-xl font-bold tabular-nums text-blue-400">{halfTendency.second_half_avg}</div>
                       <div className="text-xs text-gray-500">({(halfTendency.second_half_pct * 100).toFixed(0)}%)</div>
                     </div>
                   </div>
@@ -1010,8 +1025,8 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 </div>
 
                 {/* Live Projection Calculator */}
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">🎯 Live Projection Calculator</h4>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Live Projection Calculator</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Enter player's current {player.statType.toLowerCase()} at halftime:
                   </p>
@@ -1023,7 +1038,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       onChange={(e) => setLiveInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && calculateLiveProjection()}
                       placeholder={`e.g., ${Math.floor(halfTendency.first_half_avg)}`}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       onClick={() => {
@@ -1099,15 +1114,17 @@ const PlayerDetailModal = ({ player, onClose }) => {
           </div>
 
           {/* Matchup History vs Opponent */}
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+              <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
               Matchup History vs {player.opponent}
             </h3>
 
             {loadingMatchup && (
-              <div className="text-center py-8">
-                <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-2 text-gray-600 dark:text-gray-400">Loading matchup history...</p>
+              <div className="py-4 space-y-2 animate-pulse">
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-2/3" />
               </div>
             )}
 
@@ -1115,13 +1132,13 @@ const PlayerDetailModal = ({ player, onClose }) => {
               <div>
                 {/* Matchup Averages */}
                 <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                  <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">Games Played</div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{matchupHistory.games_played}</div>
+                    <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{matchupHistory.games_played}</div>
                   </div>
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                  <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">Avg {player.statType}</div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
                       {(() => {
                         const statMap = {
                           'Points': matchupHistory.averages.points,
@@ -1156,14 +1173,14 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       vs Line {player.line}
                     </div>
                   </div>
-                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                  <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">Avg PRA</div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{matchupHistory.averages.PRA}</div>
+                    <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{matchupHistory.averages.PRA}</div>
                   </div>
                 </div>
 
                 {/* All Stats */}
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-4">
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4 mb-4">
                   <div className="grid grid-cols-6 gap-3">
                     <div className="text-center">
                       <div className="text-xs text-gray-600 dark:text-gray-400">PTS</div>
@@ -1193,31 +1210,31 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 </div>
 
                 {/* Game by Game Breakdown */}
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden">
                   <table className="w-full">
-                    <thead className="bg-gray-200 dark:bg-gray-600">
+                    <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Date</th>
-                        <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300">H/A</th>
-                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">PTS</th>
-                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">REB</th>
-                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">AST</th>
-                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">PRA</th>
-                        <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">MIN</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Date</th>
+                        <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">H/A</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">PTS</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">REB</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">AST</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">PRA</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">MIN</th>
                       </tr>
                     </thead>
                     <tbody>
                       {matchupHistory.games.map((game, idx) => (
-                        <tr key={idx} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600">
+                        <tr key={idx} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800/50">
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{game.date}</td>
                           <td className="px-4 py-2 text-center text-sm">
                             {game.is_home ? <Home className="w-4 h-4 mx-auto text-gray-600 dark:text-gray-400" /> : <Plane className="w-4 h-4 mx-auto text-gray-600 dark:text-gray-400" />}
                           </td>
-                          <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{game.points}</td>
-                          <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{game.rebounds}</td>
-                          <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{game.assists}</td>
-                          <td className="px-4 py-2 text-right text-sm font-bold text-blue-600 dark:text-blue-400">{game.PRA}</td>
-                          <td className="px-4 py-2 text-right text-sm text-gray-600 dark:text-gray-400">{game.minutes ? game.minutes.toFixed(1) : '-'}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold tabular-nums text-gray-900 dark:text-white">{game.points}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold tabular-nums text-gray-900 dark:text-white">{game.rebounds}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold tabular-nums text-gray-900 dark:text-white">{game.assists}</td>
+                          <td className="px-4 py-2 text-right text-sm font-bold tabular-nums text-blue-500">{game.PRA}</td>
+                          <td className="px-4 py-2 text-right text-sm tabular-nums text-gray-600 dark:text-gray-400">{game.minutes ? game.minutes.toFixed(1) : '-'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1240,23 +1257,15 @@ const PlayerDetailModal = ({ player, onClose }) => {
           </div>
 
           {/* Upcoming Game */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Next Game</h3>
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  vs {player.opponent}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {player.gameDate} • {player.gameTime}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {player.isHome ? 'Home' : 'Away'}
-                </div>
-              </div>
+          <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4 flex justify-between items-center">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Next Game</div>
+              <div className="text-xl font-bold text-gray-900 dark:text-white">{player.team} {player.isHome ? 'vs' : '@'} {player.opponent}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{player.gameDate} • {player.gameTime}</div>
             </div>
+            <span className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${player.isHome ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+              {player.isHome ? 'Home' : 'Away'}
+            </span>
           </div>
         </div>
       </div>
