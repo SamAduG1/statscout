@@ -2037,6 +2037,7 @@ export default function StatScoutDashboard() {
   const [showGamesTodayOnly, setShowGamesTodayOnly] = useState(false);
   const [showLiveOddsOnly, setShowLiveOddsOnly] = useState(false);
   const [minMinutes, setMinMinutes] = useState(0);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   // Custom Parlay Builder State
@@ -2401,6 +2402,17 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     setCurrentPage(1);
   }, [searchTerm, selectedTeam, selectedTeams, selectedStat, minTrustScore, homeAwayFilter, showHighConfidenceOnly, showGamesTodayOnly, showLiveOddsOnly, minMinutes]);
 
+  const activeFilterCount = [
+    searchTerm !== '',
+    selectedTeams.length > 0,
+    selectedStat !== 'all',
+    homeAwayFilter !== 'all',
+    minTrustScore > 0,
+    minMinutes > 0,
+    timeRange !== 10,
+    sortBy !== 'trustScore',
+  ].filter(Boolean).length;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
         {/* Header */}
@@ -2552,12 +2564,22 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           })()}
 
           {/* Filters */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-6 mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-4 h-4 text-blue-500" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filters & Search</h2>
-            </div>
-            
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 mb-8">
+            <button
+              className="w-full flex items-center justify-between px-5 py-4 md:px-6 md:pt-6 md:pb-0 md:cursor-default"
+              onClick={() => setShowMobileFilters(f => !f)}
+            >
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-blue-500" />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filters & Search</h2>
+                {activeFilterCount > 0 && (
+                  <span className="px-1.5 py-0.5 bg-blue-600 text-white text-xs rounded-full font-bold tabular-nums">{activeFilterCount}</span>
+                )}
+              </div>
+              <ChevronRight className={`w-5 h-5 text-gray-400 md:hidden transition-transform duration-200 ${showMobileFilters ? 'rotate-90' : ''}`} />
+            </button>
+
+            <div className={`${showMobileFilters ? 'block' : 'hidden'} md:block px-5 pb-5 pt-3 md:px-6 md:pb-6 md:pt-4`}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Player</label>
@@ -2757,6 +2779,15 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   onChange={(e) => setMinMinutes(parseInt(e.target.value))}
                   className="w-full accent-blue-500"
                 />
+              </div>
+            </div>
+              <div className="mt-5 md:hidden">
+                <button
+                  onClick={() => setShowMobileFilters(false)}
+                  className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl text-sm"
+                >
+                  Show {filteredAndSortedPlayers.length} result{filteredAndSortedPlayers.length !== 1 ? 's' : ''}
+                </button>
               </div>
             </div>
           </div>
