@@ -1308,120 +1308,55 @@ def generate_parlay():
                 "error": f"Invalid game_filter: {game_filter}. Must be 'any', 'single', or 'specific'"
             }), 400
 
-        # Get all available props by calling the get_all_players logic
-        # This reuses the same data pipeline as the /api/players endpoint
+        # Use the already-computed players cache instead of recomputing everything
+        cache_data = players_cache.get("data")
+        if not cache_data:
+            return jsonify({
+                "success": False,
+                "error": "Props data is still loading. Please wait a moment and try again."
+            }), 503
+
         all_props = []
 
         # Helper function for case and accent-insensitive name matching
         import unicodedata
         def normalize_name(name):
             """Remove accents and convert to lowercase for comparison"""
-            # Remove accents (é -> e, ñ -> n, etc.)
             nfd = unicodedata.normalize('NFD', name)
             without_accents = ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
             return without_accents.lower().strip()
 
-        # Normalize banned player names for comparison
         normalized_banned = [normalize_name(p) for p in banned_players]
 
-        player_names = loader.get_player_names()
-
-        # Pre-fetch injuries once for performance
-        injury_tracker.get_all_injuries()
-
-        # Cache game info by team
-        team_game_cache = {}
-
-        for player_name in player_names:
-            # Check if player is banned (case and accent insensitive)
-            if normalize_name(player_name) in normalized_banned:
-                continue  # Skip banned players
-            player_info = loader.get_player_info(player_name)
-
-            if not player_info:
+        for p in cache_data["players"]:
+            # Skip banned players (case and accent insensitive)
+            if normalize_name(p["name"]) in normalized_banned:
                 continue
 
-            team = player_info["team"]
-            all_stats = loader.get_all_available_stats(player_name)
+            # Skip injured/questionable players
+            if p.get("injuryStatus") in ('OUT', 'QUESTIONABLE', 'DOUBTFUL'):
+                continue
 
-            # Process each stat type
-            for stat_type, stat_values in all_stats.items():
-                # Format stat type for display
-                if stat_type == 'three_pm':
-                    display_stat_type = '3PM'
-                elif len(stat_type) <= 3:
-                    display_stat_type = stat_type.upper()
-                else:
-                    display_stat_type = stat_type.title()
+            # Skip props without a scheduled opponent
+            if not p.get("opponent"):
+                continue
 
-                if len(stat_values) < 3:
-                    continue
+            # Get best available odds from bookmaker lines
+            odds = -110
+            if p.get("bookmakerLines"):
+                first_bm = p["bookmakerLines"][0]
+                odds = first_bm.get("over_odds") or -110
 
-                avg_stat = sum(stat_values) / len(stat_values)
-
-                # Get real betting lines
-                cached_odds = get_cached_odds()
-                odds_key = f"{player_name}_{display_stat_type}"
-
-                # Try to use real odds, fallback to calculated lines
-                line = None
-                odds = -110  # Default odds
-
-                if odds_key in cached_odds and cached_odds[odds_key]:
-                    # Use real betting lines from bookmaker
-                    bookmaker_lines = cached_odds[odds_key]
-                    if bookmaker_lines:
-                        first_bookmaker = bookmaker_lines[0]
-                        line = first_bookmaker.get("line")
-                        odds = first_bookmaker.get("over_odds", -110)
-
-                # Fallback to calculated line if no real odds
-                if line is None:
-                    line = STAT_LINES.get(display_stat_type, lambda x: round(x - 0.5, 1))(avg_stat)
-
-                # Get game matchup
-                if team not in team_game_cache:
-                    team_game_cache[team] = schedule_fetcher.get_player_next_game(team)
-
-                next_game = team_game_cache[team]
-                if not next_game:
-                    continue  # Skip props without scheduled games
-
-                opponent = next_game['opponent']
-                is_home = next_game['is_home']
-
-                # Calculate trust score using full analysis
-                analysis = calc.analyze_player_prop(
-                    player_name=player_name,
-                    team=team,
-                    stat_type=display_stat_type,
-                    player_stats=stat_values,
-                    line=line,
-                    opponent=opponent,
-                    opponent_rank=15,  # Default middle-of-pack
-                    is_home=is_home,
-                    db_loader=loader
-                )
-
-                # Check injury status - skip injured/questionable players
-                injury_status = injury_tracker.get_player_status(player_name)
-                if injury_status:
-                    status = injury_status.get('status', '')
-                    # Skip OUT and QUESTIONABLE players from parlays
-                    if status in ['OUT', 'QUESTIONABLE', 'DOUBTFUL']:
-                        continue  # Don't include injured players in parlay pool
-
-                # Add to available props for parlay building
-                all_props.append({
-                    'player_name': player_name,
-                    'team': team,
-                    'opponent': opponent,
-                    'stat_type': display_stat_type,
-                    'line': line,
-                    'odds': odds,
-                    'trust_score': analysis['trust_score'],
-                    'is_home': is_home
-                })
+            all_props.append({
+                'player_name': p["name"],
+                'team': p["team"],
+                'opponent': p["opponent"],
+                'stat_type': p["statType"],
+                'line': p["line"],
+                'odds': odds,
+                'trust_score': p["trustScore"],
+                'is_home': p["isHome"]
+            })
 
         # Generate parlays
         suggestions = parlay_builder.generate_parlay(
