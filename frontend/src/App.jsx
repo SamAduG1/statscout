@@ -243,21 +243,21 @@ const TeamQuarterInsights = ({ allTeams }) => {
   const { team1: t1Data, team2: t2Data, insights } = quarterData || {};
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow-lg p-6 mb-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-blue-600" />
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow-lg p-4 sm:p-6 mb-8 overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-blue-500 flex-shrink-0" />
           Quarter Performance Insights
         </h2>
 
         {/* Team Selectors */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Team 1:</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Team 1:</label>
             <select
               value={selectedTeam1}
               onChange={(e) => setSelectedTeam1(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 max-w-[130px]"
             >
               {allTeams.map(team => (
                 <option key={team} value={team}>{team}</option>
@@ -265,14 +265,14 @@ const TeamQuarterInsights = ({ allTeams }) => {
             </select>
           </div>
 
-          <span className="text-gray-500 dark:text-gray-400 font-bold">VS</span>
+          <span className="text-gray-400 dark:text-gray-500 font-bold text-xs">VS</span>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Team 2:</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Team 2:</label>
             <select
               value={selectedTeam2}
               onChange={(e) => setSelectedTeam2(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 max-w-[130px]"
             >
               {allTeams.map(team => (
                 <option key={team} value={team}>{team}</option>
@@ -1439,9 +1439,17 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
           {player.gameDate} • {player.gameTime}
         </div>
 
-        {/* Bookmaker Lines - Compact Selector */}
-        {player.bookmakerLines && player.bookmakerLines.length > 0 && (
+        {/* Bookmaker Lines - always rendered for uniform card height */}
+        {player.bookmakerLines && player.bookmakerLines.length > 0 ? (
           <BookmakerSelector bookmakerLines={player.bookmakerLines} />
+        ) : (
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold text-gray-300 dark:text-gray-600 uppercase tracking-wider">Sportsbook Line</div>
+              <span className="text-xs text-gray-300 dark:text-gray-600">No live odds</span>
+            </div>
+            <div className="mt-2 h-9 bg-gray-50 dark:bg-gray-800 rounded-lg" />
+          </div>
         )}
       </div>
 
@@ -2746,34 +2754,36 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
           {/* Player Cards Grid */}
           <div>
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Player Props ({filteredAndSortedPlayers.length})
                 </h2>
-                <button
-                  onClick={() => setShowGamesTodayOnly(!showGamesTodayOnly)}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all transform hover:scale-105 ${
-                    showGamesTodayOnly
-                      ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300'
-                      : 'bg-gray-200 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {showGamesTodayOnly ? '📅 Games Today (Active)' : '📅 Games Today'}
-                </button>
-                <button
-                  onClick={() => setShowLiveOddsOnly(!showLiveOddsOnly)}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all transform hover:scale-105 ${
-                    showLiveOddsOnly
-                      ? 'bg-green-600 text-white shadow-lg ring-2 ring-green-300'
-                      : 'bg-gray-200 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {showLiveOddsOnly ? '🎲 Live Odds Only (Active)' : '🎲 Live Odds Only'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowGamesTodayOnly(!showGamesTodayOnly)}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      showGamesTodayOnly
+                        ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300'
+                        : 'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    📅 Games Today{showGamesTodayOnly ? ' ✓' : ''}
+                  </button>
+                  <button
+                    onClick={() => setShowLiveOddsOnly(!showLiveOddsOnly)}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      showLiveOddsOnly
+                        ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-300'
+                        : 'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    🎲 Live Odds{showLiveOddsOnly ? ' ✓' : ''}
+                  </button>
+                </div>
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedPlayers.length)} of {filteredAndSortedPlayers.length}
+              <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 tabular-nums">
+                {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, filteredAndSortedPlayers.length)} of {filteredAndSortedPlayers.length}
               </div>
             </div>
 
