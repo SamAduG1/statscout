@@ -231,10 +231,14 @@ class SoccerFetcher:
         API calls: 1 API-Football (historical) + 1 Odds API (fixtures + odds)
         """
         print("[SOCCER] Fetching 2024-25 historical results for hit rates...")
-        results = self.get_historical_results()     # 1 API-Football call
-        team_stats = self._build_team_stats(results)
-        print(f"[SOCCER] Loaded stats for {len(team_stats)} teams "
-              f"from {len(results)} historical matches")
+        try:
+            results = self.get_historical_results()     # 1 API-Football call
+            team_stats = self._build_team_stats(results)
+            print(f"[SOCCER] Loaded stats for {len(team_stats)} teams "
+                  f"from {len(results)} historical matches")
+        except Exception as e:
+            print(f"[SOCCER] Historical stats unavailable ({e}), continuing with odds only")
+            team_stats = {}
 
         print("[SOCCER] Fetching upcoming EPL fixtures and odds...")
         epl_events = self.get_epl_odds()            # 1 Odds API call
