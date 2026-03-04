@@ -112,6 +112,38 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
     return games_added
 
 
+def _build_player_name_map(session):
+    """
+    Build a lookup dict from normalized name -> Player object.
+    Handles ESPN vs nba_api differences like P.J. vs PJ, Jr. variants, etc.
+    """
+    all_players = session.query(Player).all()
+    name_map = {}
+    for p in all_players:
+        # Exact name
+        name_map[p.name.lower()] = p
+        # Strip dots from initials: "P.J." -> "PJ"
+        stripped = p.name.replace('.', '').replace('  ', ' ').strip()
+        name_map[stripped.lower()] = p
+        # Strip Jr./Sr./II/III suffixes
+        for suffix in [' Jr.', ' Sr.', ' II', ' III', ' IV']:
+            if p.name.endswith(suffix):
+                name_map[p.name[:-len(suffix)].strip().lower()] = p
+    return name_map
+
+
+def _lookup_player(name_map, espn_name):
+    """Look up a player by ESPN display name using normalized matching."""
+    key = espn_name.lower()
+    if key in name_map:
+        return name_map[key]
+    # Strip dots from initials
+    stripped = espn_name.replace('.', '').replace('  ', ' ').strip().lower()
+    if stripped in name_map:
+        return name_map[stripped]
+    return None
+
+
 def add_espn_recent_games(session, days_back=7):
     """
     Add recent games from ESPN to supplement nba_api data
@@ -136,6 +168,10 @@ def add_espn_recent_games(session, days_back=7):
     batch_size = 50  # Commit in smaller batches to reduce memory
 
     try:
+        # Pre-build name lookup map once (handles P.J. vs PJ, Jr. variants, etc.)
+        player_name_map = _build_player_name_map(session)
+        print(f"[INFO] Built name map for {len(set(player_name_map.values()))} players")
+
         # Fetch player stats for each day
         today = datetime.now()
 
@@ -157,8 +193,8 @@ def add_espn_recent_games(session, days_back=7):
             # Process each player's stats
             for stat in player_stats:
                 try:
-                    # Find player in database
-                    player = session.query(Player).filter_by(name=stat['player_name']).first()
+                    # Find player in database (fuzzy match handles ESPN vs nba_api name differences)
+                    player = _lookup_player(player_name_map, stat['player_name'])
 
                     if not player:
                         # Skip players not in our database

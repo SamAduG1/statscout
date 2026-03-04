@@ -580,15 +580,17 @@ def admin_test_espn():
     """Test ESPN scraper for a single date - use ?date=YYYYMMDD or defaults to yesterday"""
     try:
         from espn_recent_games_scraper import ESPNAPIClient as _ESPN
-        from models import get_session as _gs, Player as _Player
+        from models import get_session as _gs
+        from update_stats import _build_player_name_map, _lookup_player
         date_str = request.args.get('date', (datetime.now() - timedelta(days=1)).strftime('%Y%m%d'))
         client = _ESPN()
         stats = client.get_player_stats_from_date(date_str)
         session = _gs(loader.engine)
+        name_map = _build_player_name_map(session)
         matched = 0
         unmatched = []
         for s in stats:
-            p = session.query(_Player).filter_by(name=s['player_name']).first()
+            p = _lookup_player(name_map, s['player_name'])
             if p:
                 matched += 1
             else:
