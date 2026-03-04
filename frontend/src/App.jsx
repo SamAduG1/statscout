@@ -1526,16 +1526,18 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 
       {/* Add to Parlay Button — mt-auto pins it to the card bottom */}
       {onAddToParlay && (
+        <div className="mt-auto pt-4">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onAddToParlay(player);
           }}
-          className="mt-auto pt-4 w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add to Custom Parlay
         </button>
+        </div>
       )}
     </div>
   );
