@@ -1311,6 +1311,13 @@ def generate_parlay():
         # Use the already-computed players cache instead of recomputing everything
         cache_data = players_cache.get("data")
         if not cache_data:
+            # In-memory cache empty — try disk (same fallback as /api/players)
+            disk_data = _load_cache_from_disk()
+            if disk_data:
+                players_cache["data"] = disk_data
+                players_cache["last_updated"] = datetime.now()
+                cache_data = disk_data
+        if not cache_data:
             return jsonify({
                 "success": False,
                 "error": "Props data is still loading. Please wait a moment and try again."
