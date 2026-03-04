@@ -712,6 +712,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       color: '#F3F4F6'
                     }}
                     labelStyle={{ color: '#9CA3AF' }}
+                    itemStyle={{ color: '#F3F4F6' }}
                     labelFormatter={(label, payload) => {
                       const date = payload?.[0]?.payload?.date;
                       return date ? `${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : label;
@@ -757,6 +758,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       color: '#F3F4F6'
                     }}
                     labelStyle={{ color: '#9CA3AF' }}
+                    itemStyle={{ color: '#F3F4F6' }}
                     labelFormatter={(label, payload) => {
                       const date = payload?.[0]?.payload?.date;
                       return date ? `${label} · ${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : label;
