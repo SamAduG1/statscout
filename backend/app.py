@@ -574,6 +574,38 @@ def admin_db_status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route('/api/admin/test-espn', methods=['GET'])
+def admin_test_espn():
+    """Test ESPN scraper for a single date - use ?date=YYYYMMDD or defaults to yesterday"""
+    try:
+        from espn_recent_games_scraper import ESPNAPIClient as _ESPN
+        date_str = request.args.get('date', (datetime.now() - timedelta(days=1)).strftime('%Y%m%d'))
+        client = _ESPN()
+        stats = client.get_player_stats_from_date(date_str)
+        # Check how many match the DB
+        session = get_session(loader.engine)
+        matched = 0
+        unmatched = []
+        for s in stats:
+            p = session.query(__import__('models', fromlist=['Player']).Player).filter_by(name=s['player_name']).first()
+            if p:
+                matched += 1
+            else:
+                unmatched.append(s['player_name'])
+        session.close()
+        return jsonify({
+            "success": True,
+            "date": date_str,
+            "espn_players_found": len(stats),
+            "matched_in_db": matched,
+            "unmatched_sample": unmatched[:20],
+            "sample_stats": stats[:5]
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+
+
 @app.route('/api/admin/update-stats', methods=['POST'])
 def admin_update_stats():
     """Trigger ESPN recent-games update in background (fetches last 90 days)"""
