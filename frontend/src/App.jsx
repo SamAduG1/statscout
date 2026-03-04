@@ -2051,7 +2051,7 @@ const handleRefreshStats = async () => {
     const response = await fetch(`${API_BASE_URL}/admin/update-stats`, { method: 'POST' });
     const data = await response.json();
     if (data.success) {
-      setRefreshMessage('Stats update started — new games will appear in ~2 min');
+      setRefreshMessage('Fetching 90 days from ESPN (~3 min) — data will reload automatically when done');
     } else {
       setRefreshMessage('Update failed. Try again later.');
     }
@@ -2059,7 +2059,7 @@ const handleRefreshStats = async () => {
     setRefreshMessage('Could not reach server.');
   } finally {
     setIsRefreshing(false);
-    setTimeout(() => setRefreshMessage(null), 8000);
+    setTimeout(() => setRefreshMessage(null), 15000);
   }
 };
 

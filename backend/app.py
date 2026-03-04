@@ -555,9 +555,28 @@ def refresh_players_cache():
     return jsonify({"success": True, "message": "Cache refresh triggered"})
 
 
+@app.route('/api/admin/db-status', methods=['GET'])
+def admin_db_status():
+    """Show most recent game date and total game count in the DB"""
+    try:
+        from models import Game as _Game
+        from sqlalchemy import func as _func
+        session = get_session(loader.engine)
+        latest = session.query(_func.max(_Game.date)).scalar()
+        total = session.query(_func.count(_Game.id)).scalar()
+        session.close()
+        return jsonify({
+            "success": True,
+            "latest_game_date": str(latest) if latest else None,
+            "total_games": total
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/api/admin/update-stats', methods=['POST'])
 def admin_update_stats():
-    """Trigger ESPN recent-games update in background (fetches last 14 days)"""
+    """Trigger ESPN recent-games update in background (fetches last 90 days)"""
     import threading
     from models import get_session as _get_session
 
@@ -565,7 +584,7 @@ def admin_update_stats():
         try:
             from update_stats import add_espn_recent_games
             session = _get_session(loader.engine)
-            added = add_espn_recent_games(session, days_back=14)
+            added = add_espn_recent_games(session, days_back=90)
             session.close()
             print(f"[UPDATE] ESPN update complete: {added} new games added")
             # Invalidate cache so next /api/players request rebuilds with new data
@@ -573,10 +592,12 @@ def admin_update_stats():
             players_cache["last_updated"] = None
             _build_players_cache_background()
         except Exception as e:
+            import traceback
             print(f"[UPDATE] ESPN update failed: {e}")
+            traceback.print_exc()
 
     threading.Thread(target=_run_update, daemon=True).start()
-    return jsonify({"success": True, "message": "Stats update triggered (last 14 days from ESPN)"})
+    return jsonify({"success": True, "message": "Stats update triggered (last 90 days from ESPN)"})
 
 
 @app.route('/api/player/<player_name>', methods=['GET'])
