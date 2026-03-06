@@ -80,9 +80,11 @@ from scheduler import init_scheduler
 scheduler = init_scheduler()
 
 # Cache for odds data (optimized to conserve API quota)
+ODDS_CACHE_FILE = "/tmp/statscout_odds_cache.json"
+_odds_disk = _load_specific_cache(ODDS_CACHE_FILE)
 odds_cache = {
-    "data": {},
-    "last_updated": None
+    "data": _odds_disk.get("data", {}) if _odds_disk else {},
+    "last_updated": datetime.fromisoformat(_odds_disk["ts"]) if _odds_disk and "ts" in _odds_disk else None,
 }
 
 # Cache for players response (prevents Render 30s proxy timeout)
@@ -398,6 +400,7 @@ def get_cached_odds():
                 })
 
             odds_cache["last_updated"] = now
+            _save_specific_cache(ODDS_CACHE_FILE, {"data": odds_cache["data"], "ts": now.isoformat()})
             print(f"[SUCCESS] Cached {len(parsed_props)} odds from {len(set(p['bookmaker'] for p in parsed_props))} bookmakers")
             print(f"[INFO] Next refresh after: {(now + timedelta(seconds=CACHE_DURATION)).strftime('%I:%M %p')}")
         else:
