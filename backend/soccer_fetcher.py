@@ -6,6 +6,7 @@ StatScout Soccer Fetcher
 
 import requests
 import os
+import statistics
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -132,11 +133,17 @@ class SoccerFetcher:
                 stats[name]["all"].append(entry)
         return stats
 
-    # ── Match card builder ────────────────────────────────────────────────────
+    # ── Match card helpers ────────────────────────────────────────────────────
 
     @staticmethod
     def _avg(lst, key):
+        """Rounded average for display."""
         return round(sum(g[key] for g in lst) / len(lst), 1) if lst else 0.0
+
+    @staticmethod
+    def _avg_raw(lst, key):
+        """Unrounded average for internal calculations."""
+        return sum(g[key] for g in lst) / len(lst) if lst else 0.0
 
     @staticmethod
     def _pct(lst, key):
@@ -145,6 +152,65 @@ class SoccerFetcher:
     @staticmethod
     def _over_pct(lst, line):
         return round(sum(1 for g in lst if g["total"] > line) / len(lst) * 100) if lst else None
+
+    @staticmethod
+    def _american_to_implied(american_odds):
+        """Convert American odds to implied probability (0–1)."""
+        if american_odds is None:
+            return None
+        if american_odds > 0:
+            return 100 / (american_odds + 100)
+        return abs(american_odds) / (abs(american_odds) + 100)
+
+    def _compute_trust_score(self, over_rate, expected, line, over_o,
+                              home_games, away_games, relevant):
+        """
+        5-factor trust score (0–100). Returns None if < 5 venue games either side.
+
+        Weights:
+          30% — Over hit rate (historical tendency)
+          25% — Expected vs line gap (model vs bookmaker)
+          20% — Odds market lean (bookmaker's own pricing)
+          15% — Consistency (std dev of goal totals; lower = more predictable)
+          10% — Sample size confidence
+        """
+        min_games = min(home_games, away_games)
+        if min_games < 5:
+            return None
+
+        # Factor 1: Over hit rate (30%)
+        f_hit = float(over_rate) if over_rate is not None else 50.0
+
+        # Factor 2: Expected vs line gap (25%)
+        # ±1.5 goals maps to 0–100; 0 gap = neutral (50)
+        gap = expected - line
+        f_gap = max(0.0, min(100.0, 50.0 + (gap / 1.5) * 50.0))
+
+        # Factor 3: Odds market lean (20%)
+        implied = self._american_to_implied(over_o)
+        f_odds = round(implied * 100, 1) if implied is not None else 50.0
+
+        # Factor 4: Consistency — std dev of combined match totals (15%)
+        totals = [g["total"] for g in relevant]
+        if len(totals) >= 2:
+            std_dev = statistics.stdev(totals)
+            # std_dev 0.5→100, 1.0→80, 1.5→60, 2.0→40, 2.5→20, 3.0→0
+            f_consistency = max(0.0, min(100.0, 100.0 - (std_dev - 0.5) * 40.0))
+        else:
+            f_consistency = 50.0
+
+        # Factor 5: Sample size confidence (10%)
+        # 5 games→40, 10→70, 19+→100
+        f_sample = min(100.0, 40.0 + (min_games - 5) / 14.0 * 60.0)
+
+        score = (
+            f_hit        * 0.30 +
+            f_gap        * 0.25 +
+            f_odds       * 0.20 +
+            f_consistency * 0.15 +
+            f_sample     * 0.10
+        )
+        return round(score, 1)
 
     def _parse_odds_event(self, event):
         """Extract totals line and best odds from an Odds API event."""
@@ -176,9 +242,16 @@ class SoccerFetcher:
         home_h = team_stats.get(home_fd, {}).get("home", [])
         away_a = team_stats.get(away_fd, {}).get("away", [])
 
+        # Per-team scoring averages (for display)
         home_avg = self._avg(home_h, "scored")
         away_avg = self._avg(away_a, "scored")
-        expected = round(home_avg + away_avg, 1)
+
+        # Improved expected total: blends attack strength + defensive weakness
+        # home_goals = avg(home scored at home, away conceded away) / 2
+        # away_goals = avg(away scored away, home conceded at home) / 2
+        home_goals = (self._avg_raw(home_h, "scored") + self._avg_raw(away_a, "conceded")) / 2
+        away_goals = (self._avg_raw(away_a, "scored") + self._avg_raw(home_h, "conceded")) / 2
+        expected = round(home_goals + away_goals, 1)
 
         line, over_o, under_o, bookmaker = self._parse_odds_event(event)
 
@@ -188,6 +261,18 @@ class SoccerFetcher:
         home_games = len(home_h)
         away_games = len(away_a)
 
+        # Raw arrays for frontend adjustable line slider
+        home_goal_totals = [g["total"] for g in home_h]   # match totals in home team's home games
+        away_goal_totals = [g["total"] for g in away_a]   # match totals in away team's away games
+
+        # Per-team scoring arrays for team goal props collapsible
+        home_team_scored = [g["scored"] for g in home_h]  # home team goals scored at home
+        away_team_scored = [g["scored"] for g in away_a]  # away team goals scored away
+
+        trust_score = self._compute_trust_score(
+            over_rate, expected, line, over_o, home_games, away_games, relevant
+        )
+
         commence = event.get("commence_time", "")
 
         return {
@@ -196,7 +281,7 @@ class SoccerFetcher:
             "awayTeam": away_name,
             "homeTeamLogo": "",
             "awayTeamLogo": "",
-            "commenceTime": commence,   # raw ISO UTC string — frontend converts to local tz
+            "commenceTime": commence,       # raw ISO UTC — frontend converts to local tz
             "venue": "",
             "overUnderLine": line,
             "overOdds": over_o,
@@ -209,6 +294,11 @@ class SoccerFetcher:
             "expectedTotal": expected,
             "homeGames": home_games,
             "awayGames": away_games,
+            "trustScore": trust_score,
+            "homeGoalTotals": home_goal_totals,
+            "awayGoalTotals": away_goal_totals,
+            "homeTeamScoredAtHome": home_team_scored,
+            "awayTeamScoredAway": away_team_scored,
         }
 
     # ── Main entry point ──────────────────────────────────────────────────────
@@ -232,7 +322,7 @@ class SoccerFetcher:
         epl_events = self.get_epl_odds()
 
         matches = [self._build_match_card(ev, team_stats) for ev in epl_events]
-        matches.sort(key=lambda m: m["gameDate"])
+        matches.sort(key=lambda m: m["commenceTime"])
 
         print(f"[SOCCER] Built {len(matches)} match cards")
         return {
