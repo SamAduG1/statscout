@@ -1278,6 +1278,13 @@ const SoccerMatchCard = ({ match }) => {
     return 'text-red-400';
   };
   const fmtOdds = (o) => (o > 0 ? `+${o}` : `${o}`);
+  const shortName = (name) => {
+    const words = name.split(' ');
+    if (words.length <= 2) return name;
+    if (name.includes(' and Hove')) return 'Brighton';
+    if (name.startsWith('AFC ')) return words[1];
+    return words.slice(0, 2).join(' ');
+  };
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-5 flex flex-col">
@@ -1321,11 +1328,11 @@ const SoccerMatchCard = ({ match }) => {
             </span>
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{match.homeTeam.split(' ')[0]} avg (home)</span>
+            <span>{shortName(match.homeTeam)} avg (home)</span>
             <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.homeAvgGoals}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{match.awayTeam.split(' ')[0]} avg (away)</span>
+            <span>{shortName(match.awayTeam)} avg (away)</span>
             <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.awayAvgGoals}</span>
           </div>
         </div>

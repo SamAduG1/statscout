@@ -1,7 +1,7 @@
 """
 StatScout Soccer Fetcher
 - Upcoming EPL fixtures + over/under odds: The Odds API (soccer_epl)
-- Historical hit rates + team goal averages: football-data.org (season 2024, free tier)
+- Historical hit rates + team goal averages: football-data.org (season 2025, free tier)
 """
 
 import requests
@@ -11,10 +11,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SEASON = 2024  # 2024-25 season
+SEASON = 2025  # 2025-26 season
 
 # Maps Odds API team name variants to football-data.org full names.
 # Used to cross-reference upcoming fixture names with historical stats.
+# 2025-26 PL: Burnley, Sunderland, Leeds promoted; Ipswich, Leicester, Southampton relegated.
 ODDS_TO_FD = {
     "Arsenal": "Arsenal FC",
     "Aston Villa": "Aston Villa FC",
@@ -22,21 +23,20 @@ ODDS_TO_FD = {
     "Brentford": "Brentford FC",
     "Brighton": "Brighton & Hove Albion FC",
     "Brighton and Hove Albion": "Brighton & Hove Albion FC",
+    "Burnley": "Burnley FC",
     "Chelsea": "Chelsea FC",
     "Crystal Palace": "Crystal Palace FC",
     "Everton": "Everton FC",
     "Fulham": "Fulham FC",
-    "Ipswich": "Ipswich Town FC",
-    "Ipswich Town": "Ipswich Town FC",
-    "Leicester": "Leicester City FC",
-    "Leicester City": "Leicester City FC",
+    "Leeds": "Leeds United FC",
+    "Leeds United": "Leeds United FC",
     "Liverpool": "Liverpool FC",
     "Manchester City": "Manchester City FC",
     "Manchester United": "Manchester United FC",
     "Newcastle": "Newcastle United FC",
     "Newcastle United": "Newcastle United FC",
     "Nottingham Forest": "Nottingham Forest FC",
-    "Southampton": "Southampton FC",
+    "Sunderland": "Sunderland AFC",
     "Tottenham": "Tottenham Hotspur FC",
     "Tottenham Hotspur": "Tottenham Hotspur FC",
     "West Ham": "West Ham United FC",
@@ -62,7 +62,7 @@ class SoccerFetcher:
     # ── football-data.org ─────────────────────────────────────────────────────
 
     def get_historical_results(self):
-        """Get all completed 2024-25 PL matches (1 football-data.org call)."""
+        """Get all completed 2025-26 PL matches (1 football-data.org call)."""
         r = requests.get(
             f"{self.FD_BASE}/competitions/PL/matches",
             headers=self.fd_headers,
@@ -224,7 +224,7 @@ class SoccerFetcher:
         Fetch everything and return structured match data.
         API calls: 1 football-data.org (historical) + 1 Odds API (fixtures + odds)
         """
-        print("[SOCCER] Fetching 2024-25 historical results for hit rates...")
+        print("[SOCCER] Fetching 2025-26 historical results for hit rates...")
         try:
             results = self.get_historical_results()
             team_stats = self._build_team_stats(results)
