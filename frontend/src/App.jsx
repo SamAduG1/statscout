@@ -1286,6 +1286,16 @@ const SoccerMatchCard = ({ match }) => {
     return words.slice(0, 2).join(' ');
   };
 
+  // Convert UTC ISO string to user's local date + time
+  const { localDate, localTime } = React.useMemo(() => {
+    if (!match.commenceTime) return { localDate: '—', localTime: '—' };
+    const d = new Date(match.commenceTime);
+    return {
+      localDate: d.toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      localTime: d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    };
+  }, [match.commenceTime]);
+
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-5 flex flex-col">
       {/* Teams */}
@@ -1294,7 +1304,7 @@ const SoccerMatchCard = ({ match }) => {
           {match.homeTeam} <span className="text-gray-400 dark:text-gray-500 font-normal text-sm">vs</span> {match.awayTeam}
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          {match.gameDate} · {match.gameTime}
+          {localDate} · {localTime}
         </div>
       </div>
 
@@ -1335,6 +1345,11 @@ const SoccerMatchCard = ({ match }) => {
             <span>{shortName(match.awayTeam)} avg (away)</span>
             <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.awayAvgGoals}</span>
           </div>
+          {(match.homeGames > 0 || match.awayGames > 0) && (
+            <div className="text-[10px] text-gray-400 dark:text-gray-600 text-right mt-0.5">
+              {match.homeGames}h · {match.awayGames}a games
+            </div>
+          )}
         </div>
       </div>
 

@@ -6,7 +6,6 @@ StatScout Soccer Fetcher
 
 import requests
 import os
-from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -186,16 +185,10 @@ class SoccerFetcher:
         relevant = home_h + away_a
         over_rate = self._over_pct(relevant, line)
         btts_rate = self._pct(relevant, "btts")
+        home_games = len(home_h)
+        away_games = len(away_a)
 
-        # Parse ISO datetime from Odds API e.g. "2026-03-04T13:00:00Z"
         commence = event.get("commence_time", "")
-        try:
-            dt = datetime.fromisoformat(commence.replace('Z', '+00:00'))
-            game_date = dt.strftime("%b %d")
-            game_time = dt.strftime("%I:%M %p").lstrip("0")
-        except Exception:
-            game_date = commence[:10] if commence else "TBD"
-            game_time = "TBD"
 
         return {
             "id": event.get("id", ""),
@@ -203,8 +196,7 @@ class SoccerFetcher:
             "awayTeam": away_name,
             "homeTeamLogo": "",
             "awayTeamLogo": "",
-            "gameDate": game_date,
-            "gameTime": game_time,
+            "commenceTime": commence,   # raw ISO UTC string — frontend converts to local tz
             "venue": "",
             "overUnderLine": line,
             "overOdds": over_o,
@@ -215,6 +207,8 @@ class SoccerFetcher:
             "homeAvgGoals": home_avg,
             "awayAvgGoals": away_avg,
             "expectedTotal": expected,
+            "homeGames": home_games,
+            "awayGames": away_games,
         }
 
     # ── Main entry point ──────────────────────────────────────────────────────
