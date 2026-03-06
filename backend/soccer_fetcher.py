@@ -1,8 +1,7 @@
 """
 StatScout Soccer Fetcher
 - Upcoming EPL fixtures + over/under odds: The Odds API (soccer_epl)
-- Historical hit rates + team goal averages: API-Football (season 2024, free tier)
-API-Football free tier only covers up to season 2024 (2024-25 season).
+- Historical hit rates + team goal averages: football-data.org (season 2024, free tier)
 """
 
 import requests
@@ -12,79 +11,69 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-LEAGUE_ID = 39
-SEASON = 2024
-SEASON_FROM = "2024-08-01"
-SEASON_TO = "2025-05-31"
+SEASON = 2024  # 2024-25 season
 
-# Maps both API-Football and Odds API name variants to API-Football team IDs.
-# Used to cross-reference Odds API fixture names with historical stats.
-PL_TEAM_IDS = {
-    "Arsenal": 42,
-    "Aston Villa": 66,
-    "Bournemouth": 35,
-    "Brentford": 55,
-    "Brighton": 51,
-    "Brighton and Hove Albion": 51,
-    "Chelsea": 49,
-    "Crystal Palace": 52,
-    "Everton": 45,
-    "Fulham": 36,
-    "Ipswich": 57,
-    "Leicester": 46,
-    "Liverpool": 40,
-    "Manchester City": 50,
-    "Manchester United": 33,
-    "Newcastle": 34,
-    "Newcastle United": 34,
-    "Nottingham Forest": 65,
-    "Southampton": 41,
-    "Tottenham": 47,
-    "Tottenham Hotspur": 47,
-    "West Ham": 48,
-    "West Ham United": 48,
-    "Wolves": 39,
-    "Wolverhampton Wanderers": 39,
+# Maps Odds API team name variants to football-data.org full names.
+# Used to cross-reference upcoming fixture names with historical stats.
+ODDS_TO_FD = {
+    "Arsenal": "Arsenal FC",
+    "Aston Villa": "Aston Villa FC",
+    "Bournemouth": "AFC Bournemouth",
+    "Brentford": "Brentford FC",
+    "Brighton": "Brighton & Hove Albion FC",
+    "Brighton and Hove Albion": "Brighton & Hove Albion FC",
+    "Chelsea": "Chelsea FC",
+    "Crystal Palace": "Crystal Palace FC",
+    "Everton": "Everton FC",
+    "Fulham": "Fulham FC",
+    "Ipswich": "Ipswich Town FC",
+    "Ipswich Town": "Ipswich Town FC",
+    "Leicester": "Leicester City FC",
+    "Leicester City": "Leicester City FC",
+    "Liverpool": "Liverpool FC",
+    "Manchester City": "Manchester City FC",
+    "Manchester United": "Manchester United FC",
+    "Newcastle": "Newcastle United FC",
+    "Newcastle United": "Newcastle United FC",
+    "Nottingham Forest": "Nottingham Forest FC",
+    "Southampton": "Southampton FC",
+    "Tottenham": "Tottenham Hotspur FC",
+    "Tottenham Hotspur": "Tottenham Hotspur FC",
+    "West Ham": "West Ham United FC",
+    "West Ham United": "West Ham United FC",
+    "Wolves": "Wolverhampton Wanderers FC",
+    "Wolverhampton Wanderers": "Wolverhampton Wanderers FC",
 }
 
 
 class SoccerFetcher:
-    AF_BASE = "https://v3.football.api-sports.io"
+    FD_BASE = "https://api.football-data.org/v4"
 
     def __init__(self):
-        self.api_key = (os.getenv('API_FOOTBALL_KEY') or '').strip()
+        self.fd_key = (os.getenv('FOOTBALL_DATA_KEY') or '').strip()
         self.odds_key = (os.getenv('ODDS_API_KEY') or '').strip()
-        self.af_headers = {"x-apisports-key": self.api_key}
+        self.fd_headers = {"X-Auth-Token": self.fd_key}
 
-        if not self.api_key:
-            print("[SOCCER] WARNING: API_FOOTBALL_KEY not set")
+        if not self.fd_key:
+            print("[SOCCER] WARNING: FOOTBALL_DATA_KEY not set")
         if not self.odds_key:
             print("[SOCCER] WARNING: ODDS_API_KEY not set")
 
-    # ── API-Football ──────────────────────────────────────────────────────────
-
-    def _af_get(self, endpoint, params):
-        """GET from API-Football, return response array."""
-        r = requests.get(f"{self.AF_BASE}/{endpoint}",
-                         headers=self.af_headers, params=params, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        remaining = r.headers.get('x-ratelimit-requests-remaining', '?')
-        print(f"[SOCCER] API-Football /{endpoint} — {remaining} requests remaining today")
-        errors = data.get('errors', [])
-        if errors:
-            raise RuntimeError(f"API-Football error: {errors}")
-        return data.get("response", [])
+    # ── football-data.org ─────────────────────────────────────────────────────
 
     def get_historical_results(self):
-        """Get all completed 2024-25 PL matches (1 API-Football call)."""
-        return self._af_get("fixtures", {
-            "league": LEAGUE_ID,
-            "season": SEASON,
-            "status": "FT",
-            "from": SEASON_FROM,
-            "to": SEASON_TO,
-        })
+        """Get all completed 2024-25 PL matches (1 football-data.org call)."""
+        r = requests.get(
+            f"{self.FD_BASE}/competitions/PL/matches",
+            headers=self.fd_headers,
+            params={"season": SEASON, "status": "FINISHED"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        matches = data.get("matches", [])
+        print(f"[SOCCER] football-data.org — {len(matches)} finished PL matches")
+        return matches
 
     # ── The Odds API ──────────────────────────────────────────────────────────
 
@@ -118,27 +107,30 @@ class SoccerFetcher:
     def _build_team_stats(self, results):
         """
         From completed results build:
-        {team_id: {"home": [...], "away": [...], "all": [...]}}
+        {fd_team_name: {"home": [...], "away": [...], "all": [...]}}
         where each entry = {scored, conceded, total, btts}
         """
         stats = {}
         for match in results:
-            hg = match["goals"]["home"]
-            ag = match["goals"]["away"]
+            score = match.get("score", {}).get("fullTime", {})
+            hg = score.get("home")
+            ag = score.get("away")
             if hg is None or ag is None:
                 continue
             total = hg + ag
             btts = hg > 0 and ag > 0
-            for tid, scored, conceded, loc in [
-                (match["teams"]["home"]["id"], hg, ag, "home"),
-                (match["teams"]["away"]["id"], ag, hg, "away"),
+            home_name = match["homeTeam"]["name"]
+            away_name = match["awayTeam"]["name"]
+            for name, scored, conceded, loc in [
+                (home_name, hg, ag, "home"),
+                (away_name, ag, hg, "away"),
             ]:
-                if tid not in stats:
-                    stats[tid] = {"home": [], "away": [], "all": []}
+                if name not in stats:
+                    stats[name] = {"home": [], "away": [], "all": []}
                 entry = {"scored": scored, "conceded": conceded,
                          "total": total, "btts": btts}
-                stats[tid][loc].append(entry)
-                stats[tid]["all"].append(entry)
+                stats[name][loc].append(entry)
+                stats[name]["all"].append(entry)
         return stats
 
     # ── Match card builder ────────────────────────────────────────────────────
@@ -177,11 +169,13 @@ class SoccerFetcher:
         """Build a single match card from an Odds API event + historical stats."""
         home_name = event.get("home_team", "")
         away_name = event.get("away_team", "")
-        home_id = PL_TEAM_IDS.get(home_name)
-        away_id = PL_TEAM_IDS.get(away_name)
 
-        home_h = team_stats.get(home_id, {}).get("home", []) if home_id else []
-        away_a = team_stats.get(away_id, {}).get("away", []) if away_id else []
+        # Translate Odds API names to football-data.org names for stat lookup
+        home_fd = ODDS_TO_FD.get(home_name, home_name)
+        away_fd = ODDS_TO_FD.get(away_name, away_name)
+
+        home_h = team_stats.get(home_fd, {}).get("home", [])
+        away_a = team_stats.get(away_fd, {}).get("away", [])
 
         home_avg = self._avg(home_h, "scored")
         away_avg = self._avg(away_a, "scored")
@@ -207,7 +201,7 @@ class SoccerFetcher:
             "id": event.get("id", ""),
             "homeTeam": home_name,
             "awayTeam": away_name,
-            "homeTeamLogo": "",   # Odds API doesn't provide logos
+            "homeTeamLogo": "",
             "awayTeamLogo": "",
             "gameDate": game_date,
             "gameTime": game_time,
@@ -228,11 +222,11 @@ class SoccerFetcher:
     def fetch_all(self):
         """
         Fetch everything and return structured match data.
-        API calls: 1 API-Football (historical) + 1 Odds API (fixtures + odds)
+        API calls: 1 football-data.org (historical) + 1 Odds API (fixtures + odds)
         """
         print("[SOCCER] Fetching 2024-25 historical results for hit rates...")
         try:
-            results = self.get_historical_results()     # 1 API-Football call
+            results = self.get_historical_results()
             team_stats = self._build_team_stats(results)
             print(f"[SOCCER] Loaded stats for {len(team_stats)} teams "
                   f"from {len(results)} historical matches")
@@ -241,10 +235,9 @@ class SoccerFetcher:
             team_stats = {}
 
         print("[SOCCER] Fetching upcoming EPL fixtures and odds...")
-        epl_events = self.get_epl_odds()            # 1 Odds API call
+        epl_events = self.get_epl_odds()
 
         matches = [self._build_match_card(ev, team_stats) for ev in epl_events]
-        # Sort by game date
         matches.sort(key=lambda m: m["gameDate"])
 
         print(f"[SOCCER] Built {len(matches)} match cards")
