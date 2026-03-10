@@ -1301,6 +1301,25 @@ const SoccerMatchCard = ({ match }) => {
     return Math.round(totals.filter(t => t > line).length / totals.length * 100);
   };
 
+  const poisson = (lambda, k) => {
+    if (lambda <= 0) return k === 0 ? 1 : 0;
+    let p = Math.exp(-lambda);
+    for (let i = 1; i <= k; i++) p *= lambda / i;
+    return p;
+  };
+  const calcMatchProbs = (lambdaHome, lambdaAway, maxGoals = 8) => {
+    let homeWin = 0, draw = 0, awayWin = 0;
+    for (let h = 0; h <= maxGoals; h++) {
+      for (let a = 0; a <= maxGoals; a++) {
+        const p = poisson(lambdaHome, h) * poisson(lambdaAway, a);
+        if (h > a) homeWin += p;
+        else if (h === a) draw += p;
+        else awayWin += p;
+      }
+    }
+    return { homeWin, draw, awayWin };
+  };
+
   // Convert UTC ISO string to user's local date + time
   const { localDate, localTime } = React.useMemo(() => {
     if (!match.commenceTime) return { localDate: 'TBD', localTime: '' };
@@ -1436,6 +1455,33 @@ const SoccerMatchCard = ({ match }) => {
             <span>{shortName(match.awayTeam)} avg scored (away)</span>
             <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.awayAvgGoals}</span>
           </div>
+          {match.expectedHomeGoals > 0 && match.expectedAwayGoals > 0 && (() => {
+            const { homeWin, draw, awayWin } = calcMatchProbs(match.expectedHomeGoals, match.expectedAwayGoals);
+            const hPct = Math.round(homeWin * 100);
+            const dPct = Math.round(draw * 100);
+            const aPct = 100 - hPct - dPct;
+            return (
+              <div className="pt-1">
+                <div className="text-[10px] text-gray-400 dark:text-gray-500 mb-1" title="Poisson model win probabilities based on expected goals">Win probability</div>
+                <div className="flex rounded overflow-hidden h-4 text-[10px] font-semibold">
+                  <div className="flex items-center justify-center bg-blue-600/80 text-white" style={{ width: `${hPct}%` }} title={`${shortName(match.homeTeam)} win`}>
+                    {hPct >= 15 ? `${hPct}%` : ''}
+                  </div>
+                  <div className="flex items-center justify-center bg-gray-500/60 text-gray-200" style={{ width: `${dPct}%` }} title="Draw">
+                    {dPct >= 12 ? `${dPct}%` : ''}
+                  </div>
+                  <div className="flex items-center justify-center bg-purple-600/80 text-white" style={{ width: `${aPct}%` }} title={`${shortName(match.awayTeam)} win`}>
+                    {aPct >= 15 ? `${aPct}%` : ''}
+                  </div>
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                  <span className="text-blue-400">{shortName(match.homeTeam)} {hPct}%</span>
+                  <span>Draw {dPct}%</span>
+                  <span className="text-purple-400">{shortName(match.awayTeam)} {aPct}%</span>
+                </div>
+              </div>
+            );
+          })()}
           {(match.homeGames > 0 || match.awayGames > 0) && (
             <div className="text-[10px] text-gray-400 dark:text-gray-600 text-right mt-0.5"
               title="Number of home/away games this data is based on">

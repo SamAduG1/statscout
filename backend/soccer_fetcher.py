@@ -252,6 +252,8 @@ class SoccerFetcher:
         home_goals = (self._avg_raw(home_h, "scored") + self._avg_raw(away_a, "conceded")) / 2
         away_goals = (self._avg_raw(away_a, "scored") + self._avg_raw(home_h, "conceded")) / 2
         expected = round(home_goals + away_goals, 1)
+        exp_home = round(home_goals, 2)   # for Poisson win probability in frontend
+        exp_away = round(away_goals, 2)
 
         line, over_o, under_o, bookmaker = self._parse_odds_event(event)
 
@@ -294,6 +296,8 @@ class SoccerFetcher:
             "expectedTotal": expected,
             "homeGames": home_games,
             "awayGames": away_games,
+            "expectedHomeGoals": exp_home,  # Poisson lambda for home team
+            "expectedAwayGoals": exp_away,  # Poisson lambda for away team
             "trustScore": trust_score,
             "homeGoalTotals": home_goal_totals,
             "awayGoalTotals": away_goal_totals,
