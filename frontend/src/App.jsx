@@ -2302,7 +2302,8 @@ const ParlayBuilder = ({ darkMode }) => {
 
 export default function StatScoutDashboard() {
   const [currentSport, setCurrentSport] = useState('nba'); // 'nba' or 'soccer'
-  const [soccerMatches, setSoccerMatches] = useState([]);
+  const [soccerLeague, setSoccerLeague] = useState('pl'); // 'pl' or 'laliga'
+  const [soccerData, setSoccerData] = useState({ pl: null, laliga: null });
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [currentView, setCurrentView] = useState('props'); // 'props' or 'parlay'
@@ -2623,23 +2624,28 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, []);
 
-  // Fetch soccer data when switching to Soccer tab (lazy — only on first visit)
+  // Fetch soccer data lazily — triggers when sport tab or league changes
   useEffect(() => {
-    if (currentSport !== 'soccer' || soccerMatches.length > 0) return;
+    if (currentSport !== 'soccer') return;
+    if (soccerData[soccerLeague] !== null) {
+      setSoccerLoading(false);
+      setSoccerError(null);
+      return;
+    }
     setSoccerLoading(true);
     setSoccerError(null);
     let retryTimeout = null;
     const fetchSoccer = async (attempt = 1) => {
       try {
-        const res = await fetch(`${API_BASE_URL}/soccer/matches`);
+        const res = await fetch(`${API_BASE_URL}/soccer/matches?league=${soccerLeague}`);
         const data = await res.json();
         if (data.success && data.matches && data.matches.length > 0) {
-          setSoccerMatches(data.matches);
+          setSoccerData(prev => ({ ...prev, [soccerLeague]: data.matches }));
           setSoccerLoading(false);
         } else if (attempt < 12) {
           retryTimeout = setTimeout(() => fetchSoccer(attempt + 1), 5000);
         } else {
-          setSoccerError('No upcoming Premier League matches found.');
+          setSoccerError('No upcoming matches found.');
           setSoccerLoading(false);
         }
       } catch {
@@ -2649,7 +2655,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     };
     fetchSoccer();
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
-  }, [currentSport]);
+  }, [currentSport, soccerLeague]);
 
   // Apply dark mode to document element
   useEffect(() => {
@@ -3280,9 +3286,24 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {/* Soccer View */}
           {currentSport === 'soccer' && (
             <div>
+              {/* League selector */}
+              <div className="flex items-center gap-3 mb-5">
+                {[['pl', 'Premier League'], ['laliga', 'La Liga']].map(([key, label]) => (
+                  <button key={key} onClick={() => setSoccerLeague(key)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      soccerLeague === key
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-5 bg-blue-500 rounded-full" />
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Premier League: Match Totals</h2>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                  {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'}: Match Totals
+                </h2>
               </div>
 
               {soccerLoading && (
@@ -3318,15 +3339,15 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 </div>
               )}
 
-              {!soccerLoading && !soccerError && soccerMatches.length === 0 && (
+              {!soccerLoading && !soccerError && !(soccerData[soccerLeague]?.length > 0) && (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <p className="text-gray-500 dark:text-gray-400">No upcoming matches found.</p>
                 </div>
               )}
 
-              {!soccerLoading && soccerMatches.length > 0 && (
+              {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {soccerMatches.map(match => (
+                  {soccerData[soccerLeague].map(match => (
                     <SoccerMatchCard key={match.id} match={match} />
                   ))}
                 </div>

@@ -1,7 +1,8 @@
 """
 StatScout Soccer Fetcher
-- Upcoming EPL fixtures + over/under odds: The Odds API (soccer_epl)
+- Upcoming fixtures + over/under odds: The Odds API
 - Historical hit rates + team goal averages: football-data.org (season 2025, free tier)
+- Supported competitions: Premier League (pl), La Liga (laliga)
 """
 
 import requests
@@ -45,6 +46,50 @@ ODDS_TO_FD = {
     "Wolverhampton Wanderers": "Wolverhampton Wanderers FC",
 }
 
+# La Liga 2025-26 team name mappings (Odds API -> football-data.org).
+# Note: accented chars are stripped in FD names (e.g. "Atletico" not "Atletico").
+LALIGA_ODDS_TO_FD = {
+    "Athletic Club": "Athletic Club",
+    "Athletic Bilbao": "Athletic Club",
+    "Atletico Madrid": "Club Atletico de Madrid",
+    "Atletico de Madrid": "Club Atletico de Madrid",
+    "Barcelona": "FC Barcelona",
+    "Celta Vigo": "RC Celta de Vigo",
+    "Deportivo Alaves": "Deportivo Alaves",
+    "Alaves": "Deportivo Alaves",
+    "Espanyol": "RCD Espanyol de Barcelona",
+    "Getafe": "Getafe CF",
+    "Girona": "Girona FC",
+    "Las Palmas": "UD Las Palmas",
+    "Leganes": "CD Leganes",
+    "Mallorca": "RCD Mallorca",
+    "Osasuna": "CA Osasuna",
+    "Rayo Vallecano": "Rayo Vallecano de Madrid",
+    "Real Betis": "Real Betis Balompie",
+    "Real Madrid": "Real Madrid CF",
+    "Real Sociedad": "Real Sociedad de Futbol",
+    "Real Valladolid": "Real Valladolid CF",
+    "Valladolid": "Real Valladolid CF",
+    "Sevilla": "Sevilla FC",
+    "Valencia": "Valencia CF",
+    "Villarreal": "Villarreal CF",
+}
+
+COMPETITIONS = {
+    "pl": {
+        "odds_sport": "soccer_epl",
+        "fd_code": "PL",
+        "name": "Premier League",
+        "odds_to_fd": ODDS_TO_FD,
+    },
+    "laliga": {
+        "odds_sport": "soccer_spain_la_liga",
+        "fd_code": "PD",
+        "name": "La Liga",
+        "odds_to_fd": LALIGA_ODDS_TO_FD,
+    },
+}
+
 
 class SoccerFetcher:
     FD_BASE = "https://api.football-data.org/v4"
@@ -61,10 +106,10 @@ class SoccerFetcher:
 
     # ── football-data.org ─────────────────────────────────────────────────────
 
-    def get_historical_results(self):
-        """Get all completed 2025-26 PL matches (1 football-data.org call)."""
+    def get_historical_results(self, fd_code='PL'):
+        """Get all completed 2025-26 matches for a competition (1 football-data.org call)."""
         r = requests.get(
-            f"{self.FD_BASE}/competitions/PL/matches",
+            f"{self.FD_BASE}/competitions/{fd_code}/matches",
             headers=self.fd_headers,
             params={"season": SEASON, "status": "FINISHED"},
             timeout=15,
@@ -72,21 +117,21 @@ class SoccerFetcher:
         r.raise_for_status()
         data = r.json()
         matches = data.get("matches", [])
-        print(f"[SOCCER] football-data.org — {len(matches)} finished PL matches")
+        print(f"[SOCCER] football-data.org — {len(matches)} finished {fd_code} matches")
         return matches
 
     # ── The Odds API ──────────────────────────────────────────────────────────
 
-    def get_epl_odds(self):
+    def get_odds(self, sport_key='soccer_epl'):
         """
-        Get upcoming EPL events with totals odds (1 Odds API call).
+        Get upcoming events with totals odds for a sport key (1 Odds API call).
         Returns raw list of event objects.
         """
         if not self.odds_key:
             return []
         try:
             r = requests.get(
-                "https://api.the-odds-api.com/v4/sports/soccer_epl/odds",
+                f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds",
                 params={
                     "apiKey": self.odds_key,
                     "markets": "totals",
@@ -96,7 +141,7 @@ class SoccerFetcher:
                 timeout=10,
             )
             remaining = r.headers.get('x-requests-remaining', '?')
-            print(f"[SOCCER] Odds API — {remaining} requests remaining")
+            print(f"[SOCCER] Odds API ({sport_key}) — {remaining} requests remaining")
             return r.json() if r.status_code == 200 else []
         except Exception as e:
             print(f"[SOCCER] Odds API error: {e}")
@@ -247,14 +292,16 @@ class SoccerFetcher:
                     return line, over_o, under_o, bookmaker
         return 2.5, None, None, None
 
-    def _build_match_card(self, event, team_stats):
+    def _build_match_card(self, event, team_stats, odds_to_fd=None):
         """Build a single match card from an Odds API event + historical stats."""
+        if odds_to_fd is None:
+            odds_to_fd = ODDS_TO_FD
         home_name = event.get("home_team", "")
         away_name = event.get("away_team", "")
 
         # Translate Odds API names to football-data.org names for stat lookup
-        home_fd = ODDS_TO_FD.get(home_name, home_name)
-        away_fd = ODDS_TO_FD.get(away_name, away_name)
+        home_fd = odds_to_fd.get(home_name, home_name)
+        away_fd = odds_to_fd.get(away_name, away_name)
 
         home_h = team_stats.get(home_fd, {}).get("home", [])
         away_a = team_stats.get(away_fd, {}).get("away", [])
@@ -324,14 +371,18 @@ class SoccerFetcher:
 
     # ── Main entry point ──────────────────────────────────────────────────────
 
-    def fetch_all(self):
+    def fetch_all(self, competition='pl'):
         """
         Fetch everything and return structured match data.
+        competition: 'pl' | 'laliga' (default 'pl')
         API calls: 1 football-data.org (historical) + 1 Odds API (fixtures + odds)
         """
-        print("[SOCCER] Fetching 2025-26 historical results for hit rates...")
+        conf = COMPETITIONS.get(competition, COMPETITIONS["pl"])
+        label = conf["name"]
+
+        print(f"[SOCCER] Fetching 2025-26 historical results for {label}...")
         try:
-            results = self.get_historical_results()
+            results = self.get_historical_results(fd_code=conf["fd_code"])
             team_stats = self._build_team_stats(results)
             print(f"[SOCCER] Loaded stats for {len(team_stats)} teams "
                   f"from {len(results)} historical matches")
@@ -339,13 +390,13 @@ class SoccerFetcher:
             print(f"[SOCCER] Historical stats unavailable ({e}), continuing with odds only")
             team_stats = {}
 
-        print("[SOCCER] Fetching upcoming EPL fixtures and odds...")
-        epl_events = self.get_epl_odds()
+        print(f"[SOCCER] Fetching upcoming {label} fixtures and odds...")
+        events = self.get_odds(sport_key=conf["odds_sport"])
 
-        matches = [self._build_match_card(ev, team_stats) for ev in epl_events]
+        matches = [self._build_match_card(ev, team_stats, conf["odds_to_fd"]) for ev in events]
         matches.sort(key=lambda m: m["commenceTime"])
 
-        print(f"[SOCCER] Built {len(matches)} match cards")
+        print(f"[SOCCER] Built {len(matches)} {label} match cards")
         return {
             "success": True,
             "count": len(matches),
@@ -355,5 +406,7 @@ class SoccerFetcher:
 
 if __name__ == "__main__":
     import json
-    result = SoccerFetcher().fetch_all()
+    import sys
+    comp = sys.argv[1] if len(sys.argv) > 1 else "pl"
+    result = SoccerFetcher().fetch_all(competition=comp)
     print(json.dumps(result, indent=2))

@@ -97,15 +97,17 @@ players_cache = {
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
-# Soccer match cache
-SOCCER_CACHE_FILE = "/tmp/statscout_soccer_cache.json"
-_soccer_disk = _load_specific_cache(SOCCER_CACHE_FILE)
-soccer_cache = {
-    "data": _soccer_disk,
-    "last_updated": datetime.now() if _soccer_disk else None,
-    "building": False,
+# Soccer match cache - one entry per league
+SOCCER_CACHE_DURATION = 6 * 60 * 60  # 6 hours
+SOCCER_CACHE_FILES = {
+    "pl":     "/tmp/statscout_soccer_pl_cache.json",
+    "laliga": "/tmp/statscout_soccer_laliga_cache.json",
 }
-SOCCER_CACHE_DURATION = 6 * 60 * 60  # 6 hours (conserves API-Football quota)
+def _init_soccer_cache(league):
+    disk = _load_specific_cache(SOCCER_CACHE_FILES[league])
+    return {"data": disk, "last_updated": datetime.now() if disk else None, "building": False}
+
+soccer_caches = {league: _init_soccer_cache(league) for league in SOCCER_CACHE_FILES}
 
 # Cache for raw stat values per player - used by /api/calculate to avoid DB queries
 stats_cache = {}  # {player_name: {stat_type: [values...]}}
@@ -321,25 +323,26 @@ def _build_players_cache_background():
     threading.Thread(target=_run, daemon=True).start()
 
 
-def _build_soccer_cache_background():
-    """Pre-warm soccer match cache in background thread after startup."""
+def _build_soccer_cache_background(league='pl'):
+    """Build soccer match cache for a league in a background thread."""
     import threading, time as _time
+    cache = soccer_caches[league]
 
     def _run():
-        soccer_cache["building"] = True
+        cache["building"] = True
         for attempt in range(1, 4):
             try:
-                data = soccer_fetcher_instance.fetch_all()
-                soccer_cache["data"] = data
-                soccer_cache["last_updated"] = datetime.now()
-                _save_specific_cache(SOCCER_CACHE_FILE, data)
-                print(f"[SOCCER] Cache built ({data['count']} matches)")
+                data = soccer_fetcher_instance.fetch_all(competition=league)
+                cache["data"] = data
+                cache["last_updated"] = datetime.now()
+                _save_specific_cache(SOCCER_CACHE_FILES[league], data)
+                print(f"[SOCCER] {league} cache built ({data['count']} matches)")
                 break
             except Exception as e:
-                print(f"[SOCCER] Build attempt {attempt} failed: {e}")
+                print(f"[SOCCER] {league} build attempt {attempt} failed: {e}")
                 if attempt < 3:
                     _time.sleep(15)
-        soccer_cache["building"] = False
+        cache["building"] = False
 
     threading.Thread(target=_run, daemon=True).start()
 
@@ -530,29 +533,34 @@ def health_check():
         "status": "healthy",
         "message": "StatScout API is running",
         "players_loaded": players_cache["data"]["count"] if players_cache["data"] else 0,
-        "soccer_matches_loaded": soccer_cache["data"]["count"] if soccer_cache["data"] else 0,
+        "soccer_pl_loaded": soccer_caches["pl"]["data"]["count"] if soccer_caches["pl"]["data"] else 0,
+        "soccer_laliga_loaded": soccer_caches["laliga"]["data"]["count"] if soccer_caches["laliga"]["data"] else 0,
     })
 
 
 @app.route('/api/soccer/matches', methods=['GET'])
 def get_soccer_matches():
-    """Get upcoming Premier League matches with over/under odds and hit rates."""
+    """Get upcoming soccer matches with over/under odds and hit rates. ?league=pl|laliga"""
+    league = request.args.get('league', 'pl')
+    if league not in soccer_caches:
+        return jsonify({"error": "Unknown league"}), 400
+    cache = soccer_caches[league]
     now = datetime.now()
-    if soccer_cache["data"] is not None and soccer_cache["last_updated"]:
-        age = (now - soccer_cache["last_updated"]).total_seconds()
+    if cache["data"] is not None and cache["last_updated"]:
+        age = (now - cache["last_updated"]).total_seconds()
         if age < SOCCER_CACHE_DURATION:
-            print(f"[SOCCER] Serving from cache (age: {age:.0f}s)")
-            return jsonify(soccer_cache["data"])
+            print(f"[SOCCER] {league} serving from cache (age: {age:.0f}s)")
+            return jsonify(cache["data"])
     # Cache miss — try disk
-    disk = _load_specific_cache(SOCCER_CACHE_FILE)
+    disk = _load_specific_cache(SOCCER_CACHE_FILES[league])
     if disk:
-        soccer_cache["data"] = disk
-        soccer_cache["last_updated"] = datetime.now()
-        print(f"[SOCCER] Loaded from disk ({disk['count']} matches)")
+        cache["data"] = disk
+        cache["last_updated"] = datetime.now()
+        print(f"[SOCCER] {league} loaded from disk ({disk['count']} matches)")
         return jsonify(disk)
     # Nothing on disk — trigger rebuild
-    if not soccer_cache["building"]:
-        _build_soccer_cache_background()
+    if not cache["building"]:
+        _build_soccer_cache_background(league)
     return jsonify({"success": True, "count": 0, "matches": []})
 
 
@@ -1473,7 +1481,7 @@ def generate_parlay():
 
 # Start background cache builds after all routes are defined
 _build_players_cache_background()
-_build_soccer_cache_background()
+_build_soccer_cache_background('pl')  # La Liga loads lazily on first request
 
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")
