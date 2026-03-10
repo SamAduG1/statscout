@@ -3329,19 +3329,12 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 </div>
               )}
 
-              {soccerError && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3">
-                  <div className="w-1 h-8 bg-amber-500 rounded-full flex-shrink-0" />
-                  <div>
-                    <div className="text-sm font-semibold text-amber-700 dark:text-amber-300">Notice</div>
-                    <div className="text-sm text-amber-600 dark:text-amber-400">{soccerError}</div>
-                  </div>
-                </div>
-              )}
-
-              {!soccerLoading && !soccerError && !(soccerData[soccerLeague]?.length > 0) && (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <p className="text-gray-500 dark:text-gray-400">No upcoming matches found.</p>
+              {(soccerError || (!soccerLoading && !(soccerData[soccerLeague]?.length > 0))) && (
+                <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No matches available right now</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500">
+                    Odds are not yet posted for upcoming {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'} fixtures. Check back closer to matchday.
+                  </p>
                 </div>
               )}
 
