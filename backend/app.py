@@ -558,14 +558,14 @@ def get_soccer_matches():
         return jsonify({"error": "Unknown league"}), 400
     cache = soccer_caches[league]
     now = datetime.now()
-    if cache["data"] is not None and cache["last_updated"]:
+    if cache["data"] is not None and cache["last_updated"] and cache["data"].get("count", 0) > 0:
         age = (now - cache["last_updated"]).total_seconds()
         if age < SOCCER_CACHE_DURATION:
             print(f"[SOCCER] {league} serving from cache (age: {age:.0f}s)")
             return jsonify(cache["data"])
-    # Cache miss — try disk
+    # Cache miss or empty — try disk
     disk = _load_specific_cache(SOCCER_CACHE_FILES[league])
-    if disk:
+    if disk and disk.get("count", 0) > 0:
         cache["data"] = disk
         cache["last_updated"] = datetime.now()
         print(f"[SOCCER] {league} loaded from disk ({disk['count']} matches)")

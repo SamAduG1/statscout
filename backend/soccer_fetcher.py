@@ -135,7 +135,7 @@ class SoccerFetcher:
                 params={
                     "apiKey": self.odds_key,
                     "markets": "totals",
-                    "regions": "us",
+                    "regions": "us,uk,eu",
                     "oddsFormat": "american",
                 },
                 timeout=10,
