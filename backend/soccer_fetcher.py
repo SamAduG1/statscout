@@ -146,6 +146,23 @@ class SoccerFetcher:
         return sum(g[key] for g in lst) / len(lst) if lst else 0.0
 
     @staticmethod
+    def _form_avg(lst, key, decay=0.85):
+        """
+        Exponentially weighted average — most recent games count more.
+        The list is assumed to be in chronological order (oldest first),
+        as returned by football-data.org. decay=0.85 means a game 5
+        matches ago carries ~44% of the weight of the latest game.
+        """
+        if not lst:
+            return 0.0
+        total = weight_sum = 0.0
+        for i, g in enumerate(reversed(lst)):
+            w = decay ** i
+            total += g[key] * w
+            weight_sum += w
+        return total / weight_sum
+
+    @staticmethod
     def _pct(lst, key):
         return round(sum(1 for g in lst if g[key]) / len(lst) * 100) if lst else None
 
@@ -246,11 +263,11 @@ class SoccerFetcher:
         home_avg = self._avg(home_h, "scored")
         away_avg = self._avg(away_a, "scored")
 
-        # Improved expected total: blends attack strength + defensive weakness
-        # home_goals = avg(home scored at home, away conceded away) / 2
-        # away_goals = avg(away scored away, home conceded at home) / 2
-        home_goals = (self._avg_raw(home_h, "scored") + self._avg_raw(away_a, "conceded")) / 2
-        away_goals = (self._avg_raw(away_a, "scored") + self._avg_raw(home_h, "conceded")) / 2
+        # Expected total: blends attack strength + defensive weakness, form-weighted
+        # home_goals = form_avg(home scored at home, away conceded away) / 2
+        # away_goals = form_avg(away scored away, home conceded at home) / 2
+        home_goals = (self._form_avg(home_h, "scored") + self._form_avg(away_a, "conceded")) / 2
+        away_goals = (self._form_avg(away_a, "scored") + self._form_avg(home_h, "conceded")) / 2
         expected = round(home_goals + away_goals, 1)
         exp_home = round(home_goals, 2)   # for Poisson win probability in frontend
         exp_away = round(away_goals, 2)
