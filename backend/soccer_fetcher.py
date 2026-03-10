@@ -81,12 +81,14 @@ COMPETITIONS = {
         "fd_code": "PL",
         "name": "Premier League",
         "odds_to_fd": ODDS_TO_FD,
+        "regions": "us",           # EPL has strong US sportsbook coverage
     },
     "laliga": {
         "odds_sport": "soccer_spain_la_liga",
         "fd_code": "PD",
         "name": "La Liga",
         "odds_to_fd": LALIGA_ODDS_TO_FD,
+        "regions": "uk,eu",        # La Liga covered better by UK/EU books
     },
 }
 
@@ -122,7 +124,7 @@ class SoccerFetcher:
 
     # ── The Odds API ──────────────────────────────────────────────────────────
 
-    def get_odds(self, sport_key='soccer_epl'):
+    def get_odds(self, sport_key='soccer_epl', regions='us'):
         """
         Get upcoming events with totals odds for a sport key (1 Odds API call).
         Returns raw list of event objects.
@@ -135,7 +137,7 @@ class SoccerFetcher:
                 params={
                     "apiKey": self.odds_key,
                     "markets": "totals",
-                    "regions": "us,uk,eu",
+                    "regions": regions,
                     "oddsFormat": "american",
                 },
                 timeout=10,
@@ -391,7 +393,7 @@ class SoccerFetcher:
             team_stats = {}
 
         print(f"[SOCCER] Fetching upcoming {label} fixtures and odds...")
-        events = self.get_odds(sport_key=conf["odds_sport"])
+        events = self.get_odds(sport_key=conf["odds_sport"], regions=conf["regions"])
 
         matches = [self._build_match_card(ev, team_stats, conf["odds_to_fd"]) for ev in events]
         matches.sort(key=lambda m: m["commenceTime"])
