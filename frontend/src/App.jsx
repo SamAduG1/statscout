@@ -1303,7 +1303,7 @@ const SoccerMatchCard = ({ match }) => {
 
   // Convert UTC ISO string to user's local date + time
   const { localDate, localTime } = React.useMemo(() => {
-    if (!match.commenceTime) return { localDate: '—', localTime: '—' };
+    if (!match.commenceTime) return { localDate: 'TBD', localTime: '' };
     const d = new Date(match.commenceTime);
     return {
       localDate: d.toLocaleDateString([], { month: 'short', day: 'numeric' }),
@@ -1326,6 +1326,35 @@ const SoccerMatchCard = ({ match }) => {
   const awayTeamOverRate = calcOverPct(match.awayTeamScoredAway, awayTeamLine);
   const hasTeamProps = (match.homeTeamScoredAtHome?.length > 0) || (match.awayTeamScoredAway?.length > 0);
 
+  // Dynamic trust score - recomputes whenever the line changes
+  const trustScore = React.useMemo(() => {
+    const minGames = Math.min(match.homeGames || 0, match.awayGames || 0);
+    if (minGames < 5) return null;
+    // Factor 1: Over hit rate (30%)
+    const fHit = adjustedOverRate != null ? adjustedOverRate : 50;
+    // Factor 2: Expected vs line gap (25%) - moves with slider
+    const gap = (match.expectedTotal || 0) - customLine;
+    const fGap = Math.max(0, Math.min(100, 50 + (gap / 1.5) * 50));
+    // Factor 3: Odds market lean (20%) - fixed to bookmaker line
+    let fOdds = 50;
+    if (match.overOdds != null) {
+      fOdds = match.overOdds > 0
+        ? (100 / (match.overOdds + 100)) * 100
+        : (Math.abs(match.overOdds) / (Math.abs(match.overOdds) + 100)) * 100;
+    }
+    // Factor 4: Consistency - std dev of totals (15%)
+    let fConsistency = 50;
+    if (combinedTotals.length >= 2) {
+      const mean = combinedTotals.reduce((a, b) => a + b, 0) / combinedTotals.length;
+      const stdDev = Math.sqrt(combinedTotals.reduce((s, v) => s + (v - mean) ** 2, 0) / (combinedTotals.length - 1));
+      fConsistency = Math.max(0, Math.min(100, 100 - (stdDev - 0.5) * 40));
+    }
+    // Factor 5: Sample size confidence (10%)
+    const fSample = Math.min(100, 40 + (minGames - 5) / 14 * 60);
+    const score = fHit * 0.30 + fGap * 0.25 + fOdds * 0.20 + fConsistency * 0.15 + fSample * 0.10;
+    return Math.round(score * 10) / 10;
+  }, [adjustedOverRate, customLine, match.expectedTotal, match.overOdds, match.homeGames, match.awayGames, combinedTotals]);
+
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-5 flex flex-col">
       {/* Header: teams + trust score badge */}
@@ -1335,13 +1364,14 @@ const SoccerMatchCard = ({ match }) => {
             {match.homeTeam} <span className="text-gray-400 dark:text-gray-500 font-normal text-sm">vs</span> {match.awayTeam}
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {localDate} · {localTime}
+            {localDate}{localTime ? ` · ${localTime}` : ''}
           </div>
         </div>
-        {match.trustScore != null && (
-          <div className={`flex-shrink-0 text-xs font-bold px-2 py-1 rounded-md border tabular-nums ${getTrustColor(match.trustScore)}`}
-            title="Trust Score">
-            {match.trustScore}
+        {trustScore != null && (
+          <div className={`flex-shrink-0 flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(trustScore)}`}
+            title="Trust Score: composite confidence rating (0-100) based on historical hit rate, model vs line, odds lean, consistency, and sample size">
+            <span className="text-[9px] font-semibold uppercase tracking-wide opacity-70">Trust</span>
+            <span className="text-sm font-bold leading-tight">{trustScore}</span>
           </div>
         )}
       </div>
@@ -1350,22 +1380,22 @@ const SoccerMatchCard = ({ match }) => {
         {/* 3-col stats */}
         <div className="grid grid-cols-3 gap-2 text-center mb-2">
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">O/U</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5" title="Total goals over/under line. Drag the slider below to adjust.">O/U Line</div>
             <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{customLine}</div>
             {lineChanged && (
-              <div className="text-[10px] text-gray-400">bk: {match.overUnderLine}</div>
+              <div className="text-[10px] text-gray-400">Book line: {match.overUnderLine}</div>
             )}
           </div>
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Over%</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5" title="% of historical games (home team at home + away team away) where total goals exceeded this line">Over %</div>
             <div className={`text-xl font-bold tabular-nums ${getRateColor(adjustedOverRate)}`}>
-              {adjustedOverRate != null ? `${adjustedOverRate}%` : '—'}
+              {adjustedOverRate != null ? `${adjustedOverRate}%` : '-'}
             </div>
           </div>
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">BTTS%</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5" title="Both Teams Score: % of games where both teams scored at least 1 goal">Both Score %</div>
             <div className={`text-xl font-bold tabular-nums ${getRateColor(match.bttsRate)}`}>
-              {match.bttsRate != null ? `${match.bttsRate}%` : '—'}
+              {match.bttsRate != null ? `${match.bttsRate}%` : '-'}
             </div>
           </div>
         </div>
@@ -1383,7 +1413,7 @@ const SoccerMatchCard = ({ match }) => {
               <span>0.5</span>
               {lineChanged && (
                 <button onClick={() => setCustomLine(match.overUnderLine || 2.5)}
-                  className="text-blue-500 hover:underline">Reset</button>
+                  className="text-blue-500 hover:underline">Reset to book line</button>
               )}
               <span>5.5</span>
             </div>
@@ -1393,27 +1423,28 @@ const SoccerMatchCard = ({ match }) => {
         {/* Expected total breakdown */}
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 space-y-1">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-500 dark:text-gray-400">Expected total</span>
+            <span className="text-gray-500 dark:text-gray-400" title="Model-predicted total goals using each team's attack strength and defensive record">Expected total</span>
             <span className={`font-semibold tabular-nums ${match.expectedTotal > customLine ? 'text-green-500' : 'text-red-400'}`}>
               {match.expectedTotal} {match.expectedTotal > customLine ? '▲ Over' : '▼ Under'}
             </span>
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{shortName(match.homeTeam)} avg (home)</span>
+            <span>{shortName(match.homeTeam)} avg scored (home)</span>
             <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.homeAvgGoals}</span>
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{shortName(match.awayTeam)} avg (away)</span>
+            <span>{shortName(match.awayTeam)} avg scored (away)</span>
             <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.awayAvgGoals}</span>
           </div>
           {(match.homeGames > 0 || match.awayGames > 0) && (
-            <div className="text-[10px] text-gray-400 dark:text-gray-600 text-right mt-0.5">
-              {match.homeGames}h · {match.awayGames}a games
+            <div className="text-[10px] text-gray-400 dark:text-gray-600 text-right mt-0.5"
+              title="Number of home/away games this data is based on">
+              {match.homeGames} home · {match.awayGames} away games
             </div>
           )}
         </div>
 
-        {/* Team Goal Props — collapsible */}
+        {/* Team Goal Props - collapsible */}
         {hasTeamProps && (
           <div className="mt-2">
             <button
@@ -1425,15 +1456,14 @@ const SoccerMatchCard = ({ match }) => {
             </button>
             {teamPropsOpen && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 space-y-3">
-                {/* Home team */}
                 {(match.homeTeamScoredAtHome?.length > 0) && (
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{shortName(match.homeTeam)}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{shortName(match.homeTeam)} to score over</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-gray-400">O {homeTeamLine}</span>
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{homeTeamLine}</span>
                         <span className={`text-sm font-bold tabular-nums ${getRateColor(homeTeamOverRate)}`}>
-                          {homeTeamOverRate != null ? `${homeTeamOverRate}%` : '—'}
+                          {homeTeamOverRate != null ? `${homeTeamOverRate}%` : '-'}
                         </span>
                       </div>
                     </div>
@@ -1441,18 +1471,17 @@ const SoccerMatchCard = ({ match }) => {
                       value={homeTeamLine}
                       onChange={e => setHomeTeamLine(parseFloat(e.target.value))}
                       className="w-full h-1 accent-blue-500 cursor-pointer" />
-                    <div className="text-[10px] text-gray-400 mt-0.5">{match.homeGames} home games</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">{match.homeGames} home games this season</div>
                   </div>
                 )}
-                {/* Away team */}
                 {(match.awayTeamScoredAway?.length > 0) && (
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{shortName(match.awayTeam)}</span>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{shortName(match.awayTeam)} to score over</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-gray-400">O {awayTeamLine}</span>
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{awayTeamLine}</span>
                         <span className={`text-sm font-bold tabular-nums ${getRateColor(awayTeamOverRate)}`}>
-                          {awayTeamOverRate != null ? `${awayTeamOverRate}%` : '—'}
+                          {awayTeamOverRate != null ? `${awayTeamOverRate}%` : '-'}
                         </span>
                       </div>
                     </div>
@@ -1460,7 +1489,7 @@ const SoccerMatchCard = ({ match }) => {
                       value={awayTeamLine}
                       onChange={e => setAwayTeamLine(parseFloat(e.target.value))}
                       className="w-full h-1 accent-blue-500 cursor-pointer" />
-                    <div className="text-[10px] text-gray-400 mt-0.5">{match.awayGames} away games</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">{match.awayGames} away games this season</div>
                   </div>
                 )}
               </div>
