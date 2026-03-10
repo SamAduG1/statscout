@@ -526,6 +526,18 @@ def refresh_odds():
     })
 
 
+@app.route('/api/debug/odds-sports', methods=['GET'])
+def debug_odds_sports():
+    """List all sport keys available on the current Odds API plan."""
+    import requests as _req
+    key = os.getenv('ODDS_API_KEY', '').strip()
+    if not key:
+        return jsonify({"error": "ODDS_API_KEY not set"}), 500
+    r = _req.get("https://api.the-odds-api.com/v4/sports",
+                 params={"apiKey": key}, timeout=10)
+    return jsonify(r.json()), r.status_code
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
