@@ -3207,7 +3207,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             <div>
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-5 bg-blue-500 rounded-full" />
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Premier League — Match Totals</h2>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Premier League: Match Totals</h2>
               </div>
 
               {soccerLoading && (
