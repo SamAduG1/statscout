@@ -2535,6 +2535,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   const clearCustomParlay = () => {
     setCustomParlayLegs([]);
     setCurrentParlayName('');
+    setIsParlaySidebarOpen(false);
   };
 
   const saveCustomParlay = () => {
