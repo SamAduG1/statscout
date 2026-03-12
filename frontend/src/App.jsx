@@ -1270,7 +1270,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
   );
 };
 
-const SoccerMatchCard = ({ match }) => {
+const SoccerMatchCard = ({ match, onAddToParlay }) => {
   const [customLine, setCustomLine] = React.useState(match.overUnderLine || 2.5);
   const [teamPropsOpen, setTeamPropsOpen] = React.useState(false);
   const [homeTeamLine, setHomeTeamLine] = React.useState(0.5);
@@ -1556,6 +1556,33 @@ const SoccerMatchCard = ({ match }) => {
           <span className="text-xs text-gray-400 w-full text-center">Odds unavailable</span>
         )}
       </div>
+
+      {/* Add to Parlay */}
+      {onAddToParlay && (
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          {[['over', 'Over', match.overOdds, 'bg-green-600 hover:bg-green-700'],
+            ['under', 'Under', match.underOdds, 'bg-red-500 hover:bg-red-600']].map(([side, label, odds, cls]) => (
+            <button key={side}
+              onClick={() => onAddToParlay({
+                id: `soccer-${match.id}-${side}-${Date.now()}`,
+                sport: 'soccer',
+                homeTeam: match.homeTeam,
+                awayTeam: match.awayTeam,
+                side,
+                line: customLine,
+                originalLine: match.overUnderLine || 2.5,
+                odds: odds ?? null,
+                trustScore: trustScore,
+                hitRate: adjustedOverRate,
+                commenceTime: match.commenceTime,
+                bookmaker: match.bookmaker,
+              })}
+              className={`${cls} text-white text-xs font-semibold py-1.5 rounded-lg transition-colors`}>
+              + {label} {customLine}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -2434,6 +2461,11 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     setIsParlaySidebarOpen(true);
   };
 
+  const addSoccerLeg = (leg) => {
+    setCustomParlayLegs(prev => [...prev, leg]);
+    setIsParlaySidebarOpen(true);
+  };
+
   const removeFromCustomParlay = (legId) => {
     setCustomParlayLegs(prev => prev.filter(leg => leg.id !== legId));
   };
@@ -2455,6 +2487,14 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   const updateCustomParlayLeg = async (legId, newLine) => {
     const leg = customParlayLegs.find(l => l.id === legId);
     if (!leg) return;
+
+    // Soccer legs: just update the line locally (trust score computed on card)
+    if (leg.sport === 'soccer') {
+      setCustomParlayLegs(prev => prev.map(l =>
+        l.id === legId ? { ...l, line: parseFloat(newLine) } : l
+      ));
+      return;
+    }
 
     try {
       // Call API to recalculate trust score with new line
@@ -3341,7 +3381,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {soccerData[soccerLeague].map(match => (
-                    <SoccerMatchCard key={match.id} match={match} />
+                    <SoccerMatchCard key={match.id} match={match} onAddToParlay={addSoccerLeg} />
                   ))}
                 </div>
               )}
@@ -3349,8 +3389,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           )}
         </div>
 
-        {/* Custom Parlay Builder Sidebar */}
-        {currentSport === 'nba' && currentView === 'props' && (
+        {/* Custom Parlay Builder Sidebar — visible regardless of sport */}
+        {(currentSport === 'nba' || customParlayLegs.length > 0) && (
           <>
             {/* Floating Toggle Button (when sidebar is closed) */}
             {!isParlaySidebarOpen && customParlayLegs.length > 0 && (
@@ -3389,7 +3429,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     <div>
                       <Plus className="w-16 h-16 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-semibold mb-2">No legs added yet</p>
-                      <p className="text-sm">Click "Add to Custom Parlay" on any player card to get started</p>
+                      <p className="text-sm">Click "Add to Custom Parlay" on any player card, or use the Over/Under buttons on soccer match cards</p>
                     </div>
                   </div>
                 ) : (
@@ -3443,10 +3483,24 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                         <div key={leg.id} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
-                              <div className="font-semibold text-gray-900 dark:text-white">{leg.playerName}</div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400">
-                                {leg.team} vs {leg.opponent}
-                              </div>
+                              {leg.sport === 'soccer' ? (
+                                <>
+                                  <div className="font-semibold text-gray-900 dark:text-white text-sm">
+                                    {leg.homeTeam} vs {leg.awayTeam}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {leg.side === 'over' ? 'Over' : 'Under'} {leg.line} goals
+                                    {leg.odds != null && <span className="ml-1 font-medium">{leg.odds > 0 ? `+${leg.odds}` : leg.odds}</span>}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="font-semibold text-gray-900 dark:text-white">{leg.playerName}</div>
+                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    {leg.team} vs {leg.opponent}
+                                  </div>
+                                </>
+                              )}
                             </div>
                             <button
                               onClick={() => removeFromCustomParlay(leg.id)}
@@ -3456,26 +3510,39 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                             </button>
                           </div>
 
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{leg.statType}</span>
-                            <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
-                              Trust: {leg.trustScore}
-                            </span>
-                          </div>
+                          {leg.sport !== 'soccer' && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{leg.statType}</span>
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                                Trust: {leg.trustScore}
+                              </span>
+                            </div>
+                          )}
+
+                          {leg.trustScore != null && leg.sport === 'soccer' && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                                Trust: {leg.trustScore}
+                              </span>
+                              {leg.hitRate != null && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Over%: {leg.hitRate}%</span>
+                              )}
+                            </div>
+                          )}
 
                           <div className="flex items-center gap-2">
                             <label className="text-xs text-gray-600 dark:text-gray-400">Line:</label>
                             <input
                               type="number"
-                              step="0.5"
+                              step={leg.sport === 'soccer' ? '0.5' : '0.5'}
                               value={leg.line}
                               onChange={(e) => updateCustomParlayLeg(leg.id, e.target.value)}
                               className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded focus:ring-2 focus:ring-blue-500"
                             />
                             <input
                               type="range"
-                              min={Math.max(0.5, leg.originalLine - 10)}
-                              max={leg.originalLine + 10}
+                              min={leg.sport === 'soccer' ? '0.5' : Math.max(0.5, leg.originalLine - 10)}
+                              max={leg.sport === 'soccer' ? '5.5' : leg.originalLine + 10}
                               step="0.5"
                               value={leg.line}
                               onChange={(e) => updateCustomParlayLeg(leg.id, e.target.value)}
