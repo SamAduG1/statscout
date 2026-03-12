@@ -63,22 +63,39 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
             print(f"  [INFO] Team change detected: {player.team} -> {team}")
             player.team = team
 
-    # Filter to only NEW games (after last_date)
+    # Games from the last 3 days are re-checked and updated in case they were
+    # captured mid-game on a previous run.
+    refresh_cutoff = date.today() - timedelta(days=3)
+
     new_games = []
+    updated_games = 0
     for game in games:
         game_date = datetime.strptime(game['date'], '%Y-%m-%d').date()
 
-        # Skip if we already have this game
-        if last_date and game_date <= last_date:
-            continue
-
-        # Check if game already exists (by date only - ignore opponent abbreviation differences)
         existing = session.query(Game).filter_by(
             player_id=player.id,
             date=game_date
         ).first()
 
         if existing:
+            # Re-check recent games in case stats were captured mid-game
+            if game_date >= refresh_cutoff:
+                api_pts = int(game['points'])
+                api_reb = int(game['rebounds'])
+                api_ast = int(game['assists'])
+                if (existing.points != api_pts or existing.rebounds != api_reb or
+                        existing.assists != api_ast):
+                    existing.points   = api_pts
+                    existing.rebounds = api_reb
+                    existing.assists  = api_ast
+                    existing.steals   = int(game['steals'])
+                    existing.blocks   = int(game['blocks'])
+                    existing.three_pm = int(game['three_pm'])
+                    updated_games += 1
+            continue
+
+        # Skip old games we don't have yet (shouldn't happen in normal operation)
+        if last_date and game_date <= last_date:
             continue
 
         new_games.append(game)
@@ -103,9 +120,9 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
         session.add(new_game)
         games_added += 1
 
-    if games_added > 0:
+    if games_added > 0 or updated_games > 0:
         session.commit()
-        print(f"  [SUCCESS] Added {games_added} new games")
+        print(f"  [SUCCESS] Added {games_added} new games, updated {updated_games} recent games")
     else:
         print(f"  [INFO] No new games to add")
 
