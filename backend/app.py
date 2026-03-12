@@ -711,7 +711,7 @@ def get_soccer_players():
         return jsonify({"error": "home_team and away_team are required"}), 400
 
     safe = lambda s: s.replace(' ', '_').replace('/', '-')
-    cache_key = f"/tmp/ssp_{league}_{safe(home_team)}_{safe(away_team)}.json"
+    cache_key = f"/tmp/ssp_v2_{league}_{safe(home_team)}_{safe(away_team)}.json"
 
     cached = _load_specific_cache(cache_key)
     if cached:
