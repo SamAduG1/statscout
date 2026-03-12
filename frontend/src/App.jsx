@@ -664,6 +664,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
               <div className={`text-2xl font-bold tabular-nums ${
                 player.trustScore >= 80 ? 'text-green-500' : player.trustScore >= 70 ? 'text-amber-500' : player.trustScore >= 60 ? 'text-yellow-500' : 'text-red-500'
               }`}>{player.trustScore}</div>
+              <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{getTrustLabel(player.trustScore)}</div>
             </div>
           </div>
         </div>
@@ -1387,10 +1388,13 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
           </div>
         </div>
         {trustScore != null && (
-          <div className={`flex-shrink-0 flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(trustScore)}`}
-            title="Trust Score: composite confidence rating (0-100) based on historical hit rate, model vs line, odds lean, consistency, and sample size">
-            <span className="text-[9px] font-semibold uppercase tracking-wide opacity-70">Trust</span>
-            <span className="text-sm font-bold leading-tight">{trustScore}</span>
+          <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+            <div className={`flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(trustScore)}`}
+              title="Trust Score: composite confidence rating (0-100) based on historical hit rate, model vs line, odds lean, consistency, and sample size">
+              <span className="text-[9px] font-semibold uppercase tracking-wide opacity-70">Trust</span>
+              <span className="text-sm font-bold leading-tight">{trustScore}</span>
+            </div>
+            <span className="text-[9px] text-gray-400 dark:text-gray-500 text-center leading-tight max-w-[64px]">{getTrustLabel(trustScore)}</span>
           </div>
         )}
       </div>
@@ -1585,6 +1589,16 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
       )}
     </div>
   );
+};
+
+const getTrustLabel = (score) => {
+  if (score == null) return '';
+  if (score >= 80) return 'Strong lean';
+  if (score >= 70) return 'Leaning over';
+  if (score >= 60) return 'I like these odds';
+  if (score >= 50) return 'Slight edge';
+  if (score >= 40) return 'Proceed with caution';
+  return 'Taking a longshot';
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
@@ -1810,7 +1824,10 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
       <div className="mb-4">
         <div className="flex justify-between items-center mb-1.5">
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Trust Score</span>
-          <span className="text-2xl font-bold tabular-nums dark:text-white">{player.trustScore}</span>
+          <div className="text-right">
+            <span className="text-2xl font-bold tabular-nums dark:text-white">{player.trustScore}</span>
+            <div className="text-[10px] text-gray-400 dark:text-gray-500">{getTrustLabel(player.trustScore)}</div>
+          </div>
         </div>
         <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
           <div
@@ -2572,15 +2589,22 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
       return { avgTrust: 0, minTrust: 0, weightedTrust: 0, totalOdds: 0, payout: 0 };
     }
 
-    const avgTrust = customParlayLegs.reduce((sum, leg) => sum + leg.trustScore, 0) / customParlayLegs.length;
-    const minTrust = Math.min(...customParlayLegs.map(leg => leg.trustScore));
+    const legsWithTrust = customParlayLegs.filter(l => l.trustScore != null);
+    const avgTrust = legsWithTrust.length
+      ? legsWithTrust.reduce((sum, leg) => sum + leg.trustScore, 0) / legsWithTrust.length
+      : 0;
+    const minTrust = legsWithTrust.length
+      ? Math.min(...legsWithTrust.map(leg => leg.trustScore))
+      : 0;
 
     // Weighted trust - higher odds props have more weight
-    const totalWeight = customParlayLegs.reduce((sum, leg) => sum + Math.abs(leg.odds), 0);
-    const weightedTrust = customParlayLegs.reduce((sum, leg) => {
-      const weight = Math.abs(leg.odds) / totalWeight;
-      return sum + (leg.trustScore * weight);
-    }, 0);
+    const totalWeight = customParlayLegs.reduce((sum, leg) => sum + Math.abs(leg.odds || 110), 0);
+    const weightedTrust = legsWithTrust.length
+      ? legsWithTrust.reduce((sum, leg) => {
+          const weight = Math.abs(leg.odds || 110) / totalWeight;
+          return sum + (leg.trustScore * weight);
+        }, 0)
+      : 0;
 
     // Calculate total American odds
     let totalOdds = customParlayLegs[0]?.odds || -110;
