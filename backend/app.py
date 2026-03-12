@@ -538,6 +538,60 @@ def debug_odds_sports():
     return jsonify(r.json()), r.status_code
 
 
+@app.route('/api/debug/soccer-fetch', methods=['GET'])
+def debug_soccer_fetch():
+    """Run soccer fetch synchronously and return diagnostics."""
+    import requests as _req, time as _time
+    league = request.args.get('league', 'pl')
+    result = {"league": league, "steps": []}
+    t0 = _time.time()
+
+    # Step 1: football-data.org
+    fd_key = os.getenv('FOOTBALL_DATA_KEY', '').strip()
+    result["fd_key_set"] = bool(fd_key)
+    from soccer_fetcher import COMPETITIONS, SEASON
+    conf = COMPETITIONS.get(league, COMPETITIONS["pl"])
+    try:
+        r = _req.get(
+            f"https://api.football-data.org/v4/competitions/{conf['fd_code']}/matches",
+            headers={"X-Auth-Token": fd_key},
+            params={"season": SEASON, "status": "FINISHED"},
+            timeout=15,
+        )
+        result["steps"].append({
+            "step": "football-data.org",
+            "status": r.status_code,
+            "matches": len(r.json().get("matches", [])) if r.status_code == 200 else None,
+            "elapsed": round(_time.time() - t0, 2),
+        })
+    except Exception as e:
+        result["steps"].append({"step": "football-data.org", "error": str(e), "elapsed": round(_time.time() - t0, 2)})
+
+    # Step 2: Odds API
+    odds_key = os.getenv('ODDS_API_KEY', '').strip()
+    result["odds_key_set"] = bool(odds_key)
+    t1 = _time.time()
+    try:
+        r2 = _req.get(
+            f"https://api.the-odds-api.com/v4/sports/{conf['odds_sport']}/odds",
+            params={"apiKey": odds_key, "markets": "totals",
+                    "regions": conf["regions"], "oddsFormat": "american"},
+            timeout=10,
+        )
+        result["steps"].append({
+            "step": "odds-api",
+            "status": r2.status_code,
+            "remaining": r2.headers.get("x-requests-remaining"),
+            "events": len(r2.json()) if r2.status_code == 200 else None,
+            "error": r2.json() if r2.status_code != 200 else None,
+            "elapsed": round(_time.time() - t1, 2),
+        })
+    except Exception as e:
+        result["steps"].append({"step": "odds-api", "error": str(e), "elapsed": round(_time.time() - t1, 2)})
+
+    return jsonify(result)
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
