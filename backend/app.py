@@ -526,6 +526,205 @@ def refresh_odds():
     })
 
 
+SOCCER_PLAYERS_CACHE_DURATION = 12 * 60 * 60  # 12 hours
+
+# Understat team name -> Odds API team name (for fixture matching)
+UNDERSTAT_TO_ODDS_PL = {
+    "Manchester City":        "Manchester City",
+    "Arsenal":                "Arsenal",
+    "Liverpool":              "Liverpool",
+    "Chelsea":                "Chelsea",
+    "Tottenham":              "Tottenham Hotspur",
+    "Aston Villa":            "Aston Villa",
+    "Newcastle United":       "Newcastle United",
+    "Manchester United":      "Manchester United",
+    "West Ham":               "West Ham United",
+    "Brighton":               "Brighton and Hove Albion",
+    "Wolverhampton Wanderers":"Wolves",
+    "Fulham":                 "Fulham",
+    "Bournemouth":            "Bournemouth",
+    "Nottingham Forest":      "Nottingham Forest",
+    "Crystal Palace":         "Crystal Palace",
+    "Brentford":              "Brentford",
+    "Everton":                "Everton",
+    "Leicester":              "Leicester City",
+    "Ipswich":                "Ipswich Town",
+    "Southampton":            "Southampton",
+    "Leeds":                  "Leeds United",
+    "Burnley":                "Burnley",
+    "Sunderland":             "Sunderland",
+}
+
+UNDERSTAT_TO_ODDS_LALIGA = {
+    "Barcelona":              "Barcelona",
+    "Real Madrid":            "Real Madrid",
+    "Atletico Madrid":        "Atletico Madrid",
+    "Athletic Club":          "Athletic Club Bilbao",
+    "Real Sociedad":          "Real Sociedad",
+    "Villarreal":             "Villarreal",
+    "Real Betis":             "Real Betis",
+    "Valencia":               "Valencia",
+    "Sevilla":                "Sevilla",
+    "Osasuna":                "Osasuna",
+    "Celta Vigo":             "Celta Vigo",
+    "Getafe":                 "Getafe",
+    "Espanyol":               "Espanyol",
+    "Mallorca":               "Mallorca",
+    "Las Palmas":             "Las Palmas",
+    "Rayo Vallecano":         "Rayo Vallecano",
+    "Alaves":                 "Alaves",
+    "Leganes":                "Leganes",
+    "Real Valladolid":        "Valladolid",
+    "Real Oviedo":            "Oviedo",
+    "Levante":                "Levante UD",
+    "Elche":                  "Elche CF",
+}
+
+
+def _compute_soccer_players(league, home_team_odds, away_team_odds):
+    """
+    Compute player props for both teams in a fixture.
+    home_team_odds / away_team_odds are the Odds API team names.
+    Returns dict with players list and hit rates per market.
+    """
+    from models import get_engine, get_session, SoccerPlayer, SoccerPlayerGame
+    from soccer_fetcher import _norm
+
+    mapping = UNDERSTAT_TO_ODDS_PL if league == "pl" else UNDERSTAT_TO_ODDS_LALIGA
+    # Reverse the mapping: Odds API name -> Understat name
+    odds_to_understat = {v.lower(): k for k, v in mapping.items()}
+
+    def resolve(odds_name):
+        return odds_to_understat.get(_norm(odds_name).lower(), odds_name)
+
+    home_us = resolve(home_team_odds)
+    away_us = resolve(away_team_odds)
+
+    engine = get_engine()
+    session = get_session(engine)
+
+    def hit_rate(values, line):
+        if not values:
+            return None
+        return round(sum(1 for v in values if v > line) / len(values) * 100)
+
+    try:
+        players_out = []
+        for team_odds, team_us, side in [
+            (home_team_odds, home_us, "home"),
+            (away_team_odds, away_us, "away"),
+        ]:
+            # Try exact match, then case-insensitive fallback
+            players = session.query(SoccerPlayer).filter(
+                SoccerPlayer.league == league,
+                SoccerPlayer.team_name == team_us,
+            ).all()
+            if not players:
+                players = session.query(SoccerPlayer).filter(
+                    SoccerPlayer.league == league,
+                    SoccerPlayer.team_name.ilike(team_us),
+                ).all()
+
+            for p in players:
+                games = (
+                    session.query(SoccerPlayerGame)
+                    .filter_by(player_id=p.id, season=str(2025))
+                    .order_by(SoccerPlayerGame.match_date.asc())
+                    .all()
+                )
+                active = [g for g in games if g.minutes_played > 0]
+                if len(active) < 3:
+                    continue
+
+                goals   = [g.goals for g in active]
+                shots   = [g.shots for g in active]
+                assists = [g.assists for g in active]
+                ga      = [g.goals + g.assists for g in active]
+                mins    = [g.minutes_played for g in active]
+
+                player_dict = {
+                    "id":           p.id,
+                    "understatId":  p.understat_id,
+                    "name":         p.name,
+                    "team":         team_odds,
+                    "teamSide":     side,
+                    "position":     p.position,
+                    "gamesPlayed":  len(active),
+                    "avgMinutes":   round(sum(mins) / len(mins), 1),
+                    # Goals
+                    "goals_over05":   hit_rate(goals, 0.5),
+                    "goals_over15":   hit_rate(goals, 1.5),
+                    # Shots
+                    "shots_over15":   hit_rate(shots, 1.5),
+                    "shots_over25":   hit_rate(shots, 2.5),
+                    # Assists
+                    "assists_over05": hit_rate(assists, 0.5),
+                    # Score or Assist
+                    "ga_over05":      hit_rate(ga, 0.5),
+                    "ga_over15":      hit_rate(ga, 1.5),
+                    # GK
+                    "cleanSheet": None,
+                }
+
+                # GK clean sheet
+                if p.position == "GK":
+                    gk_conceded = [g.goals_conceded for g in active if g.goals_conceded is not None]
+                    if gk_conceded:
+                        player_dict["cleanSheet"] = round(
+                            sum(1 for v in gk_conceded if v == 0) / len(gk_conceded) * 100
+                        )
+
+                players_out.append(player_dict)
+
+        players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))
+        return {
+            "success":  True,
+            "league":   league,
+            "homeTeam": home_team_odds,
+            "awayTeam": away_team_odds,
+            "count":    len(players_out),
+            "players":  players_out,
+        }
+    finally:
+        session.close()
+
+
+@app.route('/api/soccer/players', methods=['GET'])
+def get_soccer_players():
+    """
+    Get player props for an upcoming fixture.
+    Query params: league=pl|laliga, home_team=..., away_team=...
+    (home_team / away_team must match Odds API team names from /api/soccer/matches)
+    """
+    league     = request.args.get('league', 'pl')
+    home_team  = request.args.get('home_team', '').strip()
+    away_team  = request.args.get('away_team', '').strip()
+
+    if not home_team or not away_team:
+        return jsonify({"error": "home_team and away_team are required"}), 400
+
+    safe = lambda s: s.replace(' ', '_').replace('/', '-')
+    cache_key = f"/tmp/ssp_{league}_{safe(home_team)}_{safe(away_team)}.json"
+
+    cached = _load_specific_cache(cache_key)
+    if cached:
+        ts = cached.get('ts')
+        if ts:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+            if age < SOCCER_PLAYERS_CACHE_DURATION and cached.get('count', 0) > 0:
+                return jsonify(cached)
+
+    try:
+        data = _compute_soccer_players(league, home_team, away_team)
+        data['ts'] = datetime.now().isoformat()
+        if data['count'] > 0:
+            _save_specific_cache(cache_key, data)
+        return jsonify(data)
+    except Exception as e:
+        print(f"[SOCCER PLAYERS] Error: {e}")
+        return jsonify({"success": False, "error": str(e), "count": 0, "players": []}), 500
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""

@@ -3,7 +3,7 @@ StatScout Database Models
 Defines the database schema using SQLAlchemy
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -147,6 +147,52 @@ class TeamGame(Base):
         if three_q is not None:
             return three_q >= 100
         return None
+
+
+class SoccerPlayer(Base):
+    """Soccer player information table"""
+    __tablename__ = 'soccer_players'
+
+    id           = Column(Integer, primary_key=True)
+    understat_id = Column(Integer, unique=True, nullable=False, index=True)
+    name         = Column(String, nullable=False)
+    team_name    = Column(String, nullable=False, index=True)
+    league       = Column(String, nullable=False, index=True)  # 'pl' or 'laliga'
+    position     = Column(String, nullable=False)              # 'GK', 'DF', 'MF', 'FW'
+    last_updated = Column(Date, nullable=False)
+
+    games = relationship("SoccerPlayerGame", back_populates="player", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<SoccerPlayer(name='{self.name}', team='{self.team_name}', pos='{self.position}')>"
+
+
+class SoccerPlayerGame(Base):
+    """Soccer player per-match statistics"""
+    __tablename__ = 'soccer_player_games'
+
+    id              = Column(Integer, primary_key=True)
+    player_id       = Column(Integer, ForeignKey('soccer_players.id'), nullable=False, index=True)
+    match_date      = Column(Date, nullable=False, index=True)
+    opponent        = Column(String, nullable=False)
+    venue           = Column(String, nullable=False)   # 'home' or 'away'
+    goals           = Column(Integer, nullable=False, default=0)
+    shots           = Column(Integer, nullable=False, default=0)
+    shots_on_target = Column(Integer, nullable=False, default=0)
+    assists         = Column(Integer, nullable=False, default=0)
+    key_passes      = Column(Integer, nullable=False, default=0)
+    minutes_played  = Column(Integer, nullable=False, default=0)
+    goals_conceded  = Column(Integer, nullable=True)   # GK only: goals conceded in that match
+    season          = Column(String, nullable=False)   # e.g. '2025'
+
+    __table_args__ = (
+        UniqueConstraint('player_id', 'match_date', name='uq_soccer_player_game'),
+    )
+
+    player = relationship("SoccerPlayer", back_populates="games")
+
+    def __repr__(self):
+        return f"<SoccerPlayerGame(player_id={self.player_id}, date='{self.match_date}', goals={self.goals})>"
 
 
 # Database connection and session management

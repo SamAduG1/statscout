@@ -1271,6 +1271,90 @@ const PlayerDetailModal = ({ player, onClose }) => {
   );
 };
 
+const SOCCER_MARKETS = [
+  { key: 'goals',   label: 'Goals',           stat: 'goals_over05',   line: 'O/U 0.5' },
+  { key: 'shots',   label: 'Shots',           stat: 'shots_over15',   line: 'O/U 1.5' },
+  { key: 'assists', label: 'Assists',          stat: 'assists_over05', line: 'O/U 0.5' },
+  { key: 'ga',      label: 'Score or Assist', stat: 'ga_over05',      line: 'O/U 0.5' },
+  { key: 'gk',      label: 'GK',              stat: 'cleanSheet',     line: 'Clean Sheet %' },
+];
+
+const POS_BADGE = { GK: 'bg-yellow-500/20 text-yellow-400', DF: 'bg-blue-500/20 text-blue-400', MF: 'bg-green-500/20 text-green-400', FW: 'bg-red-500/20 text-red-400' };
+
+const SoccerPlayerCard = ({ player, market }) => {
+  const mdef = SOCCER_MARKETS.find(m => m.key === market) || SOCCER_MARKETS[0];
+  const primaryRate = player[mdef.stat];
+
+  const getRateColor = (rate) => {
+    if (rate == null) return 'text-gray-400 dark:text-gray-500';
+    if (rate >= 70) return 'text-green-500';
+    if (rate >= 55) return 'text-blue-500';
+    return 'text-red-400';
+  };
+
+  const secondaryStats = market === 'goals'
+    ? [{ label: 'Goals O/U 1.5', val: player.goals_over15 }, { label: 'Score or Assist', val: player.ga_over05 }]
+    : market === 'shots'
+    ? [{ label: 'Shots O/U 2.5', val: player.shots_over25 }, { label: 'SOT O/U 0.5', val: null }]
+    : market === 'assists'
+    ? [{ label: 'G+A O/U 0.5', val: player.ga_over05 }, { label: 'G+A O/U 1.5', val: player.ga_over15 }]
+    : market === 'ga'
+    ? [{ label: 'Goals O/U 0.5', val: player.goals_over05 }, { label: 'G+A O/U 1.5', val: player.ga_over15 }]
+    : [{ label: 'Clean Sheet %', val: player.cleanSheet }, { label: null, val: null }];
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight">{player.name}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{player.team}</p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${POS_BADGE[player.position] || 'bg-gray-500/20 text-gray-400'}`}>
+            {player.position}
+          </span>
+          <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+            {player.gamesPlayed}G
+          </span>
+        </div>
+      </div>
+
+      {/* Primary hit rate */}
+      <div>
+        <div className="flex items-baseline gap-1.5">
+          <span className={`text-3xl font-bold tabular-nums ${getRateColor(primaryRate)}`}>
+            {primaryRate != null ? `${primaryRate}%` : '--'}
+          </span>
+          <span className="text-xs text-gray-400">{mdef.line}</span>
+        </div>
+        <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-1.5 overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${primaryRate >= 70 ? 'bg-green-500' : primaryRate >= 55 ? 'bg-blue-500' : 'bg-red-400'}`}
+            style={{ width: `${primaryRate ?? 0}%` }} />
+        </div>
+      </div>
+
+      {/* Secondary stats */}
+      <div className="grid grid-cols-2 gap-2 mt-auto">
+        {secondaryStats.map((s, i) => s.label ? (
+          <div key={i} className="bg-gray-50 dark:bg-gray-800/60 rounded-lg p-2 text-center">
+            <p className="text-[10px] text-gray-400 leading-tight mb-0.5">{s.label}</p>
+            <p className={`text-sm font-semibold tabular-nums ${getRateColor(s.val)}`}>
+              {s.val != null ? `${s.val}%` : '--'}
+            </p>
+          </div>
+        ) : <div key={i} />)}
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between">
+        <span className="text-[10px] text-gray-400">Avg {player.avgMinutes} min/game</span>
+        <span className="text-[10px] text-gray-400 capitalize">{player.teamSide} team</span>
+      </div>
+    </div>
+  );
+};
+
 const SoccerMatchCard = ({ match, onAddToParlay }) => {
   const [customLine, setCustomLine] = React.useState(match.overUnderLine || 2.5);
   const [teamPropsOpen, setTeamPropsOpen] = React.useState(false);
@@ -2350,6 +2434,11 @@ export default function StatScoutDashboard() {
   const [soccerData, setSoccerData] = useState({ pl: null, laliga: null });
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
+  const [soccerView, setSoccerView] = useState('matchTotals'); // 'matchTotals' or 'playerProps'
+  const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
+  const [soccerPlayersData, setSoccerPlayersData] = useState({}); // keyed by "home_away"
+  const [soccerPropsMarket, setSoccerPropsMarket] = useState('goals');
+  const [soccerPropsTeamFilter, setSoccerPropsTeamFilter] = useState(null); // null | 'home' | 'away'
   const [currentView, setCurrentView] = useState('props'); // 'props' or 'parlay'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
@@ -2721,6 +2810,26 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     fetchSoccer();
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, [currentSport, soccerLeague]);
+
+  // Fetch soccer player props when a fixture is selected
+  useEffect(() => {
+    if (currentSport !== 'soccer' || soccerView !== 'playerProps' || !selectedSoccerFixture) return;
+    const key = `${selectedSoccerFixture.homeTeam}__${selectedSoccerFixture.awayTeam}`;
+    if (soccerPlayersData[key]?.players || soccerPlayersData[key]?.loading) return;
+    setSoccerPlayersData(prev => ({ ...prev, [key]: { loading: true, error: null } }));
+    fetch(`${API_BASE_URL}/soccer/players?league=${soccerLeague}&home_team=${encodeURIComponent(selectedSoccerFixture.homeTeam)}&away_team=${encodeURIComponent(selectedSoccerFixture.awayTeam)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.count > 0) {
+          setSoccerPlayersData(prev => ({ ...prev, [key]: { players: data.players, loading: false, error: null } }));
+        } else {
+          setSoccerPlayersData(prev => ({ ...prev, [key]: { players: [], loading: false, error: 'No player data found for this fixture.' } }));
+        }
+      })
+      .catch(() => {
+        setSoccerPlayersData(prev => ({ ...prev, [key]: { players: [], loading: false, error: 'Failed to load player data.' } }));
+      });
+  }, [currentSport, soccerView, selectedSoccerFixture, soccerLeague]);
 
   // Apply dark mode to document element
   useEffect(() => {
@@ -3351,10 +3460,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {/* Soccer View */}
           {currentSport === 'soccer' && (
             <div>
-              {/* League selector */}
-              <div className="flex items-center gap-3 mb-5">
+              {/* League + View selectors */}
+              <div className="flex flex-wrap items-center gap-3 mb-5">
                 {[['pl', 'Premier League'], ['laliga', 'La Liga']].map(([key, label]) => (
-                  <button key={key} onClick={() => setSoccerLeague(key)}
+                  <button key={key} onClick={() => { setSoccerLeague(key); setSelectedSoccerFixture(null); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerLeague === key
                         ? 'bg-blue-600 text-white'
@@ -3363,52 +3472,183 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     {label}
                   </button>
                 ))}
+                <div className="w-px h-5 bg-gray-700 hidden sm:block" />
+                {[['matchTotals', 'Match Totals'], ['playerProps', 'Player Props']].map(([key, label]) => (
+                  <button key={key} onClick={() => setSoccerView(key)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      soccerView === key
+                        ? 'bg-gray-700 text-white'
+                        : 'bg-gray-800/50 text-gray-500 hover:text-gray-300'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
               </div>
+
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-5 bg-blue-500 rounded-full" />
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                  {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'}: Match Totals
+                  {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'}: {soccerView === 'matchTotals' ? 'Match Totals' : 'Player Props'}
                 </h2>
               </div>
 
-              {soccerLoading && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 animate-pulse">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-4" />
-                      <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                          {[0,1,2].map(j => (
-                            <div key={j} className="text-center">
-                              <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-2/3 mx-auto mb-2" />
-                              <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mx-auto" />
+              {/* MATCH TOTALS VIEW */}
+              {soccerView === 'matchTotals' && (
+                <>
+                  {soccerLoading && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 animate-pulse">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4 mb-2" />
+                          <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-4" />
+                          <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
+                            <div className="grid grid-cols-3 gap-2 mb-3">
+                              {[0,1,2].map(j => (
+                                <div key={j} className="text-center">
+                                  <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-2/3 mx-auto mb-2" />
+                                  <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mx-auto" />
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                            <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded-lg mb-3" />
+                            <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded" />
+                          </div>
                         </div>
-                        <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded-lg mb-3" />
-                        <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded" />
+                      ))}
+                    </div>
+                  )}
+                  {(soccerError || (!soccerLoading && !(soccerData[soccerLeague]?.length > 0))) && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
+                      <p className="text-gray-500 dark:text-gray-400 font-medium">No matches available right now</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">
+                        Odds are not yet posted for upcoming {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'} fixtures. Check back closer to matchday.
+                      </p>
+                    </div>
+                  )}
+                  {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {soccerData[soccerLeague].map(match => (
+                        <SoccerMatchCard key={match.id} match={match} onAddToParlay={addSoccerLeg} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* PLAYER PROPS VIEW */}
+              {soccerView === 'playerProps' && (
+                <>
+                  {/* Fixture selector */}
+                  {soccerLoading && (
+                    <p className="text-sm text-gray-400 mb-4">Loading fixtures...</p>
+                  )}
+                  {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
+                    <div className="mb-5">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Select a fixture:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {soccerData[soccerLeague].map(match => {
+                          const isSelected = selectedSoccerFixture?.homeTeam === match.homeTeam && selectedSoccerFixture?.awayTeam === match.awayTeam;
+                          return (
+                            <button key={match.id}
+                              onClick={() => { setSelectedSoccerFixture(match); setSoccerPropsTeamFilter(null); }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-blue-500 hover:text-white'
+                              }`}>
+                              {match.homeTeam} vs {match.awayTeam}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )}
+                  {!soccerLoading && !(soccerData[soccerLeague]?.length > 0) && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
+                      <p className="text-gray-500 dark:text-gray-400 font-medium">No fixtures loaded</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">Switch to Match Totals to load upcoming fixtures first.</p>
+                    </div>
+                  )}
 
-              {(soccerError || (!soccerLoading && !(soccerData[soccerLeague]?.length > 0))) && (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
-                  <p className="text-gray-500 dark:text-gray-400 font-medium">No matches available right now</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500">
-                    Odds are not yet posted for upcoming {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'} fixtures. Check back closer to matchday.
-                  </p>
-                </div>
-              )}
+                  {selectedSoccerFixture && (() => {
+                    const key = `${selectedSoccerFixture.homeTeam}__${selectedSoccerFixture.awayTeam}`;
+                    const state = soccerPlayersData[key];
+                    return (
+                      <div>
+                        {/* Market + team filter tabs */}
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {SOCCER_MARKETS.map(m => (
+                            <button key={m.key} onClick={() => setSoccerPropsMarket(m.key)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                soccerPropsMarket === m.key
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                              }`}>
+                              {m.label}
+                            </button>
+                          ))}
+                          <div className="w-px h-5 bg-gray-700 self-center hidden sm:block" />
+                          {[
+                            [null, 'Both Teams'],
+                            ['home', selectedSoccerFixture.homeTeam],
+                            ['away', selectedSoccerFixture.awayTeam],
+                          ].map(([val, label]) => (
+                            <button key={String(val)} onClick={() => setSoccerPropsTeamFilter(val)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                soccerPropsTeamFilter === val
+                                  ? 'bg-gray-700 text-white'
+                                  : 'bg-gray-800/50 text-gray-500 hover:text-gray-300'
+                              }`}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
 
-              {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {soccerData[soccerLeague].map(match => (
-                    <SoccerMatchCard key={match.id} match={match} onAddToParlay={addSoccerLeg} />
-                  ))}
-                </div>
+                        {/* Loading state */}
+                        {(!state || state.loading) && (
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                              <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 animate-pulse h-40">
+                                <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-3/4 mb-2" />
+                                <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-4" />
+                                <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-2" />
+                                <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Error state */}
+                        {state && !state.loading && state.error && (
+                          <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                            <p className="text-gray-500 dark:text-gray-400 font-medium">{state.error}</p>
+                          </div>
+                        )}
+
+                        {/* Player cards */}
+                        {state && !state.loading && state.players?.length > 0 && (() => {
+                          const visible = state.players.filter(p => {
+                            if (soccerPropsTeamFilter && p.teamSide !== soccerPropsTeamFilter) return false;
+                            if (soccerPropsMarket === 'gk' && p.position !== 'GK') return false;
+                            if (soccerPropsMarket !== 'gk' && p.position === 'GK') return false;
+                            return true;
+                          });
+                          return visible.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                              {visible.map(p => (
+                                <SoccerPlayerCard key={p.id} player={p} market={soccerPropsMarket} />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                              <p className="text-gray-500 dark:text-gray-400 font-medium">No players match current filters</p>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </div>
           )}
