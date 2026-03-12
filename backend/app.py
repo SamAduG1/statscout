@@ -664,15 +664,22 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     "ga_over15":      hit_rate(ga, 1.5),
                     # GK
                     "cleanSheet": None,
+                    "gcArr": [],
+                    # Raw arrays for live slider + bar graph (last 15 games, oldest first)
+                    "goalsArr":   goals[-15:],
+                    "shotsArr":   shots[-15:],
+                    "assistsArr": assists[-15:],
+                    "gaArr":      ga[-15:],
                 }
 
-                # GK clean sheet
+                # GK: clean sheet % + goals conceded array
                 if p.position == "GK":
                     gk_conceded = [g.goals_conceded for g in active if g.goals_conceded is not None]
                     if gk_conceded:
                         player_dict["cleanSheet"] = round(
                             sum(1 for v in gk_conceded if v == 0) / len(gk_conceded) * 100
                         )
+                        player_dict["gcArr"] = gk_conceded[-15:]
 
                 players_out.append(player_dict)
 

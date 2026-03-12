@@ -1272,18 +1272,33 @@ const PlayerDetailModal = ({ player, onClose }) => {
 };
 
 const SOCCER_MARKETS = [
-  { key: 'goals',   label: 'Goals',           stat: 'goals_over05',   line: 'O/U 0.5' },
-  { key: 'shots',   label: 'Shots',           stat: 'shots_over15',   line: 'O/U 1.5' },
-  { key: 'assists', label: 'Assists',          stat: 'assists_over05', line: 'O/U 0.5' },
-  { key: 'ga',      label: 'Score or Assist', stat: 'ga_over05',      line: 'O/U 0.5' },
-  { key: 'gk',      label: 'GK',              stat: 'cleanSheet',     line: 'Clean Sheet %' },
+  { key: 'goals',   label: 'Goals',           arr: 'goalsArr',   min: 0.5, max: 2.5, step: 0.5, defaultLine: 0.5 },
+  { key: 'shots',   label: 'Shots',           arr: 'shotsArr',   min: 0.5, max: 4.5, step: 0.5, defaultLine: 1.5 },
+  { key: 'assists', label: 'Assists',          arr: 'assistsArr', min: 0.5, max: 1.5, step: 0.5, defaultLine: 0.5 },
+  { key: 'ga',      label: 'Score or Assist', arr: 'gaArr',      min: 0.5, max: 2.5, step: 0.5, defaultLine: 0.5 },
+  { key: 'gk',      label: 'GK',              arr: 'gcArr',      min: 0.5, max: 2.5, step: 0.5, defaultLine: 0.5 },
 ];
 
 const POS_BADGE = { GK: 'bg-yellow-500/20 text-yellow-400', DF: 'bg-blue-500/20 text-blue-400', MF: 'bg-green-500/20 text-green-400', FW: 'bg-red-500/20 text-red-400' };
 
+const calcHitRate = (arr, line) => {
+  if (!arr || arr.length === 0) return null;
+  return Math.round(arr.filter(v => v > line).length / arr.length * 100);
+};
+
 const SoccerPlayerCard = ({ player, market }) => {
   const mdef = SOCCER_MARKETS.find(m => m.key === market) || SOCCER_MARKETS[0];
-  const primaryRate = player[mdef.stat];
+  // For GK market, use gcArr and invert (clean sheet = conceded < line)
+  const isGkMarket = market === 'gk';
+  const [line, setLine] = React.useState(mdef.defaultLine);
+
+  // Reset line when market changes
+  React.useEffect(() => { setLine(mdef.defaultLine); }, [market]);
+
+  const arr = player[mdef.arr] || [];
+  const hitRate = isGkMarket
+    ? (arr.length ? Math.round(arr.filter(v => v < line).length / arr.length * 100) : null)
+    : calcHitRate(arr, line);
 
   const getRateColor = (rate) => {
     if (rate == null) return 'text-gray-400 dark:text-gray-500';
@@ -1292,15 +1307,12 @@ const SoccerPlayerCard = ({ player, market }) => {
     return 'text-red-400';
   };
 
-  const secondaryStats = market === 'goals'
-    ? [{ label: 'Goals O/U 1.5', val: player.goals_over15 }, { label: 'Score or Assist', val: player.ga_over05 }]
-    : market === 'shots'
-    ? [{ label: 'Shots O/U 2.5', val: player.shots_over25 }, { label: 'SOT O/U 0.5', val: null }]
-    : market === 'assists'
-    ? [{ label: 'G+A O/U 0.5', val: player.ga_over05 }, { label: 'G+A O/U 1.5', val: player.ga_over15 }]
-    : market === 'ga'
-    ? [{ label: 'Goals O/U 0.5', val: player.goals_over05 }, { label: 'G+A O/U 1.5', val: player.ga_over15 }]
-    : [{ label: 'Clean Sheet %', val: player.cleanSheet }, { label: null, val: null }];
+  // Steps for slider tick marks
+  const steps = [];
+  for (let v = mdef.min; v <= mdef.max + 0.01; v += mdef.step) steps.push(Math.round(v * 10) / 10);
+
+  // GK secondary: show goals allowed avg
+  const gcAvg = isGkMarket && arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3">
@@ -1320,34 +1332,57 @@ const SoccerPlayerCard = ({ player, market }) => {
         </div>
       </div>
 
-      {/* Primary hit rate */}
+      {/* Hit rate + line label */}
       <div>
         <div className="flex items-baseline gap-1.5">
-          <span className={`text-3xl font-bold tabular-nums ${getRateColor(primaryRate)}`}>
-            {primaryRate != null ? `${primaryRate}%` : '--'}
+          <span className={`text-3xl font-bold tabular-nums ${getRateColor(hitRate)}`}>
+            {hitRate != null ? `${hitRate}%` : '--'}
           </span>
-          <span className="text-xs text-gray-400">{mdef.line}</span>
+          <span className="text-xs text-gray-400">
+            {isGkMarket ? `Under ${line} goals allowed` : `O/U ${line}`}
+          </span>
         </div>
         <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-1.5 overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${primaryRate >= 70 ? 'bg-green-500' : primaryRate >= 55 ? 'bg-blue-500' : 'bg-red-400'}`}
-            style={{ width: `${primaryRate ?? 0}%` }} />
+          <div className={`h-full rounded-full transition-all ${hitRate >= 70 ? 'bg-green-500' : hitRate >= 55 ? 'bg-blue-500' : 'bg-red-400'}`}
+            style={{ width: `${hitRate ?? 0}%` }} />
         </div>
       </div>
 
-      {/* Secondary stats */}
-      <div className="grid grid-cols-2 gap-2 mt-auto">
-        {secondaryStats.map((s, i) => s.label ? (
-          <div key={i} className="bg-gray-50 dark:bg-gray-800/60 rounded-lg p-2 text-center">
-            <p className="text-[10px] text-gray-400 leading-tight mb-0.5">{s.label}</p>
-            <p className={`text-sm font-semibold tabular-nums ${getRateColor(s.val)}`}>
-              {s.val != null ? `${s.val}%` : '--'}
-            </p>
+      {/* Line slider */}
+      {steps.length > 1 && (
+        <div>
+          <input type="range" min={mdef.min} max={mdef.max} step={mdef.step} value={line}
+            onChange={e => setLine(parseFloat(e.target.value))}
+            className="w-full accent-blue-500 h-1.5 cursor-pointer" />
+          <div className="flex justify-between mt-0.5">
+            {steps.map(s => (
+              <span key={s} className={`text-[9px] tabular-nums ${s === line ? 'text-blue-400 font-semibold' : 'text-gray-500'}`}>{s}</span>
+            ))}
           </div>
-        ) : <div key={i} />)}
-      </div>
+        </div>
+      )}
+
+      {/* Bar graph: last N games */}
+      {arr.length > 0 && (
+        <div className="flex gap-0.5 items-end h-6">
+          {arr.map((v, i) => {
+            const hit = isGkMarket ? v < line : v > line;
+            return (
+              <div key={i} title={`${v}`}
+                className={`flex-1 rounded-sm ${hit ? 'bg-green-500' : 'bg-red-400'}`}
+                style={{ height: `${Math.max(20, Math.min(100, (v / (mdef.max + 0.5)) * 100))}%` }} />
+            );
+          })}
+        </div>
+      )}
+
+      {/* GK extra: avg goals allowed */}
+      {isGkMarket && gcAvg && (
+        <p className="text-[10px] text-gray-400">Avg {gcAvg} goals allowed/game</p>
+      )}
 
       {/* Footer */}
-      <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between">
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between mt-auto">
         <span className="text-[10px] text-gray-400">Avg {player.avgMinutes} min/game</span>
         <span className="text-[10px] text-gray-400 capitalize">{player.teamSide} team</span>
       </div>
@@ -3543,24 +3578,25 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     <p className="text-sm text-gray-400 mb-4">Loading fixtures...</p>
                   )}
                   {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
-                    <div className="mb-5">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Select a fixture:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {soccerData[soccerLeague].map(match => {
-                          const isSelected = selectedSoccerFixture?.homeTeam === match.homeTeam && selectedSoccerFixture?.awayTeam === match.awayTeam;
-                          return (
-                            <button key={match.id}
-                              onClick={() => { setSelectedSoccerFixture(match); setSoccerPropsTeamFilter(null); }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                isSelected
-                                  ? 'bg-blue-600 text-white border-blue-600'
-                                  : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-blue-500 hover:text-white'
-                              }`}>
-                              {match.homeTeam} vs {match.awayTeam}
-                            </button>
-                          );
-                        })}
-                      </div>
+                    <div className="mb-5 flex items-center gap-3">
+                      <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Fixture:</label>
+                      <select
+                        value={selectedSoccerFixture ? `${selectedSoccerFixture.homeTeam}__${selectedSoccerFixture.awayTeam}` : ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (!val) { setSelectedSoccerFixture(null); return; }
+                          const match = soccerData[soccerLeague].find(m => `${m.homeTeam}__${m.awayTeam}` === val);
+                          if (match) { setSelectedSoccerFixture(match); setSoccerPropsTeamFilter(null); }
+                        }}
+                        className="bg-gray-800 text-gray-200 border border-gray-700 rounded-lg px-3 py-2 text-sm flex-1 max-w-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Select a fixture...</option>
+                        {soccerData[soccerLeague].map(match => (
+                          <option key={match.id} value={`${match.homeTeam}__${match.awayTeam}`}>
+                            {match.homeTeam} vs {match.awayTeam} - {match.gameDate}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
                   {!soccerLoading && !(soccerData[soccerLeague]?.length > 0) && (
@@ -3627,12 +3663,23 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
                         {/* Player cards */}
                         {state && !state.loading && state.players?.length > 0 && (() => {
-                          const visible = state.players.filter(p => {
-                            if (soccerPropsTeamFilter && p.teamSide !== soccerPropsTeamFilter) return false;
-                            if (soccerPropsMarket === 'gk' && p.position !== 'GK') return false;
-                            if (soccerPropsMarket !== 'gk' && p.position === 'GK') return false;
-                            return true;
-                          });
+                          const mdef = SOCCER_MARKETS.find(m => m.key === soccerPropsMarket) || SOCCER_MARKETS[0];
+                          const isGk = soccerPropsMarket === 'gk';
+                          const visible = state.players
+                            .filter(p => {
+                              if (soccerPropsTeamFilter && p.teamSide !== soccerPropsTeamFilter) return false;
+                              if (isGk && p.position !== 'GK') return false;
+                              if (!isGk && p.position === 'GK') return false;
+                              return true;
+                            })
+                            .map(p => {
+                              const arr = p[mdef.arr] || [];
+                              const hr = isGk
+                                ? (arr.length ? Math.round(arr.filter(v => v < mdef.defaultLine).length / arr.length * 100) : null)
+                                : calcHitRate(arr, mdef.defaultLine);
+                              return { ...p, _sortRate: hr ?? -1 };
+                            })
+                            .sort((a, b) => b._sortRate - a._sortRate);
                           return visible.length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                               {visible.map(p => (
