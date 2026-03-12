@@ -53,7 +53,8 @@ ODDS_TO_FD = {
 }
 
 # La Liga 2025-26 team name mappings (Odds API -> football-data.org).
-# Note: accented chars are stripped in FD names (e.g. "Atletico" not "Atletico").
+# All keys are pre-normalized (no accents) — the lookup normalizes before checking.
+# 2025-26 promoted: Real Oviedo, Levante UD, Elche CF
 LALIGA_ODDS_TO_FD = {
     "Athletic Club": "Athletic Club",
     "Athletic Bilbao": "Athletic Club",
@@ -63,13 +64,18 @@ LALIGA_ODDS_TO_FD = {
     "Celta Vigo": "RC Celta de Vigo",
     "Deportivo Alaves": "Deportivo Alaves",
     "Alaves": "Deportivo Alaves",
+    "Elche CF": "Elche CF",
+    "Elche": "Elche CF",
     "Espanyol": "RCD Espanyol de Barcelona",
     "Getafe": "Getafe CF",
     "Girona": "Girona FC",
     "Las Palmas": "UD Las Palmas",
     "Leganes": "CD Leganes",
+    "Levante": "Levante UD",
     "Mallorca": "RCD Mallorca",
     "Osasuna": "CA Osasuna",
+    "Oviedo": "Real Oviedo",
+    "Real Oviedo": "Real Oviedo",
     "Rayo Vallecano": "Rayo Vallecano de Madrid",
     "Real Betis": "Real Betis Balompie",
     "Real Madrid": "Real Madrid CF",
@@ -307,10 +313,12 @@ class SoccerFetcher:
         home_name = event.get("home_team", "")
         away_name = event.get("away_team", "")
 
-        # Translate Odds API names to football-data.org names for stat lookup
-        # Normalize both sides so accented chars (e.g. Atletico vs Atletico) always match
-        home_fd = _norm(odds_to_fd.get(home_name, home_name))
-        away_fd = _norm(odds_to_fd.get(away_name, away_name))
+        # Translate Odds API names to football-data.org names for stat lookup.
+        # Normalize the Odds API name first (strips accents like Atlético→Atletico)
+        # so it matches the unaccented mapping keys, then normalize the result to
+        # match the normalized keys in team_stats.
+        home_fd = _norm(odds_to_fd.get(_norm(home_name), _norm(home_name)))
+        away_fd = _norm(odds_to_fd.get(_norm(away_name), _norm(away_name)))
 
         home_h = team_stats.get(home_fd, {}).get("home", [])
         away_a = team_stats.get(away_fd, {}).get("away", [])
