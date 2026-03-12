@@ -8,11 +8,17 @@ StatScout Soccer Fetcher
 import requests
 import os
 import statistics
+import unicodedata
 from dotenv import load_dotenv
 
 load_dotenv()
 
 SEASON = 2025  # 2025-26 season
+
+
+def _norm(name):
+    """Strip accents so 'Atlético' and 'Atletico' match."""
+    return unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8')
 
 # Maps Odds API team name variants to football-data.org full names.
 # Used to cross-reference upcoming fixture names with historical stats.
@@ -166,8 +172,8 @@ class SoccerFetcher:
                 continue
             total = hg + ag
             btts = hg > 0 and ag > 0
-            home_name = match["homeTeam"]["name"]
-            away_name = match["awayTeam"]["name"]
+            home_name = _norm(match["homeTeam"]["name"])
+            away_name = _norm(match["awayTeam"]["name"])
             for name, scored, conceded, loc in [
                 (home_name, hg, ag, "home"),
                 (away_name, ag, hg, "away"),
@@ -302,8 +308,9 @@ class SoccerFetcher:
         away_name = event.get("away_team", "")
 
         # Translate Odds API names to football-data.org names for stat lookup
-        home_fd = odds_to_fd.get(home_name, home_name)
-        away_fd = odds_to_fd.get(away_name, away_name)
+        # Normalize both sides so accented chars (e.g. Atletico vs Atletico) always match
+        home_fd = _norm(odds_to_fd.get(home_name, home_name))
+        away_fd = _norm(odds_to_fd.get(away_name, away_name))
 
         home_h = team_stats.get(home_fd, {}).get("home", [])
         away_a = team_stats.get(away_fd, {}).get("away", [])
