@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake, Plus, X, Save, Trash2, ChevronRight, ChevronLeft, RefreshCw } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
@@ -2496,17 +2497,23 @@ const ParlayBuilder = ({ darkMode }) => {
 };
 
 export default function StatScoutDashboard() {
-  const [currentSport, setCurrentSport] = useState('nba'); // 'nba' or 'soccer'
-  const [soccerLeague, setSoccerLeague] = useState('pl');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Derive all navigation state from the URL
+  const pathParts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
+  const currentSport = pathParts[0] === 'soccer' ? 'soccer' : 'nba';
+  const currentView = currentSport === 'nba' ? (pathParts[1] === 'parlay' ? 'parlay' : 'props') : 'props';
+  const soccerLeague = currentSport === 'soccer' ? (pathParts[1] || 'pl') : 'pl';
+  const soccerView = currentSport === 'soccer' ? (pathParts[2] === 'players' ? 'playerProps' : 'matchTotals') : 'matchTotals';
+
   const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
-  const [soccerView, setSoccerView] = useState('matchTotals'); // 'matchTotals' or 'playerProps'
   const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
   const [soccerPlayersData, setSoccerPlayersData] = useState({}); // keyed by "home_away"
   const [soccerPropsMarket, setSoccerPropsMarket] = useState('goals');
   const [soccerPropsTeamFilter, setSoccerPropsTeamFilter] = useState(null); // null | 'home' | 'away'
-  const [currentView, setCurrentView] = useState('props'); // 'props' or 'parlay'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [selectedTeams, setSelectedTeams] = useState([]); // Multi-select teams
@@ -3022,7 +3029,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               {['nba', 'soccer'].map(sport => (
                 <button
                   key={sport}
-                  onClick={() => setCurrentSport(sport)}
+                  onClick={() => navigate(sport === 'soccer' ? '/soccer/pl/matches' : '/nba/props')}
                   className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                     currentSport === sport
                       ? 'bg-blue-600 text-white'
@@ -3037,7 +3044,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             {/* View Tabs — NBA only */}
             <div className={`flex gap-2 ${currentSport !== 'nba' ? 'hidden' : ''}`}>
               <button
-                onClick={() => setCurrentView('props')}
+                onClick={() => navigate('/nba/props')}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
                   currentView === 'props'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -3047,7 +3054,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 Player Props
               </button>
               <button
-                onClick={() => setCurrentView('parlay')}
+                onClick={() => navigate('/nba/parlay')}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
                   currentView === 'parlay'
                     ? 'bg-blue-600 text-white shadow-sm'
@@ -3531,7 +3538,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               {/* League + View selectors */}
               <div className="flex flex-wrap items-center gap-3 mb-5">
                 {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1']].map(([key, label]) => (
-                  <button key={key} onClick={() => { setSoccerLeague(key); setSelectedSoccerFixture(null); }}
+                  <button key={key} onClick={() => { setSelectedSoccerFixture(null); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerLeague === key
                         ? 'bg-blue-600 text-white'
@@ -3542,7 +3549,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 ))}
                 <div className="w-px h-5 bg-gray-700 hidden sm:block" />
                 {[['matchTotals', 'Match Totals'], ['playerProps', 'Player Props']].map(([key, label]) => (
-                  <button key={key} onClick={() => setSoccerView(key)}
+                  <button key={key} onClick={() => navigate(`/soccer/${soccerLeague}/${key === 'playerProps' ? 'players' : 'matches'}`)}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerView === key
                         ? 'bg-gray-700 text-white'
