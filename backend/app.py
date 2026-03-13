@@ -100,8 +100,11 @@ PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 # Soccer match cache - one entry per league
 SOCCER_CACHE_DURATION = 6 * 60 * 60  # 6 hours
 SOCCER_CACHE_FILES = {
-    "pl":     "/tmp/statscout_soccer_pl_cache.json",
-    "laliga": "/tmp/statscout_soccer_laliga_cache.json",
+    "pl":         "/tmp/statscout_soccer_pl_cache.json",
+    "laliga":     "/tmp/statscout_soccer_laliga_cache.json",
+    "bundesliga": "/tmp/statscout_soccer_bundesliga_cache.json",
+    "seriea":     "/tmp/statscout_soccer_seriea_cache.json",
+    "ligue1":     "/tmp/statscout_soccer_ligue1_cache.json",
 }
 def _init_soccer_cache(league):
     disk = _load_specific_cache(SOCCER_CACHE_FILES[league])
@@ -580,6 +583,79 @@ UNDERSTAT_TO_ODDS_LALIGA = {
     "Elche":                  "Elche CF",
 }
 
+UNDERSTAT_TO_ODDS_BUNDESLIGA = {
+    "Bayern Munich":          "Bayern Munich",
+    "Borussia Dortmund":      "Borussia Dortmund",
+    "Bayer Leverkusen":       "Bayer Leverkusen",
+    "RB Leipzig":             "RB Leipzig",
+    "Eintracht Frankfurt":    "Eintracht Frankfurt",
+    "Stuttgart":              "VfB Stuttgart",
+    "Wolfsburg":              "VfL Wolfsburg",
+    "Freiburg":               "SC Freiburg",
+    "Borussia Monchengladbach": "Borussia Monchengladbach",
+    "Augsburg":               "Augsburg",
+    "Heidenheim":             "1. FC Heidenheim",
+    "Werder Bremen":          "Werder Bremen",
+    "Mainz":                  "FSV Mainz 05",
+    "Hoffenheim":             "TSG Hoffenheim",
+    "Union Berlin":           "Union Berlin",
+    "St. Pauli":              "FC St. Pauli",
+    "Hamburger SV":           "Hamburger SV",
+    "Koln":                   "1. FC Köln",
+}
+
+UNDERSTAT_TO_ODDS_SERIEA = {
+    "Juventus":               "Juventus",
+    "Inter":                  "Inter Milan",
+    "Milan":                  "AC Milan",
+    "Roma":                   "AS Roma",
+    "Napoli":                 "Napoli",
+    "Lazio":                  "Lazio",
+    "Fiorentina":             "Fiorentina",
+    "Atalanta":               "Atalanta BC",
+    "Bologna":                "Bologna",
+    "Torino":                 "Torino",
+    "Udinese":                "Udinese",
+    "Genoa":                  "Genoa",
+    "Cagliari":               "Cagliari",
+    "Lecce":                  "Lecce",
+    "Hellas Verona":          "Hellas Verona",
+    "Parma":                  "Parma",
+    "Como":                   "Como",
+    "Cremonese":              "Cremonese",
+    "Pisa":                   "Pisa",
+    "Sassuolo":               "Sassuolo",
+}
+
+UNDERSTAT_TO_ODDS_LIGUE1 = {
+    "PSG":                    "Paris Saint Germain",
+    "Monaco":                 "AS Monaco",
+    "Marseille":              "Marseille",
+    "Lyon":                   "Lyon",
+    "Lille":                  "Lille",
+    "Nice":                   "Nice",
+    "Lens":                   "RC Lens",
+    "Rennes":                 "Rennes",
+    "Strasbourg":             "Strasbourg",
+    "Nantes":                 "Nantes",
+    "Toulouse":               "Toulouse",
+    "Brest":                  "Brest",
+    "Le Havre":               "Le Havre",
+    "Auxerre":                "Auxerre",
+    "Angers":                 "Angers",
+    "Metz":                   "Metz",
+    "Lorient":                "Lorient",
+    "Paris FC":               "Paris FC",
+}
+
+LEAGUE_MAPPINGS = {
+    "pl":         UNDERSTAT_TO_ODDS_PL,
+    "laliga":     UNDERSTAT_TO_ODDS_LALIGA,
+    "bundesliga": UNDERSTAT_TO_ODDS_BUNDESLIGA,
+    "seriea":     UNDERSTAT_TO_ODDS_SERIEA,
+    "ligue1":     UNDERSTAT_TO_ODDS_LIGUE1,
+}
+
 
 def _compute_soccer_players(league, home_team_odds, away_team_odds):
     """
@@ -590,7 +666,7 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
     from models import get_engine, get_session, SoccerPlayer, SoccerPlayerGame
     from soccer_fetcher import _norm
 
-    mapping = UNDERSTAT_TO_ODDS_PL if league == "pl" else UNDERSTAT_TO_ODDS_LALIGA
+    mapping = LEAGUE_MAPPINGS.get(league, UNDERSTAT_TO_ODDS_PL)
     # Reverse the mapping: Odds API name -> Understat name
     odds_to_understat = {v.lower(): k for k, v in mapping.items()}
 
@@ -739,8 +815,8 @@ def health_check():
         "status": "healthy",
         "message": "StatScout API is running",
         "players_loaded": players_cache["data"]["count"] if players_cache["data"] else 0,
-        "soccer_pl_loaded": soccer_caches["pl"]["data"]["count"] if soccer_caches["pl"]["data"] else 0,
-        "soccer_laliga_loaded": soccer_caches["laliga"]["data"]["count"] if soccer_caches["laliga"]["data"] else 0,
+        **{f"soccer_{lg}_loaded": soccer_caches[lg]["data"]["count"] if soccer_caches[lg]["data"] else 0
+           for lg in soccer_caches},
     })
 
 

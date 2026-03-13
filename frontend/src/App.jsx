@@ -2497,8 +2497,8 @@ const ParlayBuilder = ({ darkMode }) => {
 
 export default function StatScoutDashboard() {
   const [currentSport, setCurrentSport] = useState('nba'); // 'nba' or 'soccer'
-  const [soccerLeague, setSoccerLeague] = useState('pl'); // 'pl' or 'laliga'
-  const [soccerData, setSoccerData] = useState({ pl: null, laliga: null });
+  const [soccerLeague, setSoccerLeague] = useState('pl');
+  const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [soccerView, setSoccerView] = useState('matchTotals'); // 'matchTotals' or 'playerProps'
@@ -3530,7 +3530,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             <div>
               {/* League + View selectors */}
               <div className="flex flex-wrap items-center gap-3 mb-5">
-                {[['pl', 'Premier League'], ['laliga', 'La Liga']].map(([key, label]) => (
+                {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1']].map(([key, label]) => (
                   <button key={key} onClick={() => { setSoccerLeague(key); setSelectedSoccerFixture(null); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerLeague === key
@@ -3556,7 +3556,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-5 bg-blue-500 rounded-full" />
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                  {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'}: {soccerView === 'matchTotals' ? 'Match Totals' : 'Player Props'}
+                  {{'pl':'Premier League','laliga':'La Liga','bundesliga':'Bundesliga','seriea':'Serie A','ligue1':'Ligue 1'}[soccerLeague]}: {soccerView === 'matchTotals' ? 'Match Totals' : 'Player Props'}
                 </h2>
               </div>
 
@@ -3589,7 +3589,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
                       <p className="text-gray-500 dark:text-gray-400 font-medium">No matches available right now</p>
                       <p className="text-sm text-gray-400 dark:text-gray-500">
-                        Odds are not yet posted for upcoming {soccerLeague === 'pl' ? 'Premier League' : 'La Liga'} fixtures. Check back closer to matchday.
+                        Odds are not yet posted for upcoming {{'pl':'Premier League','laliga':'La Liga','bundesliga':'Bundesliga','seriea':'Serie A','ligue1':'Ligue 1'}[soccerLeague]} fixtures. Check back closer to matchday.
                       </p>
                     </div>
                   )}

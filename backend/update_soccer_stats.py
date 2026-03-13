@@ -133,7 +133,7 @@ def update_all(session, s, league_key=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--league", choices=["pl", "laliga"], default=None)
+    parser.add_argument("--league", choices=list(LEAGUES.keys()), default=None)
     parser.add_argument("--player", type=int, default=None,
                         help="Single player understat_id to update")
     parser.add_argument("--no-team-refresh", action="store_true",
@@ -145,7 +145,7 @@ def main():
     s = _make_session()
 
     try:
-        leagues = [args.league] if args.league else ["pl", "laliga"]
+        leagues = [args.league] if args.league else list(LEAGUES.keys())
 
         if args.player:
             player = session.query(SoccerPlayer).filter_by(understat_id=args.player).first()

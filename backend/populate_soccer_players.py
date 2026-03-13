@@ -31,8 +31,11 @@ SEASON = 2025
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
 
 LEAGUES = {
-    "pl":     "EPL",
-    "laliga": "La_liga",
+    "pl":         "EPL",
+    "laliga":     "La_liga",
+    "bundesliga": "Bundesliga",
+    "seriea":     "Serie_A",
+    "ligue1":     "Ligue_1",
 }
 
 # First char of Understat position string -> our normalized code
@@ -223,7 +226,7 @@ def populate_league(session, league_key):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--league", choices=["pl", "laliga"], default=None)
+    parser.add_argument("--league", choices=list(LEAGUES.keys()), default=None)
     args = parser.parse_args()
 
     engine = get_engine()

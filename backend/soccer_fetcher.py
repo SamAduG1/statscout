@@ -87,20 +87,109 @@ LALIGA_ODDS_TO_FD = {
     "Villarreal": "Villarreal CF",
 }
 
+# Bundesliga 2025-26 (Hamburger SV promoted, Koln/Heidenheim relegated then promoted varies)
+BUNDESLIGA_ODDS_TO_FD = {
+    "1. FC Heidenheim":           "1. FC Heidenheim 1846",
+    "Augsburg":                   "FC Augsburg",
+    "Bayer Leverkusen":           "Bayer 04 Leverkusen",
+    "Bayern Munich":              "FC Bayern München",
+    "Borussia Dortmund":          "Borussia Dortmund",
+    "Borussia Monchengladbach":   "Borussia Mönchengladbach",
+    "Eintracht Frankfurt":        "Eintracht Frankfurt",
+    "FC St. Pauli":               "FC St. Pauli 1910",
+    "FSV Mainz 05":               "1. FSV Mainz 05",
+    "Hamburger SV":               "Hamburger SV",
+    "RB Leipzig":                 "RB Leipzig",
+    "SC Freiburg":                "SC Freiburg",
+    "TSG Hoffenheim":             "TSG 1899 Hoffenheim",
+    "Union Berlin":               "1. FC Union Berlin",
+    "VfB Stuttgart":              "VfB Stuttgart",
+    "VfL Wolfsburg":              "VfL Wolfsburg",
+    "Werder Bremen":              "SV Werder Bremen",
+    "1. FC Köln":                 "1. FC Köln",
+}
+
+# Serie A 2025-26 (Pisa, Cremonese, Sassuolo promoted)
+SERIEA_ODDS_TO_FD = {
+    "AC Milan":                   "AC Milan",
+    "AS Roma":                    "AS Roma",
+    "Atalanta BC":                "Atalanta BC",
+    "Bologna":                    "Bologna FC 1909",
+    "Cagliari":                   "Cagliari Calcio",
+    "Como":                       "Como 1907",
+    "Cremonese":                  "US Cremonese",
+    "Fiorentina":                 "ACF Fiorentina",
+    "Genoa":                      "Genoa CFC",
+    "Hellas Verona":              "Hellas Verona FC",
+    "Inter Milan":                "FC Internazionale Milano",
+    "Juventus":                   "Juventus FC",
+    "Lazio":                      "SS Lazio",
+    "Lecce":                      "US Lecce",
+    "Napoli":                     "SSC Napoli",
+    "Parma":                      "Parma Calcio 1913",
+    "Pisa":                       "AC Pisa 1909",
+    "Sassuolo":                   "US Sassuolo Calcio",
+    "Torino":                     "Torino FC",
+    "Udinese":                    "Udinese Calcio",
+}
+
+# Ligue 1 2025-26 (Paris FC, Angers, Auxerre promoted)
+LIGUE1_ODDS_TO_FD = {
+    "AS Monaco":                  "AS Monaco FC",
+    "Angers":                     "Angers SCO",
+    "Auxerre":                    "AJ Auxerre",
+    "Brest":                      "Stade Brestois 29",
+    "Le Havre":                   "Le Havre AC",
+    "Lille":                      "Lille OSC",
+    "Lorient":                    "FC Lorient",
+    "Lyon":                       "Olympique Lyonnais",
+    "Marseille":                  "Olympique de Marseille",
+    "Metz":                       "FC Metz",
+    "Nantes":                     "FC Nantes",
+    "Nice":                       "OGC Nice",
+    "Paris FC":                   "Paris FC",
+    "Paris Saint Germain":        "Paris Saint-Germain FC",
+    "RC Lens":                    "Racing Club de Lens",
+    "Rennes":                     "Stade Rennais FC 1901",
+    "Strasbourg":                 "RC Strasbourg Alsace",
+    "Toulouse":                   "Toulouse FC",
+}
+
 COMPETITIONS = {
     "pl": {
         "odds_sport": "soccer_epl",
         "fd_code": "PL",
         "name": "Premier League",
         "odds_to_fd": ODDS_TO_FD,
-        "regions": "us",           # EPL has strong US sportsbook coverage
+        "regions": "us",
     },
     "laliga": {
         "odds_sport": "soccer_spain_la_liga",
         "fd_code": "PD",
         "name": "La Liga",
         "odds_to_fd": LALIGA_ODDS_TO_FD,
-        "regions": "uk,eu",        # La Liga covered better by UK/EU books
+        "regions": "uk,eu",
+    },
+    "bundesliga": {
+        "odds_sport": "soccer_germany_bundesliga",
+        "fd_code": "BL1",
+        "name": "Bundesliga",
+        "odds_to_fd": BUNDESLIGA_ODDS_TO_FD,
+        "regions": "uk,eu",
+    },
+    "seriea": {
+        "odds_sport": "soccer_italy_serie_a",
+        "fd_code": "SA",
+        "name": "Serie A",
+        "odds_to_fd": SERIEA_ODDS_TO_FD,
+        "regions": "uk,eu",
+    },
+    "ligue1": {
+        "odds_sport": "soccer_france_ligue_one",
+        "fd_code": "FL1",
+        "name": "Ligue 1",
+        "odds_to_fd": LIGUE1_ODDS_TO_FD,
+        "regions": "uk,eu",
     },
 }
 
