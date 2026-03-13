@@ -1286,7 +1286,7 @@ const calcHitRate = (arr, line) => {
   return Math.round(arr.filter(v => v > line).length / arr.length * 100);
 };
 
-const SoccerPlayerCard = ({ player, market }) => {
+const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
   const mdef = SOCCER_MARKETS.find(m => m.key === market) || SOCCER_MARKETS[0];
   // For GK market, use gcArr and invert (clean sheet = conceded < line)
   const isGkMarket = market === 'gk';
@@ -1386,6 +1386,30 @@ const SoccerPlayerCard = ({ player, market }) => {
         <span className="text-[10px] text-gray-400">Avg {player.avgMinutes} min/game</span>
         <span className="text-[10px] text-gray-400 capitalize">{player.teamSide} team</span>
       </div>
+
+      {onAddToParlay && (
+        <button
+          onClick={() => onAddToParlay({
+            id: `sp_${player.id}_${market}_${Date.now()}`,
+            sport: 'soccer_player',
+            playerName: player.name,
+            team: player.team,
+            position: player.position,
+            statType: isGkMarket ? 'GK Clean Sheet' : `${mdef.label} O/U`,
+            line,
+            originalLine: line,
+            hitRate,
+            arr,
+            isGkMarket,
+            lineMin: mdef.min,
+            lineMax: mdef.max,
+            lineStep: mdef.step,
+          })}
+          className="w-full mt-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+        >
+          + Add to Parlay
+        </button>
+      )}
     </div>
   );
 };
@@ -2629,10 +2653,22 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     const leg = customParlayLegs.find(l => l.id === legId);
     if (!leg) return;
 
-    // Soccer legs: just update the line locally (trust score computed on card)
+    // Soccer match total legs: just update line locally
     if (leg.sport === 'soccer') {
       setCustomParlayLegs(prev => prev.map(l =>
         l.id === legId ? { ...l, line: parseFloat(newLine) } : l
+      ));
+      return;
+    }
+
+    // Soccer player prop legs: recalculate hit rate from stored array
+    if (leg.sport === 'soccer_player') {
+      const nl = parseFloat(newLine);
+      const newHitRate = leg.isGkMarket
+        ? (leg.arr?.length ? Math.round(leg.arr.filter(v => v < nl).length / leg.arr.length * 100) : null)
+        : calcHitRate(leg.arr || [], nl);
+      setCustomParlayLegs(prev => prev.map(l =>
+        l.id === legId ? { ...l, line: nl, hitRate: newHitRate } : l
       ));
       return;
     }
@@ -3683,7 +3719,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                           return visible.length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                               {visible.map(p => (
-                                <SoccerPlayerCard key={p.id} player={p} market={soccerPropsMarket} />
+                                <SoccerPlayerCard key={p.id} player={p} market={soccerPropsMarket} onAddToParlay={addSoccerLeg} />
                               ))}
                             </div>
                           ) : (
@@ -3805,6 +3841,14 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                                     {leg.odds != null && <span className="ml-1 font-medium">{leg.odds > 0 ? `+${leg.odds}` : leg.odds}</span>}
                                   </div>
                                 </>
+                              ) : leg.sport === 'soccer_player' ? (
+                                <>
+                                  <div className="font-semibold text-gray-900 dark:text-white text-sm">{leg.playerName}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {leg.team} - {leg.statType}
+                                    {leg.hitRate != null && <span className="ml-1 text-blue-400">{leg.hitRate}% hit rate</span>}
+                                  </div>
+                                </>
                               ) : (
                                 <>
                                   <div className="font-semibold text-gray-900 dark:text-white">{leg.playerName}</div>
@@ -3822,7 +3866,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                             </button>
                           </div>
 
-                          {leg.sport !== 'soccer' && (
+                          {leg.sport !== 'soccer' && leg.sport !== 'soccer_player' && (
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{leg.statType}</span>
                               <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
@@ -3853,9 +3897,9 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                             />
                             <input
                               type="range"
-                              min={leg.sport === 'soccer' ? '0.5' : Math.max(0.5, leg.originalLine - 10)}
-                              max={leg.sport === 'soccer' ? '5.5' : leg.originalLine + 10}
-                              step="0.5"
+                              min={leg.sport === 'soccer' ? '0.5' : leg.sport === 'soccer_player' ? leg.lineMin : Math.max(0.5, leg.originalLine - 10)}
+                              max={leg.sport === 'soccer' ? '5.5' : leg.sport === 'soccer_player' ? leg.lineMax : leg.originalLine + 10}
+                              step={leg.sport === 'soccer_player' ? leg.lineStep : '0.5'}
                               value={leg.line}
                               onChange={(e) => updateCustomParlayLeg(leg.id, e.target.value)}
                               className="flex-1"
