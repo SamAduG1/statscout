@@ -1286,6 +1286,13 @@ const calcHitRate = (arr, line) => {
   return Math.round(arr.filter(v => v > line).length / arr.length * 100);
 };
 
+const hitRateToOdds = (hitRate) => {
+  if (hitRate == null) return -110;
+  const p = hitRate / 100;
+  if (p >= 0.5) return Math.round(-100 * (p / (1 - p)));
+  return Math.round(100 * ((1 - p) / p));
+};
+
 const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
   const mdef = SOCCER_MARKETS.find(m => m.key === market) || SOCCER_MARKETS[0];
   // For GK market, use gcArr and invert (clean sheet = conceded < line)
@@ -1399,6 +1406,7 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
             line,
             originalLine: line,
             hitRate,
+            odds: hitRateToOdds(hitRate),
             arr,
             isGkMarket,
             lineMin: mdef.min,
@@ -2636,18 +2644,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   };
 
   // Helper: Convert hit rate to American odds
-  const hitRateToOdds = (hitRate) => {
-    // Convert hit rate (0-100) to probability (0-1)
-    const probability = hitRate / 100;
-
-    if (probability >= 0.5) {
-      // Favorite odds (negative)
-      return Math.round(-100 * (probability / (1 - probability)));
-    } else {
-      // Underdog odds (positive)
-      return Math.round(100 * ((1 - probability) / probability));
-    }
-  };
+  // hitRateToOdds is defined at module level
 
   const updateCustomParlayLeg = async (legId, newLine) => {
     const leg = customParlayLegs.find(l => l.id === legId);
@@ -2661,14 +2658,14 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
       return;
     }
 
-    // Soccer player prop legs: recalculate hit rate from stored array
+    // Soccer player prop legs: recalculate hit rate + estimated odds from stored array
     if (leg.sport === 'soccer_player') {
       const nl = parseFloat(newLine);
       const newHitRate = leg.isGkMarket
         ? (leg.arr?.length ? Math.round(leg.arr.filter(v => v < nl).length / leg.arr.length * 100) : null)
         : calcHitRate(leg.arr || [], nl);
       setCustomParlayLegs(prev => prev.map(l =>
-        l.id === legId ? { ...l, line: nl, hitRate: newHitRate } : l
+        l.id === legId ? { ...l, line: nl, hitRate: newHitRate, odds: hitRateToOdds(newHitRate) } : l
       ));
       return;
     }
@@ -2766,10 +2763,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
         }, 0)
       : 0;
 
-    // Calculate total American odds
+    // Calculate total American odds (fall back to -110 if a leg has no odds)
     let totalOdds = customParlayLegs[0]?.odds || -110;
     for (let i = 1; i < customParlayLegs.length; i++) {
-      totalOdds = combineTwoAmericanOdds(totalOdds, customParlayLegs[i].odds);
+      totalOdds = combineTwoAmericanOdds(totalOdds, customParlayLegs[i].odds || -110);
     }
 
     // Calculate payout for $10 bet
@@ -3846,7 +3843,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                                   <div className="font-semibold text-gray-900 dark:text-white text-sm">{leg.playerName}</div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                     {leg.team} - {leg.statType}
-                                    {leg.hitRate != null && <span className="ml-1 text-blue-400">{leg.hitRate}% hit rate</span>}
+                                    {leg.hitRate != null && <span className="ml-1 text-blue-400">{leg.hitRate}% hit</span>}
+                                    {leg.odds != null && <span className="ml-1 font-medium text-gray-300">{leg.odds > 0 ? `+${leg.odds}` : leg.odds} <span className="text-gray-500 font-normal">est.</span></span>}
                                   </div>
                                 </>
                               ) : (
