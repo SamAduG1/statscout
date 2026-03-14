@@ -1428,6 +1428,7 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
   const [teamPropsOpen, setTeamPropsOpen] = React.useState(false);
   const [homeTeamLine, setHomeTeamLine] = React.useState(0.5);
   const [awayTeamLine, setAwayTeamLine] = React.useState(0.5);
+  const [h1Line, setH1Line] = React.useState(0.5);
 
   const getRateColor = (rate) => {
     if (rate === null || rate === undefined) return 'text-gray-400 dark:text-gray-500';
@@ -1497,6 +1498,13 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
   const homeTeamOverRate = calcOverPct(match.homeTeamScoredAtHome, homeTeamLine);
   const awayTeamOverRate = calcOverPct(match.awayTeamScoredAway, awayTeamLine);
   const hasTeamProps = (match.homeTeamScoredAtHome?.length > 0) || (match.awayTeamScoredAway?.length > 0);
+
+  const h1Combined = React.useMemo(() =>
+    [...(match.h1HomeGoalTotals || []), ...(match.h1AwayGoalTotals || [])],
+    [match.h1HomeGoalTotals, match.h1AwayGoalTotals]
+  );
+  const h1OverRate = calcOverPct(h1Combined, h1Line);
+  const hasH1 = h1Combined.length > 0;
 
   // Dynamic trust score - recomputes whenever the line changes
   const trustScore = React.useMemo(() => {
@@ -1645,6 +1653,38 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
             </div>
           )}
         </div>
+
+        {/* 1st Half Stats */}
+        {hasH1 && (
+          <div className="mt-2 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">1st Half</div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="text-center">
+                <div className="text-[10px] text-gray-400 mb-0.5">Avg goals</div>
+                <div className="text-sm font-bold tabular-nums text-gray-700 dark:text-gray-200">{match.h1Expected ?? '-'}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] text-gray-400 mb-0.5" title="% of games with at least 1 first-half goal">O0.5</div>
+                <div className={`text-sm font-bold tabular-nums ${getRateColor(match.h1OverRate05)}`}>{match.h1OverRate05 != null ? `${match.h1OverRate05}%` : '-'}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] text-gray-400 mb-0.5" title="% of games with 2+ first-half goals">O1.5</div>
+                <div className={`text-sm font-bold tabular-nums ${getRateColor(match.h1OverRate15)}`}>{match.h1OverRate15 != null ? `${match.h1OverRate15}%` : '-'}</div>
+              </div>
+              <div className="text-center min-w-[48px]">
+                <div className="text-[10px] text-gray-400 mb-0.5">Custom O{h1Line}</div>
+                <div className={`text-sm font-bold tabular-nums ${getRateColor(h1OverRate)}`}>{h1OverRate != null ? `${h1OverRate}%` : '-'}</div>
+              </div>
+            </div>
+            <input type="range" min="0.5" max="3.5" step="0.5"
+              value={h1Line}
+              onChange={e => setH1Line(parseFloat(e.target.value))}
+              className="w-full h-1 accent-blue-500 cursor-pointer" />
+            <div className="flex justify-between text-[10px] text-gray-400 mt-0.5 px-0.5">
+              <span>0.5</span><span>3.5</span>
+            </div>
+          </div>
+        )}
 
         {/* Team Goal Props - collapsible */}
         {hasTeamProps && (

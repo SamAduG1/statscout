@@ -100,11 +100,11 @@ PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 # Soccer match cache - one entry per league
 SOCCER_CACHE_DURATION = 6 * 60 * 60  # 6 hours
 SOCCER_CACHE_FILES = {
-    "pl":         "/tmp/statscout_soccer_pl_cache.json",
-    "laliga":     "/tmp/statscout_soccer_laliga_cache.json",
-    "bundesliga": "/tmp/statscout_soccer_bundesliga_cache.json",
-    "seriea":     "/tmp/statscout_soccer_seriea_cache.json",
-    "ligue1":     "/tmp/statscout_soccer_ligue1_cache.json",
+    "pl":         "/tmp/statscout_soccer_pl_v2_cache.json",
+    "laliga":     "/tmp/statscout_soccer_laliga_v2_cache.json",
+    "bundesliga": "/tmp/statscout_soccer_bundesliga_v2_cache.json",
+    "seriea":     "/tmp/statscout_soccer_seriea_v2_cache.json",
+    "ligue1":     "/tmp/statscout_soccer_ligue1_v2_cache.json",
 }
 def _init_soccer_cache(league):
     disk = _load_specific_cache(SOCCER_CACHE_FILES[league])

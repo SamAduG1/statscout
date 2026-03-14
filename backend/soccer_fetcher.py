@@ -267,16 +267,22 @@ class SoccerFetcher:
                 continue
             total = hg + ag
             btts = hg > 0 and ag > 0
+            ht = match.get("score", {}).get("halfTime", {})
+            hg_h1 = ht.get("home")
+            ag_h1 = ht.get("away")
+            h1_total = (hg_h1 + ag_h1) if (hg_h1 is not None and ag_h1 is not None) else None
             home_name = _norm(match["homeTeam"]["name"])
             away_name = _norm(match["awayTeam"]["name"])
-            for name, scored, conceded, loc in [
-                (home_name, hg, ag, "home"),
-                (away_name, ag, hg, "away"),
+            for name, scored, conceded, loc, h1_scored, h1_conceded in [
+                (home_name, hg, ag, "home", hg_h1, ag_h1),
+                (away_name, ag, hg, "away", ag_h1, hg_h1),
             ]:
                 if name not in stats:
                     stats[name] = {"home": [], "away": [], "all": []}
                 entry = {"scored": scored, "conceded": conceded,
-                         "total": total, "btts": btts}
+                         "total": total, "btts": btts,
+                         "h1_scored": h1_scored, "h1_conceded": h1_conceded,
+                         "h1_total": h1_total}
                 stats[name][loc].append(entry)
                 stats[name]["all"].append(entry)
         return stats
@@ -441,6 +447,14 @@ class SoccerFetcher:
         home_team_scored = [g["scored"] for g in home_h]  # home team goals scored at home
         away_team_scored = [g["scored"] for g in away_a]  # away team goals scored away
 
+        # First-half goal totals (only include games where halfTime data exists)
+        h1_home = [g["h1_total"] for g in home_h if g.get("h1_total") is not None]
+        h1_away = [g["h1_total"] for g in away_a if g.get("h1_total") is not None]
+        h1_combined = h1_home + h1_away
+        h1_over05 = round(sum(1 for t in h1_combined if t > 0.5) / len(h1_combined) * 100) if h1_combined else None
+        h1_over15 = round(sum(1 for t in h1_combined if t > 1.5) / len(h1_combined) * 100) if h1_combined else None
+        h1_expected = round(sum(h1_combined) / len(h1_combined), 1) if h1_combined else None
+
         trust_score = self._compute_trust_score(
             over_rate, expected, line, over_o, home_games, away_games, relevant
         )
@@ -473,6 +487,11 @@ class SoccerFetcher:
             "awayGoalTotals": away_goal_totals,
             "homeTeamScoredAtHome": home_team_scored,
             "awayTeamScoredAway": away_team_scored,
+            "h1HomeGoalTotals": h1_home,
+            "h1AwayGoalTotals": h1_away,
+            "h1OverRate05": h1_over05,
+            "h1OverRate15": h1_over15,
+            "h1Expected": h1_expected,
         }
 
     # ── Main entry point ──────────────────────────────────────────────────────
