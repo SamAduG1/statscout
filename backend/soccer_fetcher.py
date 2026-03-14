@@ -8,8 +8,13 @@ StatScout Soccer Fetcher
 import requests
 import os
 import statistics
+import threading
 import unicodedata
 from dotenv import load_dotenv
+
+# Limit concurrent football-data.org calls to 1 to avoid 429s when multiple
+# league caches build simultaneously (free tier: 10 req/min)
+_fd_semaphore = threading.Semaphore(1)
 
 load_dotenv()
 
@@ -211,12 +216,13 @@ class SoccerFetcher:
 
     def get_historical_results(self, fd_code='PL'):
         """Get all completed 2025-26 matches for a competition (1 football-data.org call)."""
-        r = requests.get(
-            f"{self.FD_BASE}/competitions/{fd_code}/matches",
-            headers=self.fd_headers,
-            params={"season": SEASON, "status": "FINISHED"},
-            timeout=15,
-        )
+        with _fd_semaphore:
+            r = requests.get(
+                f"{self.FD_BASE}/competitions/{fd_code}/matches",
+                headers=self.fd_headers,
+                params={"season": SEASON, "status": "FINISHED"},
+                timeout=15,
+            )
         r.raise_for_status()
         data = r.json()
         matches = data.get("matches", [])

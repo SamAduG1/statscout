@@ -98,7 +98,7 @@ players_cache = {
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
 # Soccer match cache - one entry per league
-SOCCER_CACHE_DURATION = 6 * 60 * 60  # 6 hours
+SOCCER_CACHE_DURATION = 24 * 60 * 60  # 24 hours (conserves Odds API quota)
 SOCCER_CACHE_FILES = {
     "pl":         "/tmp/statscout_soccer_pl_v2_cache.json",
     "laliga":     "/tmp/statscout_soccer_laliga_v2_cache.json",
@@ -351,7 +351,7 @@ def _build_soccer_cache_background(league='pl'):
 
 
 # Cache configuration (in seconds)
-CACHE_DURATION = 4 * 60 * 60  # 4 hours (was 30 minutes)
+CACHE_DURATION = 12 * 60 * 60  # 12 hours (conserves Odds API quota)
 ACTIVE_HOURS_START = 6  # 6 AM
 ACTIVE_HOURS_END = 23   # 11 PM
 
