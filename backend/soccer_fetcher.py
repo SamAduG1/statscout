@@ -447,13 +447,23 @@ class SoccerFetcher:
         home_team_scored = [g["scored"] for g in home_h]  # home team goals scored at home
         away_team_scored = [g["scored"] for g in away_a]  # away team goals scored away
 
-        # First-half goal totals (only include games where halfTime data exists)
-        h1_home = [g["h1_total"] for g in home_h if g.get("h1_total") is not None]
-        h1_away = [g["h1_total"] for g in away_a if g.get("h1_total") is not None]
+        # First-half: filter to games where halfTime data exists
+        home_h_h1 = [g for g in home_h if g.get("h1_scored") is not None and g.get("h1_conceded") is not None]
+        away_a_h1 = [g for g in away_a if g.get("h1_scored") is not None and g.get("h1_conceded") is not None]
+        h1_home = [g["h1_total"] for g in home_h_h1]
+        h1_away = [g["h1_total"] for g in away_a_h1]
         h1_combined = h1_home + h1_away
         h1_over05 = round(sum(1 for t in h1_combined if t > 0.5) / len(h1_combined) * 100) if h1_combined else None
         h1_over15 = round(sum(1 for t in h1_combined if t > 1.5) / len(h1_combined) * 100) if h1_combined else None
-        h1_expected = round(sum(h1_combined) / len(h1_combined), 1) if h1_combined else None
+        # Form-weighted expected 1H total — same attack/defense blend as full-game formula
+        if home_h_h1 and away_a_h1:
+            h1_home_goals = (self._form_avg(home_h_h1, "h1_scored") + self._form_avg(away_a_h1, "h1_conceded")) / 2
+            h1_away_goals = (self._form_avg(away_a_h1, "h1_scored") + self._form_avg(home_h_h1, "h1_conceded")) / 2
+            h1_expected = round(h1_home_goals + h1_away_goals, 1)
+        else:
+            h1_expected = None
+        h1_home_avg = self._avg(home_h_h1, "h1_scored") if home_h_h1 else None
+        h1_away_avg = self._avg(away_a_h1, "h1_scored") if away_a_h1 else None
 
         trust_score = self._compute_trust_score(
             over_rate, expected, line, over_o, home_games, away_games, relevant
@@ -492,6 +502,8 @@ class SoccerFetcher:
             "h1OverRate05": h1_over05,
             "h1OverRate15": h1_over15,
             "h1Expected": h1_expected,
+            "h1HomeAvg": h1_home_avg,
+            "h1AwayAvg": h1_away_avg,
         }
 
     # ── Main entry point ──────────────────────────────────────────────────────

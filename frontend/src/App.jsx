@@ -1656,32 +1656,52 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
 
         {/* 1st Half Stats */}
         {hasH1 && (
-          <div className="mt-2 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">1st Half</div>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div className="text-center">
-                <div className="text-[10px] text-gray-400 mb-0.5">Avg goals</div>
-                <div className="text-sm font-bold tabular-nums text-gray-700 dark:text-gray-200">{match.h1Expected ?? '-'}</div>
+          <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mt-1">
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="w-1 h-3.5 bg-amber-500 rounded-full" />
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">1st Half</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center mb-2">
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">O/U Line</div>
+                <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{h1Line}</div>
               </div>
-              <div className="text-center">
-                <div className="text-[10px] text-gray-400 mb-0.5" title="% of games with at least 1 first-half goal">O0.5</div>
-                <div className={`text-sm font-bold tabular-nums ${getRateColor(match.h1OverRate05)}`}>{match.h1OverRate05 != null ? `${match.h1OverRate05}%` : '-'}</div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5" title="% of games (home team at home + away team away) where 1st half total exceeded this line">Over %</div>
+                <div className={`text-xl font-bold tabular-nums ${getRateColor(h1OverRate)}`}>
+                  {h1OverRate != null ? `${h1OverRate}%` : '-'}
+                </div>
               </div>
-              <div className="text-center">
-                <div className="text-[10px] text-gray-400 mb-0.5" title="% of games with 2+ first-half goals">O1.5</div>
-                <div className={`text-sm font-bold tabular-nums ${getRateColor(match.h1OverRate15)}`}>{match.h1OverRate15 != null ? `${match.h1OverRate15}%` : '-'}</div>
-              </div>
-              <div className="text-center min-w-[48px]">
-                <div className="text-[10px] text-gray-400 mb-0.5">Custom O{h1Line}</div>
-                <div className={`text-sm font-bold tabular-nums ${getRateColor(h1OverRate)}`}>{h1OverRate != null ? `${h1OverRate}%` : '-'}</div>
+              <div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5" title="Model-predicted 1st half total using each team's 1H attack and defensive record">Expected</div>
+                <div className={`text-xl font-bold tabular-nums ${match.h1Expected != null ? (match.h1Expected > h1Line ? 'text-green-500' : 'text-red-400') : 'text-gray-400'}`}>
+                  {match.h1Expected ?? '-'}
+                </div>
               </div>
             </div>
             <input type="range" min="0.5" max="3.5" step="0.5"
               value={h1Line}
               onChange={e => setH1Line(parseFloat(e.target.value))}
-              className="w-full h-1 accent-blue-500 cursor-pointer" />
-            <div className="flex justify-between text-[10px] text-gray-400 mt-0.5 px-0.5">
-              <span>0.5</span><span>3.5</span>
+              className="w-full h-1.5 accent-blue-500 cursor-pointer mb-2"
+            />
+            <div className="flex justify-between text-[10px] text-gray-400 mb-2 px-0.5">
+              <span>0.5</span>
+              <span className="text-[10px] text-gray-400">
+                O0.5: <span className={getRateColor(match.h1OverRate05)}>{match.h1OverRate05 != null ? `${match.h1OverRate05}%` : '-'}</span>
+                {' · '}
+                O1.5: <span className={getRateColor(match.h1OverRate15)}>{match.h1OverRate15 != null ? `${match.h1OverRate15}%` : '-'}</span>
+              </span>
+              <span>3.5</span>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 space-y-1">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>{shortName(match.homeTeam)} avg 1H scored (home)</span>
+                <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.h1HomeAvg ?? '-'}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>{shortName(match.awayTeam)} avg 1H scored (away)</span>
+                <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.h1AwayAvg ?? '-'}</span>
+              </div>
             </div>
           </div>
         )}
