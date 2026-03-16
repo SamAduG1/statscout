@@ -1657,9 +1657,9 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
         {/* 1st Half Stats */}
         {hasH1 && (
           <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mt-1">
-            <div className="flex items-center gap-1.5 mb-2">
-              <div className="w-1 h-3.5 bg-amber-500 rounded-full" />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">1st Half</span>
+            <div className="flex items-center gap-1.5 mb-3">
+              <div className="w-1 h-4 bg-amber-500 rounded-full" />
+              <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">1st Half</span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center mb-2">
               <div>
@@ -1677,23 +1677,39 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
                 <div className={`text-xl font-bold tabular-nums ${match.h1Expected != null ? (match.h1Expected > h1Line ? 'text-green-500' : 'text-red-400') : 'text-gray-400'}`}>
                   {match.h1Expected ?? '-'}
                 </div>
+                {match.h1Expected != null && (
+                  <div className={`text-[10px] font-medium ${match.h1Expected > h1Line ? 'text-green-500' : 'text-red-400'}`}>
+                    {match.h1Expected > h1Line ? '▲ Over' : '▼ Under'}
+                  </div>
+                )}
               </div>
             </div>
             <input type="range" min="0.5" max="3.5" step="0.5"
               value={h1Line}
               onChange={e => setH1Line(parseFloat(e.target.value))}
-              className="w-full h-1.5 accent-blue-500 cursor-pointer mb-2"
+              className="w-full h-1.5 accent-blue-500 cursor-pointer mb-1"
             />
-            <div className="flex justify-between text-[10px] text-gray-400 mb-2 px-0.5">
+            <div className="flex justify-between text-[10px] text-gray-400 mb-3 px-0.5">
               <span>0.5</span>
-              <span className="text-[10px] text-gray-400">
-                O0.5: <span className={getRateColor(match.h1OverRate05)}>{match.h1OverRate05 != null ? `${match.h1OverRate05}%` : '-'}</span>
-                {' · '}
-                O1.5: <span className={getRateColor(match.h1OverRate15)}>{match.h1OverRate15 != null ? `${match.h1OverRate15}%` : '-'}</span>
-              </span>
               <span>3.5</span>
             </div>
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500 dark:text-gray-400">Expected 1H total</span>
+                {match.h1Expected != null ? (
+                  <span className={`font-semibold tabular-nums ${match.h1Expected > h1Line ? 'text-green-500' : 'text-red-400'}`}>
+                    {match.h1Expected} {match.h1Expected > h1Line ? '▲ Over' : '▼ Under'}
+                  </span>
+                ) : <span className="text-gray-400">-</span>}
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>Any goals (O0.5) · At least 2 (O1.5)</span>
+                <span className="tabular-nums font-medium">
+                  <span className={getRateColor(match.h1OverRate05)}>{match.h1OverRate05 != null ? `${match.h1OverRate05}%` : '-'}</span>
+                  {' · '}
+                  <span className={getRateColor(match.h1OverRate15)}>{match.h1OverRate15 != null ? `${match.h1OverRate15}%` : '-'}</span>
+                </span>
+              </div>
               <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>{shortName(match.homeTeam)} avg 1H scored (home)</span>
                 <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{match.h1HomeAvg ?? '-'}</span>
@@ -3654,9 +3670,9 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   )}
                   {(soccerError || (!soccerLoading && !(soccerData[soccerLeague]?.length > 0))) && (
                     <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
-                      <p className="text-gray-500 dark:text-gray-400 font-medium">No matches available right now</p>
-                      <p className="text-sm text-gray-400 dark:text-gray-500">
-                        Odds are not yet posted for upcoming {{'pl':'Premier League','laliga':'La Liga','bundesliga':'Bundesliga','seriea':'Serie A','ligue1':'Ligue 1'}[soccerLeague]} fixtures. Check back closer to matchday.
+                      <p className="text-gray-500 dark:text-gray-400 font-medium">No upcoming fixtures found</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 max-w-sm">
+                        This usually means it is an international break or the next gameweek's odds have not been posted yet. Check back Tuesday or Wednesday.
                       </p>
                     </div>
                   )}
