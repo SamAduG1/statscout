@@ -19,6 +19,7 @@ SEASON = '2025-26'
 
 # (name, team, position)
 NEW_PLAYERS = [
+    ('Dejounte Murray',          'NOP', 'G'),
     ('Javon Small',              'MEM', 'G'),
     ('Rayan Rupert',             'MEM', 'G'),
     ('Jahmai Mashack',           'MEM', 'G'),
