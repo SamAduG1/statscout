@@ -67,7 +67,7 @@ export default function LandingPage() {
 
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <div className="text-xl font-bold tracking-tight">
+        <div className="text-2xl font-bold tracking-tight">
           <span className="text-blue-500">Stat</span>Scout
         </div>
         <button

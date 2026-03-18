@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake, Plus, X, Save, Trash2, ChevronRight, ChevronLeft, RefreshCw } from 'lucide-react';
+import Joyride, { STATUS } from 'react-joyride';
+import { TrendingUp, TrendingDown, Filter, Search, Home, Plane, Moon, Sun, Flame, Snowflake, Plus, X, Save, Trash2, ChevronRight, ChevronLeft, RefreshCw, Target } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -1945,7 +1946,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
         </div>
       </div>
 
-      <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3" onClick={(e) => e.stopPropagation()}>
+      <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 tour-line-adjust" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-1">
           <div className="flex items-center gap-2">
             <span className="text-gray-700 dark:text-gray-300 font-medium">{player.statType}</span>
@@ -2014,7 +2015,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
         )}
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 tour-hit-rate">
         <div className="flex justify-between items-center mb-1.5">
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Hit Rate</span>
           <span className={`text-2xl font-bold tabular-nums ${
@@ -2049,7 +2050,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 tour-trust-score">
         <div className="flex justify-between items-center mb-1.5">
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Trust Score</span>
           <div className="text-right">
@@ -2094,7 +2095,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 
       {/* Add to Parlay Button — mt-auto pins it to the card bottom */}
       {onAddToParlay && (
-        <div className="mt-auto pt-4">
+        <div className="mt-auto pt-4 tour-add-parlay">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -2583,6 +2584,9 @@ export default function StatScoutDashboard() {
   const soccerLeague = currentSport === 'soccer' ? (pathParts[1] || 'pl') : 'pl';
   const soccerView = currentSport === 'soccer' ? (pathParts[2] === 'players' ? 'playerProps' : 'matchTotals') : 'matchTotals';
 
+  const [runTour, setRunTour] = useState(false);
+  const [tourKey, setTourKey] = useState(0);
+
   const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
@@ -2991,6 +2995,17 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     }
   }, [darkMode]);
 
+  // Auto-start tour when arriving from landing page "How it works" button
+  useEffect(() => {
+    if (location.state?.startTour && !loading) {
+      const timer = setTimeout(() => {
+        setTourKey(k => k + 1);
+        setRunTour(true);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state?.startTour, loading]);
+
   const teams = ['all', ...new Set(players.map(p => p.team))];
   const statTypes = ['all', ...new Set(players.map(p => p.statType))];
 
@@ -3083,6 +3098,14 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => { setTourKey(k => k + 1); setRunTour(true); }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
+                  title="Take a guided tour"
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  Tour
+                </button>
+                <button
                   onClick={handleRefreshStats}
                   disabled={isRefreshing}
                   className="p-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
@@ -3101,7 +3124,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             </div>
 
             {/* Sport Tabs */}
-            <div className="flex gap-1 mb-2">
+            <div id="tour-sport-tabs" className="flex gap-1 mb-2">
               {['nba', 'soccer'].map(sport => (
                 <button
                   key={sport}
@@ -3193,7 +3216,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {currentSport === 'nba' && currentView === 'props' && !loading && (
             <>
           {/* Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div id="tour-stats-overview" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5">
               <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Total Props</div>
               <div className="text-3xl font-bold tabular-nums text-gray-900 dark:text-white">{filteredAndSortedPlayers.length}</div>
@@ -3238,7 +3261,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           })()}
 
           {/* Filters */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 mb-8">
+          <div id="tour-filters" className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 mb-8">
             <button
               className="w-full flex items-center justify-between px-5 py-4 md:px-6 md:pt-6 md:pb-0 md:cursor-default"
               onClick={() => setShowMobileFilters(f => !f)}
@@ -4060,6 +4083,104 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             )}
           </>
         )}
+
+      {/* Guided Tour */}
+      <Joyride
+        key={tourKey}
+        run={runTour}
+        continuous
+        showSkipButton
+        showProgress
+        scrollToFirstStep
+        disableScrolling={false}
+        callback={({ status }) => {
+          if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) setRunTour(false);
+        }}
+        steps={[
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            title: 'Welcome to StatScout',
+            content: 'StatScout scores every NBA player prop and soccer match using real game data. This 60-second tour will show you how to get the most out of it.',
+          },
+          {
+            target: '#tour-stats-overview',
+            disableBeacon: true,
+            title: 'At-a-glance snapshot',
+            content: 'These four cards summarize the current data: total props loaded, average trust score, how many high-confidence picks exist, and the average hit rate. Click the green card to instantly filter to high-confidence props only.',
+          },
+          {
+            target: '.tour-hit-rate',
+            disableBeacon: true,
+            title: 'Hit rate: the core stat',
+            content: 'Hit rate is how often a player went Over this line in their last 10 games. Green (70%+) means reliable. Blue (55-69%) is decent. Red below 55% is low confidence. The small bar chart below shows each game individually.',
+          },
+          {
+            target: '.tour-line-adjust',
+            disableBeacon: true,
+            title: 'Adjust the line yourself',
+            content: 'This is the most powerful feature on the site. Bookmakers set lines close to 50/50 by design. Click the number and type a lower value, then press Enter. Watch the hit rate update instantly. Sliding the line down often reveals that a player clears a slightly easier number at 75%+ instead of 52%.',
+          },
+          {
+            target: '.tour-trust-score',
+            disableBeacon: true,
+            title: 'Trust score: signal vs. noise',
+            content: 'The trust score (0-100) blends hit rate, sample size, recent form consistency, and market pricing into one number. Think of it as a confidence filter. Props above 80 are high confidence. Below 50, the data is too thin or inconsistent to lean on.',
+          },
+          {
+            target: '.tour-add-parlay',
+            disableBeacon: true,
+            title: 'Build a parlay',
+            content: 'Found a prop you like? Add it to your parlay. You can stack legs from NBA and Soccer, and the combined implied probability and payout updates live as you add or adjust legs.',
+          },
+          {
+            target: '#tour-filters',
+            disableBeacon: true,
+            title: 'Filters and search',
+            content: 'Narrow down by team, stat type, trust score minimum, home/away, and games today. Useful when you want to focus on a specific team or only see props with strong recent form.',
+          },
+          {
+            target: '#tour-sport-tabs',
+            disableBeacon: true,
+            title: 'Soccer coverage too',
+            content: 'StatScout covers 5 soccer leagues: Premier League, La Liga, Bundesliga, Serie A, and Ligue 1. Match totals, Poisson-model win probability, a trust score, and individual player props for goals, shots, assists, and more.',
+          },
+        ]}
+        styles={{
+          options: {
+            primaryColor: '#3b82f6',
+            backgroundColor: '#111827',
+            textColor: '#f3f4f6',
+            arrowColor: '#111827',
+            overlayColor: 'rgba(0,0,0,0.65)',
+            zIndex: 9999,
+          },
+          tooltip: {
+            borderRadius: '12px',
+            fontSize: '14px',
+          },
+          tooltipTitle: {
+            fontSize: '15px',
+            fontWeight: '700',
+            color: '#ffffff',
+          },
+          buttonNext: {
+            backgroundColor: '#3b82f6',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: '600',
+          },
+          buttonBack: {
+            color: '#9ca3af',
+            fontSize: '13px',
+          },
+          buttonSkip: {
+            color: '#6b7280',
+            fontSize: '12px',
+          },
+        }}
+      />
       </div>
   );
 }
