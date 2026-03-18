@@ -4105,22 +4105,34 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             content: 'StatScout scores every NBA player prop and soccer match using real game data. This 60-second tour will show you how to get the most out of it.',
           },
           {
+            target: '#tour-sport-tabs',
+            disableBeacon: true,
+            title: 'NBA and Soccer',
+            content: 'StatScout covers 5 soccer leagues alongside the NBA: Premier League, La Liga, Bundesliga, Serie A, and Ligue 1. Match totals, win probability, and individual player props across all of them.',
+          },
+          {
             target: '#tour-stats-overview',
             disableBeacon: true,
             title: 'At-a-glance snapshot',
             content: 'These four cards summarize the current data: total props loaded, average trust score, how many high-confidence picks exist, and the average hit rate. Click the green card to instantly filter to high-confidence props only.',
           },
           {
+            target: '#tour-filters',
+            disableBeacon: true,
+            title: 'Filters and search',
+            content: 'Narrow down by team, stat type, trust score minimum, home/away, and games today. Useful when you want to focus on a specific player, team, or only see props with strong recent form.',
+          },
+          {
             target: '.tour-hit-rate',
             disableBeacon: true,
             title: 'Hit rate: the core stat',
-            content: 'Hit rate is how often a player went Over this line in their last 10 games. Green (70%+) means reliable. Blue (55-69%) is decent. Red below 55% is low confidence. The small bar chart below shows each game individually.',
+            content: 'Hit rate is how often a player went Over this line in their last 10 games. Green (70%+) means reliable. Blue (55-69%) is decent. Red below 55% is low confidence. The small bar chart shows each individual game.',
           },
           {
             target: '.tour-line-adjust',
             disableBeacon: true,
             title: 'Adjust the line yourself',
-            content: 'This is the most powerful feature on the site. Bookmakers set lines close to 50/50 by design. Click the number and type a lower value, then press Enter. Watch the hit rate update instantly. Sliding the line down often reveals that a player clears a slightly easier number at 75%+ instead of 52%.',
+            content: 'This is the most powerful feature on the site. Bookmakers set lines close to 50/50 by design. Click the number and type a lower value, then press Enter. Watch the hit rate update instantly. Sliding the line down often reveals a player clears a slightly easier number at 75%+ instead of 52%.',
           },
           {
             target: '.tour-trust-score',
@@ -4132,19 +4144,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             target: '.tour-add-parlay',
             disableBeacon: true,
             title: 'Build a parlay',
-            content: 'Found a prop you like? Add it to your parlay. You can stack legs from NBA and Soccer, and the combined implied probability and payout updates live as you add or adjust legs.',
-          },
-          {
-            target: '#tour-filters',
-            disableBeacon: true,
-            title: 'Filters and search',
-            content: 'Narrow down by team, stat type, trust score minimum, home/away, and games today. Useful when you want to focus on a specific team or only see props with strong recent form.',
-          },
-          {
-            target: '#tour-sport-tabs',
-            disableBeacon: true,
-            title: 'Soccer coverage too',
-            content: 'StatScout covers 5 soccer leagues: Premier League, La Liga, Bundesliga, Serie A, and Ligue 1. Match totals, Poisson-model win probability, a trust score, and individual player props for goals, shots, assists, and more.',
+            content: 'Found a prop you like? Add it to your parlay. Stack legs from NBA and Soccer, and the combined implied probability and payout updates live as you build.',
           },
         ]}
         styles={{
