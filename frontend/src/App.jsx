@@ -1626,7 +1626,7 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
             const dPct = Math.round(draw * 100);
             const aPct = 100 - hPct - dPct;
             return (
-              <div className="pt-1">
+              <div className="pt-1 tour-soccer-winprob">
                 <div className="text-[10px] text-gray-400 dark:text-gray-500 mb-1" title="Poisson model win probabilities based on expected goals">Win probability</div>
                 <div className="flex rounded overflow-hidden h-4 text-[10px] font-semibold">
                   <div className="flex items-center justify-center bg-blue-600/80 text-white" style={{ width: `${hPct}%` }} title={`${shortName(match.homeTeam)} win`}>
@@ -2586,6 +2586,11 @@ export default function StatScoutDashboard() {
 
   const [runTour, setRunTour] = useState(false);
   const [tourKey, setTourKey] = useState(0);
+  const [runSoccerTour, setRunSoccerTour] = useState(false);
+  const [soccerTourKey, setSoccerTourKey] = useState(0);
+  const [showSoccerTourBanner, setShowSoccerTourBanner] = useState(
+    () => !localStorage.getItem('statscout_tour_soccer')
+  );
 
   const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
   const [soccerLoading, setSoccerLoading] = useState(false);
@@ -2995,9 +3000,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     }
   }, [darkMode]);
 
-  // Auto-start tour when arriving from landing page "How it works" button
+  // Auto-start NBA tour when arriving from landing page "How it works" button
+  // Only if they haven't already completed it
   useEffect(() => {
-    if (location.state?.startTour && !loading) {
+    if (location.state?.startTour && !loading && !localStorage.getItem('statscout_tour_nba')) {
       const timer = setTimeout(() => {
         setTourKey(k => k + 1);
         setRunTour(true);
@@ -3634,8 +3640,40 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {/* Soccer View */}
           {currentSport === 'soccer' && (
             <div>
+              {/* Soccer first-visit tour banner */}
+              {showSoccerTourBanner && (
+                <div className="flex items-center justify-between bg-blue-600/10 border border-blue-500/25 rounded-xl px-4 py-3 mb-5 gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <Target className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span className="text-sm text-gray-300">New to soccer on StatScout? Take a quick 4-step tour.</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        setShowSoccerTourBanner(false);
+                        localStorage.setItem('statscout_tour_soccer', 'done');
+                        setSoccerTourKey(k => k + 1);
+                        setRunSoccerTour(true);
+                      }}
+                      className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded hover:bg-blue-500/10"
+                    >
+                      Take tour
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSoccerTourBanner(false);
+                        localStorage.setItem('statscout_tour_soccer', 'done');
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-800"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* League + View selectors */}
-              <div className="flex flex-wrap items-center gap-3 mb-5">
+              <div id="tour-soccer-nav" className="flex flex-wrap items-center gap-3 mb-5">
                 {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1']].map(([key, label]) => (
                   <button key={key} onClick={() => { setSelectedSoccerFixture(null); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -3701,8 +3739,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   )}
                   {!soccerLoading && soccerData[soccerLeague]?.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {soccerData[soccerLeague].map(match => (
-                        <SoccerMatchCard key={match.id} match={match} onAddToParlay={addSoccerLeg} />
+                      {soccerData[soccerLeague].map((match, idx) => (
+                        <div key={match.id} className={idx === 0 ? 'tour-soccer-match-card' : ''}>
+                          <SoccerMatchCard match={match} onAddToParlay={addSoccerLeg} />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -4094,7 +4134,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
         scrollToFirstStep
         disableScrolling={false}
         callback={({ status }) => {
-          if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) setRunTour(false);
+          if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
+            setRunTour(false);
+            localStorage.setItem('statscout_tour_nba', 'done');
+          }
         }}
         steps={[
           {
@@ -4179,6 +4222,62 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             color: '#6b7280',
             fontSize: '12px',
           },
+        }}
+      />
+
+      {/* Soccer Micro-Tour */}
+      <Joyride
+        key={soccerTourKey}
+        run={runSoccerTour}
+        continuous
+        showSkipButton
+        showProgress
+        scrollToFirstStep
+        callback={({ status }) => {
+          if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) setRunSoccerTour(false);
+        }}
+        steps={[
+          {
+            target: '#tour-soccer-nav',
+            placement: 'bottom',
+            disableBeacon: true,
+            title: 'Five leagues covered',
+            content: 'Switch between Premier League, La Liga, Bundesliga, Serie A, and Ligue 1 using the league pills. The two buttons on the right toggle between Match Totals and Player Props for that league.',
+          },
+          {
+            target: '.tour-soccer-match-card',
+            disableBeacon: true,
+            title: 'Match card',
+            content: 'Each card shows the over/under line for total match goals, the historical over rate, and an expected total calculated from each team\'s attack and defensive record. Drag the line slider to see how the over rate changes.',
+          },
+          {
+            target: '.tour-soccer-winprob',
+            disableBeacon: true,
+            title: 'Win probability',
+            content: 'This bar uses a Poisson distribution model — the same method used by professional sports analysts. It converts each team\'s expected goals into home win, draw, and away win probabilities. Blue is home, gray is draw, purple is away.',
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            title: 'Player props too',
+            content: 'Switch to Player Props at the top to see individual player stats: goals, shots, assists, and more. Select a fixture to load that match\'s players and add any leg directly to your parlay.',
+          },
+        ]}
+        styles={{
+          options: {
+            primaryColor: '#3b82f6',
+            backgroundColor: '#111827',
+            textColor: '#f3f4f6',
+            arrowColor: '#111827',
+            overlayColor: 'rgba(0,0,0,0.65)',
+            zIndex: 9999,
+          },
+          tooltip: { borderRadius: '12px', fontSize: '14px' },
+          tooltipTitle: { fontSize: '15px', fontWeight: '700', color: '#ffffff' },
+          buttonNext: { backgroundColor: '#3b82f6', borderRadius: '8px', fontSize: '13px', fontWeight: '600' },
+          buttonBack: { color: '#9ca3af', fontSize: '13px' },
+          buttonSkip: { color: '#6b7280', fontSize: '12px' },
         }}
       />
       </div>
