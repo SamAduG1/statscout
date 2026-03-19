@@ -17,22 +17,21 @@ class DatabaseLoader:
         self.session = get_session(self.engine)
 
     def _ensure_session(self):
-        """Ensure session is valid, rollback if needed"""
+        """Ensure session is valid, rollback and recreate if needed"""
         try:
-            # Test if session is still valid
+            # Always rollback first to clear any pending failed transactions
+            self.session.rollback()
             self.session.execute(text("SELECT 1"))
         except Exception as e:
-            print(f"[WARNING] Session invalid, rolling back: {e}")
-            try:
-                self.session.rollback()
-            except:
-                pass
-            # Create new session if rollback fails
+            print(f"[WARNING] Session invalid, recreating: {e}")
             try:
                 self.session.close()
-                self.session = get_session(self.engine)
             except:
                 pass
+            try:
+                self.session = get_session(self.engine)
+            except Exception as e2:
+                print(f"[ERROR] Failed to recreate session: {e2}")
 
     def get_player_names(self) -> List[str]:
         """Get list of all unique player names"""
