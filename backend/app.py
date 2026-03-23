@@ -952,7 +952,7 @@ def get_mlb_players():
         return jsonify(data)
     except Exception as e:
         print(f"[MLB PLAYERS] Error: {e}")
-        return jsonify({"success": False, "error": str(e), "count": 0, "players": []}), 500
+        return jsonify({"success": False, "error": str(e), "count": 0, "players": []})
 
 
 @app.route('/api/health', methods=['GET'])
@@ -1950,6 +1950,15 @@ def generate_parlay():
             "traceback": traceback.format_exc()
         }), 500
 
+
+# Ensure all DB tables exist (safe - create_all is idempotent)
+try:
+    from models import get_engine, init_db
+    _db_engine = get_engine()
+    init_db(_db_engine)
+    print("[DB] Tables verified/created")
+except Exception as _db_err:
+    print(f"[DB] Could not verify tables: {_db_err}")
 
 # Start background cache builds after all routes are defined
 _build_players_cache_background()
