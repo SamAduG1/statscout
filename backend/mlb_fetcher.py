@@ -148,43 +148,42 @@ class MLBFetcher:
         if not totals or ou_line is None or len(totals) < 10:
             return None
 
-        score = weights = 0.0
+        score = 0.0
 
-        # Factor 1: Over hit rate (30%)
+        # Baseline: having 80+ games of data is already meaningful in baseball
+        # (162-game season means our samples are inherently large)
+        baseline = min(len(totals) / 160.0, 1.0) * 15
+        score += baseline
+
+        # Factor 1: Over hit rate (25%)
+        # Baseball lines are set near 50/50 — even 55% is a real edge.
+        # Use 5x multiplier so 55% deviation = 0.5 score (vs 2x in soccer)
         over_rate = sum(1 for t in totals if t > ou_line) / len(totals)
-        hit_score = abs(over_rate - 0.5) * 2
-        score += hit_score * 30
-        weights += 30
+        hit_score = min(abs(over_rate - 0.5) * 5, 1.0)
+        score += hit_score * 25
 
         # Factor 2: Expected vs line gap (25%)
+        # Baseball gaps are naturally smaller — 1.5 run gap = full score
         if expected is not None:
-            gap_score = min(abs(expected - ou_line) / 2.5, 1.0)
+            gap_score = min(abs(expected - ou_line) / 1.5, 1.0)
             score += gap_score * 25
-            weights += 25
 
         # Factor 3: Odds market lean (20%)
+        # Same 5x multiplier — bookmakers are efficient in MLB
         op = self._to_prob(over_odds)
         up = self._to_prob(under_odds)
         if op and up:
-            lean = abs(op - 0.5) * 2
+            lean = min(abs(op - 0.5) * 5, 1.0)
             score += lean * 20
-            weights += 20
 
-        # Factor 4: Consistency / low variance (15%)
+        # Factor 4: Consistency — baseball std of 3.5 runs is completely normal
+        # Use /8 so std=3.5 gives 0.56, std=2 gives 0.75, std=5+ gives 0.37
         if len(totals) >= 2:
             std = statistics.stdev(totals)
-            consistency = max(0.0, 1.0 - std / 5.0)
+            consistency = max(0.0, 1.0 - std / 8.0)
             score += consistency * 15
-            weights += 15
 
-        # Factor 5: Sample size (10%)
-        size_score = min(len(totals) / 81.0, 1.0)
-        score += size_score * 10
-        weights += 10
-
-        if weights == 0:
-            return None
-        return round(score / weights * 100)
+        return round(min(score, 100))
 
     def build_game_cards(self, upcoming_odds, team_stats):
         cards = []

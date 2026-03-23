@@ -1504,7 +1504,16 @@ const MLBGameCard = ({ game }) => {
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-0.5">O/U Line</div>
-            <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{ouLine}</div>
+            <input
+              type="number"
+              min={4} max={15} step={0.5}
+              value={ouLine}
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v) && v >= 4 && v <= 15) setOuLine(v);
+              }}
+              className="w-full text-xl font-bold tabular-nums text-center text-gray-900 dark:text-white bg-transparent border-b border-gray-700 focus:border-blue-500 focus:outline-none pb-0.5"
+            />
             {lineChanged && <div className="text-xs text-blue-400">adjusted</div>}
           </div>
           <div className="text-center">
