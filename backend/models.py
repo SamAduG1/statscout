@@ -195,6 +195,60 @@ class SoccerPlayerGame(Base):
         return f"<SoccerPlayerGame(player_id={self.player_id}, date='{self.match_date}', goals={self.goals})>"
 
 
+class MLBPlayer(Base):
+    """MLB player information"""
+    __tablename__ = 'mlb_players'
+
+    id           = Column(Integer, primary_key=True)  # MLB Stats API player ID
+    name         = Column(String, nullable=False)
+    team         = Column(String, nullable=False, index=True)
+    position     = Column(String, nullable=False)  # SP, RP, C, 1B, 2B, 3B, SS, LF, CF, RF, DH, OF
+    is_pitcher   = Column(Boolean, nullable=False)
+    last_updated = Column(Date, nullable=False)
+
+    games = relationship("MLBPlayerGame", back_populates="player", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<MLBPlayer(name='{self.name}', team='{self.team}', pos='{self.position}')>"
+
+
+class MLBPlayerGame(Base):
+    """MLB player per-game statistics"""
+    __tablename__ = 'mlb_player_games'
+
+    id        = Column(Integer, primary_key=True)
+    player_id = Column(Integer, ForeignKey('mlb_players.id'), nullable=False, index=True)
+    game_date = Column(Date, nullable=False, index=True)
+    opponent  = Column(String, nullable=False)
+    is_home   = Column(Boolean, nullable=False)
+    season    = Column(String, nullable=False)  # e.g. '2025'
+
+    # Hitting stats (null for pitchers)
+    hits         = Column(Integer, nullable=True)
+    home_runs    = Column(Integer, nullable=True)
+    rbi          = Column(Integer, nullable=True)
+    runs         = Column(Integer, nullable=True)
+    total_bases  = Column(Integer, nullable=True)
+    at_bats      = Column(Integer, nullable=True)
+    walks        = Column(Integer, nullable=True)
+
+    # Pitching stats (null for batters)
+    strikeouts      = Column(Integer, nullable=True)
+    innings_pitched = Column(Float,   nullable=True)
+    hits_allowed    = Column(Integer, nullable=True)
+    earned_runs     = Column(Integer, nullable=True)
+    outs_recorded   = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('player_id', 'game_date', name='uq_mlb_player_game'),
+    )
+
+    player = relationship("MLBPlayer", back_populates="games")
+
+    def __repr__(self):
+        return f"<MLBPlayerGame(player_id={self.player_id}, date='{self.game_date}')>"
+
+
 # Database connection and session management
 def get_engine(db_path=None):
     """

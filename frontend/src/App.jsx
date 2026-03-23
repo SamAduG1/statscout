@@ -1424,6 +1424,102 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
   );
 };
 
+const MLB_MARKETS = [
+  { key: 'hits',  label: 'Hits',        arr: 'hitsArr',       min: 0.5, max: 2.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
+  { key: 'tb',    label: 'Total Bases', arr: 'totalBasesArr', min: 0.5, max: 3.5,  step: 0.5, defaultLine: 1.5,  playerType: 'batter' },
+  { key: 'hr',    label: 'Home Runs',   arr: 'homeRunsArr',   min: 0.5, max: 1.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
+  { key: 'rbi',   label: 'RBI',         arr: 'rbiArr',        min: 0.5, max: 2.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
+  { key: 'runs',  label: 'Runs',        arr: 'runsArr',       min: 0.5, max: 1.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
+  { key: 'hrr',   label: 'H+R+RBI',    arr: 'hrrArr',        min: 0.5, max: 3.5,  step: 0.5, defaultLine: 1.5,  playerType: 'batter' },
+  { key: 'ks',    label: 'Strikeouts',  arr: 'strikeoutsArr', min: 2.5, max: 10.5, step: 0.5, defaultLine: 5.5,  playerType: 'pitcher' },
+  { key: 'outs',  label: 'Outs',        arr: 'outsArr',       min: 9.5, max: 21.5, step: 1,   defaultLine: 15.5, playerType: 'pitcher' },
+];
+
+const MLB_POS_BADGE = {
+  SP: 'bg-red-500/20 text-red-400', RP: 'bg-orange-500/20 text-orange-400',
+  C:  'bg-blue-500/20 text-blue-400',
+  '1B': 'bg-green-500/20 text-green-400', '2B': 'bg-green-500/20 text-green-400',
+  '3B': 'bg-green-500/20 text-green-400', SS: 'bg-purple-500/20 text-purple-400',
+  LF: 'bg-amber-500/20 text-amber-400', CF: 'bg-amber-500/20 text-amber-400',
+  RF: 'bg-amber-500/20 text-amber-400', OF: 'bg-amber-500/20 text-amber-400',
+  DH: 'bg-gray-500/20 text-gray-400',   P:  'bg-red-500/20 text-red-400',
+};
+
+const MLBPlayerCard = ({ player, market }) => {
+  const mdef = MLB_MARKETS.find(m => m.key === market) || MLB_MARKETS[0];
+  const [line, setLine] = React.useState(mdef.defaultLine);
+  React.useEffect(() => { setLine(mdef.defaultLine); }, [market]);
+
+  const arr = player[mdef.arr] || [];
+  const hitRate = arr.length ? Math.round(arr.filter(v => v > line).length / arr.length * 100) : null;
+  const avgVal = arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
+
+  const getRateColor = r => r == null ? 'text-gray-400' : r >= 70 ? 'text-green-500' : r >= 55 ? 'text-blue-500' : 'text-red-400';
+
+  const steps = [];
+  for (let v = mdef.min; v <= mdef.max + 0.01; v += mdef.step) steps.push(Math.round(v * 10) / 10);
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight">{player.name}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{player.team}</p>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${MLB_POS_BADGE[player.position] || 'bg-gray-500/20 text-gray-400'}`}>
+            {player.position}
+          </span>
+          <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+            {player.gamesPlayed}G
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-baseline gap-1.5">
+          <span className={`text-3xl font-bold tabular-nums ${getRateColor(hitRate)}`}>
+            {hitRate != null ? `${hitRate}%` : '--'}
+          </span>
+          <span className="text-xs text-gray-400">O {line}</span>
+        </div>
+        <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full mt-1.5 overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${hitRate >= 70 ? 'bg-green-500' : hitRate >= 55 ? 'bg-blue-500' : 'bg-red-400'}`}
+            style={{ width: `${hitRate ?? 0}%` }} />
+        </div>
+      </div>
+
+      {steps.length > 1 && (
+        <div>
+          <input type="range" min={mdef.min} max={mdef.max} step={mdef.step} value={line}
+            onChange={e => setLine(parseFloat(e.target.value))}
+            className="w-full accent-blue-500 h-1.5 cursor-pointer" />
+          <div className="flex justify-between mt-0.5">
+            {steps.map(s => (
+              <span key={s} className={`text-[9px] tabular-nums ${s === line ? 'text-blue-400 font-semibold' : 'text-gray-500'}`}>{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {arr.length > 0 && (
+        <div className="flex gap-0.5 items-end h-6">
+          {arr.map((v, i) => (
+            <div key={i} title={`${v}`}
+              className={`flex-1 rounded-sm ${v > line ? 'bg-green-500' : 'bg-red-400'}`}
+              style={{ height: `${Math.max(15, Math.min(100, (v / (mdef.max + 0.5)) * 100))}%` }} />
+          ))}
+        </div>
+      )}
+
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between mt-auto">
+        {avgVal && <span className="text-[10px] text-gray-400">Avg {avgVal} / game</span>}
+        <span className="text-[10px] text-gray-400 capitalize ml-auto">{player.teamSide} team</span>
+      </div>
+    </div>
+  );
+};
+
 const MLBGameCard = ({ game }) => {
   const [ouLine, setOuLine] = React.useState(game.ouLine || 8.5);
 
@@ -2754,6 +2850,7 @@ export default function StatScoutDashboard() {
   const currentView = currentSport === 'nba' ? (pathParts[1] === 'parlay' ? 'parlay' : 'props') : 'props';
   const soccerLeague = currentSport === 'soccer' ? (pathParts[1] || 'pl') : 'pl';
   const soccerView = currentSport === 'soccer' ? (pathParts[2] === 'players' ? 'playerProps' : 'matchTotals') : 'matchTotals';
+  const mlbView = currentSport === 'mlb' ? (pathParts[1] === 'players' ? 'playerProps' : 'gameTotals') : 'gameTotals';
 
   const [runTour, setRunTour] = useState(false);
   const [tourKey, setTourKey] = useState(0);
@@ -2767,6 +2864,10 @@ export default function StatScoutDashboard() {
   const [mlbData, setMlbData] = useState(null);
   const [mlbLoading, setMlbLoading] = useState(false);
   const [mlbError, setMlbError] = useState(null);
+  const [mlbPlayersData, setMlbPlayersData] = useState({}); // keyed by "home__away"
+  const [selectedMLBGame, setSelectedMLBGame] = useState(null);
+  const [mlbPropsMarket, setMlbPropsMarket] = useState('hits');
+  const [mlbPropsTeamFilter, setMlbPropsTeamFilter] = useState(null);
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
@@ -3173,6 +3274,26 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     fetchMlb();
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, [currentSport]);
+
+  // Fetch MLB player props when a game is selected
+  useEffect(() => {
+    if (currentSport !== 'mlb' || mlbView !== 'playerProps' || !selectedMLBGame) return;
+    const key = `${selectedMLBGame.homeTeam}__${selectedMLBGame.awayTeam}`;
+    if (mlbPlayersData[key]?.players || mlbPlayersData[key]?.loading) return;
+    setMlbPlayersData(prev => ({ ...prev, [key]: { loading: true, error: null } }));
+    fetch(`${API_BASE_URL}/mlb/players?home_team=${encodeURIComponent(selectedMLBGame.homeTeam)}&away_team=${encodeURIComponent(selectedMLBGame.awayTeam)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.count > 0) {
+          setMlbPlayersData(prev => ({ ...prev, [key]: { players: data.players, loading: false, error: null } }));
+        } else {
+          setMlbPlayersData(prev => ({ ...prev, [key]: { players: [], loading: false, error: 'No player data found. Run populate_mlb_players.py first.' } }));
+        }
+      })
+      .catch(() => {
+        setMlbPlayersData(prev => ({ ...prev, [key]: { players: [], loading: false, error: 'Failed to load player data.' } }));
+      });
+  }, [currentSport, mlbView, selectedMLBGame]);
 
   // Fetch soccer player props when a fixture is selected
   useEffect(() => {
@@ -4086,53 +4207,182 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
         {/* MLB Section */}
         {currentSport === 'mlb' && (
           <div>
-            <div className="flex items-center gap-2 mb-6">
+            {/* Header + sub-tabs */}
+            <div className="flex items-center gap-3 mb-6 flex-wrap">
               <div className="w-1 h-5 bg-blue-500 rounded-full" />
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                MLB: Game Totals
-              </h2>
-              {mlbData && <span className="text-sm text-gray-500">{mlbData.length} games</span>}
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">MLB</h2>
+              <div className="flex gap-1 ml-1">
+                {[['gameTotals', 'Game Totals'], ['playerProps', 'Player Props']].map(([key, label]) => (
+                  <button key={key}
+                    onClick={() => navigate(key === 'playerProps' ? '/mlb/players' : '/mlb/games')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      mlbView === key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >{label}</button>
+                ))}
+              </div>
+              {mlbView === 'gameTotals' && mlbData && (
+                <span className="text-sm text-gray-500 ml-auto">{mlbData.length} games</span>
+              )}
             </div>
 
-            {mlbLoading && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-4 animate-pulse">
-                    <div className="h-3 bg-gray-800 rounded w-1/3 mb-2" />
-                    <div className="h-5 bg-gray-800 rounded w-2/3 mb-4" />
-                    <div className="h-8 bg-gray-800 rounded mb-2" />
-                    <div className="h-4 bg-gray-800 rounded w-full mb-1" />
-                    <div className="h-4 bg-gray-800 rounded w-3/4" />
+            {/* Game Totals view */}
+            {mlbView === 'gameTotals' && (
+              <>
+                {mlbLoading && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-4 animate-pulse">
+                        <div className="h-3 bg-gray-800 rounded w-1/3 mb-2" />
+                        <div className="h-5 bg-gray-800 rounded w-2/3 mb-4" />
+                        <div className="h-8 bg-gray-800 rounded mb-2" />
+                        <div className="h-4 bg-gray-800 rounded w-full mb-1" />
+                        <div className="h-4 bg-gray-800 rounded w-3/4" />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+                {mlbError && (
+                  <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
+                    <div className="w-1 h-full bg-amber-500 rounded-full flex-shrink-0 self-stretch" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-400">No games available right now</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Odds are not yet posted for upcoming MLB games. Check back closer to game time.</p>
+                    </div>
+                  </div>
+                )}
+                {!mlbLoading && !mlbError && mlbData && mlbData.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {mlbData.map((game, idx) => (
+                      <MLBGameCard key={`${game.homeTeam}-${game.awayTeam}-${idx}`} game={game} />
+                    ))}
+                  </div>
+                )}
+                {!mlbLoading && !mlbError && mlbData && mlbData.length === 0 && (
+                  <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
+                    <div>
+                      <p className="text-sm font-semibold text-amber-400">No games posted yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">MLB odds typically post a few days before game time. Check back soon.</p>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
-            {mlbError && (
-              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
-                <div className="w-1 h-full bg-amber-500 rounded-full flex-shrink-0 self-stretch" />
-                <div>
-                  <p className="text-sm font-semibold text-amber-400">No games available right now</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Odds are not yet posted for upcoming MLB games. Check back closer to game time.</p>
-                </div>
-              </div>
-            )}
+            {/* Player Props view */}
+            {mlbView === 'playerProps' && (
+              <>
+                {/* Game selector */}
+                {mlbLoading && <p className="text-sm text-gray-400 mb-4">Loading games...</p>}
+                {!mlbLoading && mlbData && mlbData.length > 0 && (
+                  <div className="mb-5 flex items-center gap-3">
+                    <label className="text-xs text-gray-500 whitespace-nowrap">Game:</label>
+                    <select
+                      value={selectedMLBGame ? `${selectedMLBGame.homeTeam}__${selectedMLBGame.awayTeam}` : ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        if (!val) { setSelectedMLBGame(null); return; }
+                        const game = mlbData.find(g => `${g.homeTeam}__${g.awayTeam}` === val);
+                        if (game) { setSelectedMLBGame(game); setMlbPropsTeamFilter(null); }
+                      }}
+                      className="bg-gray-800 text-gray-200 border border-gray-700 rounded-lg px-3 py-2 text-sm flex-1 max-w-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">Select a game...</option>
+                      {mlbData.map(game => (
+                        <option key={`${game.homeTeam}__${game.awayTeam}`} value={`${game.homeTeam}__${game.awayTeam}`}>
+                          {game.awayTeam} @ {game.homeTeam}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {!mlbLoading && (!mlbData || mlbData.length === 0) && (
+                  <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
+                    <p className="text-gray-500 font-medium">No games loaded</p>
+                    <p className="text-sm text-gray-400">Switch to Game Totals to load upcoming games first.</p>
+                  </div>
+                )}
 
-            {!mlbLoading && !mlbError && mlbData && mlbData.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mlbData.map((game, idx) => (
-                  <MLBGameCard key={`${game.homeTeam}-${game.awayTeam}-${idx}`} game={game} />
-                ))}
-              </div>
-            )}
+                {selectedMLBGame && (() => {
+                  const key = `${selectedMLBGame.homeTeam}__${selectedMLBGame.awayTeam}`;
+                  const state = mlbPlayersData[key];
+                  const activeMdef = MLB_MARKETS.find(m => m.key === mlbPropsMarket) || MLB_MARKETS[0];
+                  return (
+                    <div>
+                      {/* Market + team filter tabs */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {MLB_MARKETS.map(m => (
+                          <button key={m.key} onClick={() => setMlbPropsMarket(m.key)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              mlbPropsMarket === m.key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                            }`}>{m.label}</button>
+                        ))}
+                        <div className="w-px h-5 bg-gray-700 self-center hidden sm:block" />
+                        {[
+                          [null, 'Both Teams'],
+                          ['home', selectedMLBGame.homeTeam],
+                          ['away', selectedMLBGame.awayTeam],
+                        ].map(([val, label]) => (
+                          <button key={String(val)} onClick={() => setMlbPropsTeamFilter(val)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              mlbPropsTeamFilter === val ? 'bg-gray-700 text-white' : 'bg-gray-800/50 text-gray-500 hover:text-gray-300'
+                            }`}>{label}</button>
+                        ))}
+                      </div>
 
-            {!mlbLoading && !mlbError && mlbData && mlbData.length === 0 && (
-              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
-                <div>
-                  <p className="text-sm font-semibold text-amber-400">No games posted yet</p>
-                  <p className="text-xs text-gray-400 mt-0.5">MLB odds typically post a few days before game time. Check back soon.</p>
-                </div>
-              </div>
+                      {/* Loading */}
+                      {(!state || state.loading) && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {Array.from({ length: 8 }).map((_, i) => (
+                            <div key={i} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-4 animate-pulse h-40">
+                              <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-3/4 mb-2" />
+                              <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-4" />
+                              <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/2 mb-2" />
+                              <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Error */}
+                      {state && !state.loading && state.error && (
+                        <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                          <p className="text-gray-500 font-medium">{state.error}</p>
+                        </div>
+                      )}
+
+                      {/* Player cards */}
+                      {state && !state.loading && state.players?.length > 0 && (() => {
+                        const isPitcherMarket = activeMdef.playerType === 'pitcher';
+                        const visible = state.players
+                          .filter(p => {
+                            if (mlbPropsTeamFilter && p.teamSide !== mlbPropsTeamFilter) return false;
+                            if (isPitcherMarket && !p.isPitcher) return false;
+                            if (!isPitcherMarket && p.isPitcher) return false;
+                            return (p[activeMdef.arr] || []).length >= 5;
+                          })
+                          .map(p => {
+                            const arr = p[activeMdef.arr] || [];
+                            const hr = arr.length ? Math.round(arr.filter(v => v > activeMdef.defaultLine).length / arr.length * 100) : -1;
+                            return { ...p, _sortRate: hr };
+                          })
+                          .sort((a, b) => b._sortRate - a._sortRate);
+                        return visible.length > 0 ? (
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {visible.map(p => (
+                              <MLBPlayerCard key={p.id} player={p} market={mlbPropsMarket} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                            <p className="text-gray-500 font-medium">No players match current filters</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
         )}

@@ -815,6 +815,146 @@ def get_soccer_players():
         return jsonify({"success": False, "error": str(e), "count": 0, "players": []}), 500
 
 
+MLB_PLAYERS_CACHE_DURATION = 12 * 60 * 60  # 12 hours
+
+
+def _compute_mlb_players(home_team_odds, away_team_odds):
+    """
+    Query DB for players on both teams and build props arrays.
+    home_team_odds / away_team_odds are Odds API team names (same as game cards).
+    """
+    from models import get_engine, get_session, MLBPlayer, MLBPlayerGame
+    from mlb_fetcher import ODDS_TO_MLB
+
+    home_mlb = ODDS_TO_MLB.get(home_team_odds, home_team_odds)
+    away_mlb = ODDS_TO_MLB.get(away_team_odds, away_team_odds)
+
+    engine = get_engine()
+    session = get_session(engine)
+
+    try:
+        players_out = []
+        for team_odds, team_mlb, side in [
+            (home_team_odds, home_mlb, "home"),
+            (away_team_odds, away_mlb, "away"),
+        ]:
+            players = session.query(MLBPlayer).filter(
+                MLBPlayer.team == team_mlb
+            ).all()
+            if not players:
+                # Case-insensitive fallback
+                players = session.query(MLBPlayer).filter(
+                    MLBPlayer.team.ilike(team_mlb)
+                ).all()
+
+            for p in players:
+                games = (
+                    session.query(MLBPlayerGame)
+                    .filter_by(player_id=p.id)
+                    .order_by(MLBPlayerGame.game_date.asc())
+                    .all()
+                )
+                if len(games) < 5:
+                    continue
+
+                recent = games[-20:]
+
+                if p.is_pitcher:
+                    ks = [g.strikeouts for g in recent if g.strikeouts is not None]
+                    outs = [g.outs_recorded for g in recent if g.outs_recorded is not None]
+                    if len(ks) < 5:
+                        continue
+                    player_dict = {
+                        "id":          p.id,
+                        "name":        p.name,
+                        "team":        team_odds,
+                        "teamSide":    side,
+                        "position":    p.position,
+                        "isPitcher":   True,
+                        "gamesPlayed": len(games),
+                        "strikeoutsArr": ks,
+                        "outsArr":       outs,
+                        "avgKs":         round(sum(ks) / len(ks), 1) if ks else None,
+                    }
+                else:
+                    hits  = [g.hits for g in recent if g.hits is not None]
+                    hrs   = [g.home_runs for g in recent if g.home_runs is not None]
+                    rbi   = [g.rbi for g in recent if g.rbi is not None]
+                    runs  = [g.runs for g in recent if g.runs is not None]
+                    tb    = [g.total_bases for g in recent if g.total_bases is not None]
+                    hrr   = [
+                        (g.hits or 0) + (g.runs or 0) + (g.rbi or 0)
+                        for g in recent
+                        if g.hits is not None and g.runs is not None and g.rbi is not None
+                    ]
+                    if len(hits) < 5:
+                        continue
+                    player_dict = {
+                        "id":          p.id,
+                        "name":        p.name,
+                        "team":        team_odds,
+                        "teamSide":    side,
+                        "position":    p.position,
+                        "isPitcher":   False,
+                        "gamesPlayed": len(games),
+                        "hitsArr":       hits,
+                        "homeRunsArr":   hrs,
+                        "rbiArr":        rbi,
+                        "runsArr":       runs,
+                        "totalBasesArr": tb,
+                        "hrrArr":        hrr,
+                        "avgHits":       round(sum(hits) / len(hits), 2) if hits else None,
+                        "avgTB":         round(sum(tb) / len(tb), 2) if tb else None,
+                    }
+
+                players_out.append(player_dict)
+
+        players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))
+        return {
+            "success":  True,
+            "homeTeam": home_team_odds,
+            "awayTeam": away_team_odds,
+            "count":    len(players_out),
+            "players":  players_out,
+        }
+    finally:
+        session.close()
+
+
+@app.route('/api/mlb/players', methods=['GET'])
+def get_mlb_players():
+    """
+    Get MLB player props for an upcoming game.
+    Query params: home_team=..., away_team=... (Odds API team names from /api/mlb/games)
+    """
+    home_team = request.args.get('home_team', '').strip()
+    away_team = request.args.get('away_team', '').strip()
+
+    if not home_team or not away_team:
+        return jsonify({"error": "home_team and away_team are required"}), 400
+
+    safe = lambda s: s.replace(' ', '_').replace('/', '-')
+    cache_key = f"/tmp/mlbp_{safe(home_team)}_{safe(away_team)}.json"
+
+    cached = _load_specific_cache(cache_key)
+    if cached:
+        ts = cached.get('ts')
+        if ts:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+            if age < MLB_PLAYERS_CACHE_DURATION and cached.get('count', 0) > 0:
+                return jsonify(cached)
+
+    try:
+        data = _compute_mlb_players(home_team, away_team)
+        data['ts'] = datetime.now().isoformat()
+        if data['count'] > 0:
+            _save_specific_cache(cache_key, data)
+        return jsonify(data)
+    except Exception as e:
+        print(f"[MLB PLAYERS] Error: {e}")
+        return jsonify({"success": False, "error": str(e), "count": 0, "players": []}), 500
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
