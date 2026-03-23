@@ -25,6 +25,17 @@ const SPORTS = [
     description: 'Match totals and player props across Premier League, La Liga, Bundesliga, Serie A, and Ligue 1.',
     stat: '5 leagues covered',
   },
+  {
+    key: 'mlb',
+    label: 'MLB',
+    path: '/mlb/games',
+    icon: BarChart2,
+    accent: 'from-red-600 to-red-500',
+    border: 'border-red-500/30',
+    glow: 'group-hover:shadow-red-500/20',
+    description: 'Game totals, run lines, and moneylines for every MLB game. Attack/defense blended expected runs.',
+    stat: '30 teams covered',
+  },
 ];
 
 const PILLARS = [
@@ -46,8 +57,8 @@ const PILLARS = [
 ];
 
 const TICKER_ITEMS = [
-  'NBA player props', 'Premier League match totals', 'La Liga player props',
-  'Bundesliga fixtures', 'Serie A match cards', 'Ligue 1 over/under',
+  'NBA player props', 'MLB game totals', 'Premier League match totals', 'La Liga player props',
+  'Bundesliga fixtures', 'Serie A match cards', 'Ligue 1 over/under', 'MLB run lines',
   'Parlay builder', 'Trust scores', 'Live line adjustment',
 ];
 
@@ -95,7 +106,7 @@ export default function LandingPage() {
 
         {/* Subline */}
         <p className="text-lg text-gray-400 max-w-xl mb-10 leading-relaxed">
-          StatScout scores every NBA player prop and soccer match using historical hit rates,
+          StatScout scores every NBA player prop, MLB game total, and soccer match using historical hit rates,
           form weighting, and market odds - so you know what the data actually says.
         </p>
 

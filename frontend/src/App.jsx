@@ -1424,6 +1424,168 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
   );
 };
 
+const MLBGameCard = ({ game }) => {
+  const [ouLine, setOuLine] = React.useState(game.ouLine || 8.5);
+
+  const getRateColor = (rate) => {
+    if (rate == null) return 'text-gray-400 dark:text-gray-500';
+    if (rate >= 70) return 'text-green-500';
+    if (rate >= 55) return 'text-blue-500';
+    return 'text-red-400';
+  };
+  const getTrustColor = (score) => {
+    if (score >= 80) return 'bg-green-500/10 text-green-500 border-green-500/30';
+    if (score >= 70) return 'bg-amber-500/10 text-amber-500 border-amber-500/30';
+    if (score >= 60) return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30';
+    return 'bg-red-500/10 text-red-400 border-red-400/30';
+  };
+  const fmtOdds = (o) => (o == null ? '-' : o > 0 ? `+${o}` : `${o}`);
+
+  const { localDate, localTime } = React.useMemo(() => {
+    if (!game.commenceTime) return { localDate: 'TBD', localTime: '' };
+    const d = new Date(game.commenceTime);
+    return {
+      localDate: d.toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      localTime: d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    };
+  }, [game.commenceTime]);
+
+  const runTotals = game.runTotals || [];
+  const adjustedOverRate = runTotals.length > 0
+    ? Math.round(runTotals.filter(t => t > ouLine).length / runTotals.length * 100)
+    : game.overRate;
+  const lineChanged = ouLine !== (game.ouLine || 8.5);
+
+  // Implied win probabilities from moneyline
+  const toProb = (odds) => {
+    if (odds == null) return null;
+    return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100);
+  };
+  const hp = toProb(game.homeMoneyline);
+  const ap = toProb(game.awayMoneyline);
+  const homeWinPct = hp && ap ? Math.round(hp / (hp + ap) * 100) : game.homeWinProb;
+  const awayWinPct = hp && ap ? Math.round(ap / (hp + ap) * 100) : game.awayWinProb;
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden border-l-[3px] border-l-blue-500">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{localDate} - {localTime}</div>
+            <div className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+              {game.awayTeam} <span className="text-gray-400 font-normal">@</span> {game.homeTeam}
+            </div>
+          </div>
+          {game.trustScore != null && (
+            <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${getTrustColor(game.trustScore)}`}>
+              {game.trustScore} Trust
+            </span>
+          )}
+        </div>
+
+        {/* Win probability bar */}
+        {homeWinPct != null && awayWinPct != null && (
+          <div className="mt-2">
+            <div className="flex rounded-full overflow-hidden h-2">
+              <div style={{ width: `${awayWinPct}%` }} className="bg-purple-500" />
+              <div style={{ width: `${homeWinPct}%` }} className="bg-blue-500" />
+            </div>
+            <div className="flex justify-between text-xs text-gray-500 mt-0.5">
+              <span className="text-purple-400">{game.awayTeam.split(' ').slice(-1)[0]} {awayWinPct}%</span>
+              <span className="text-blue-400">{homeWinPct}% {game.homeTeam.split(' ').slice(-1)[0]}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* O/U section */}
+      <div className="px-4 pb-3 border-t border-gray-800 pt-3">
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="text-center">
+            <div className="text-xs text-gray-500 mb-0.5">O/U Line</div>
+            <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{ouLine}</div>
+            {lineChanged && <div className="text-xs text-blue-400">adjusted</div>}
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-gray-500 mb-0.5">Over Rate</div>
+            <div className={`text-xl font-bold tabular-nums ${getRateColor(adjustedOverRate)}`}>
+              {adjustedOverRate != null ? `${adjustedOverRate}%` : '-'}
+            </div>
+            <div className="text-xs text-gray-500">{runTotals.length}g sample</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-gray-500 mb-0.5">Expected</div>
+            <div className={`text-xl font-bold tabular-nums ${game.expectedTotal != null ? (game.expectedTotal > ouLine ? 'text-green-500' : 'text-red-400') : 'text-gray-400'}`}>
+              {game.expectedTotal ?? '-'}
+            </div>
+          </div>
+        </div>
+
+        {/* Slider */}
+        <input
+          type="range"
+          min={4} max={15} step={0.5}
+          value={ouLine}
+          onChange={e => setOuLine(parseFloat(e.target.value))}
+          className="w-full accent-blue-500 h-1.5"
+        />
+        <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+          <span>4</span><span>O/U</span><span>15</span>
+        </div>
+      </div>
+
+      {/* Moneyline + Run line */}
+      <div className="px-4 pb-4 border-t border-gray-800 pt-3 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-xs text-gray-500 mb-1">Moneyline</div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400">{game.awayTeam.split(' ').slice(-1)[0]}</span>
+            <span className={`font-semibold tabular-nums ${game.awayMoneyline > 0 ? 'text-green-400' : 'text-gray-300'}`}>{fmtOdds(game.awayMoneyline)}</span>
+          </div>
+          <div className="flex justify-between text-sm mt-0.5">
+            <span className="text-gray-400">{game.homeTeam.split(' ').slice(-1)[0]}</span>
+            <span className={`font-semibold tabular-nums ${game.homeMoneyline > 0 ? 'text-green-400' : 'text-gray-300'}`}>{fmtOdds(game.homeMoneyline)}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 mb-1">Run Line</div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400">{game.awayTeam.split(' ').slice(-1)[0]} {game.runLine != null ? (game.runLine > 0 ? `+${game.runLine}` : game.runLine) : ''}</span>
+            <span className="font-semibold tabular-nums text-gray-300">{fmtOdds(game.runLineOddsAway)}</span>
+          </div>
+          <div className="flex justify-between text-sm mt-0.5">
+            <span className="text-gray-400">{game.homeTeam.split(' ').slice(-1)[0]} {game.runLine != null ? (game.runLine < 0 ? game.runLine : `+${game.runLine}`) : ''}</span>
+            <span className="font-semibold tabular-nums text-gray-300">{fmtOdds(game.runLineOddsHome)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Avg runs breakdown */}
+      <div className="px-4 pb-4 border-t border-gray-800 pt-3">
+        <div className="flex flex-col gap-1 text-xs">
+          <div className="flex justify-between text-gray-500">
+            <span>{game.awayTeam.split(' ').slice(-1)[0]} avg runs (away)</span>
+            <span className="tabular-nums text-gray-300">{game.awayAvgRuns ?? '-'}</span>
+          </div>
+          <div className="flex justify-between text-gray-500">
+            <span>{game.homeTeam.split(' ').slice(-1)[0]} avg runs (home)</span>
+            <span className="tabular-nums text-gray-300">{game.homeAvgRuns ?? '-'}</span>
+          </div>
+          <div className="flex justify-between text-gray-500">
+            <span>{game.awayTeam.split(' ').slice(-1)[0]} avg allowed (away)</span>
+            <span className="tabular-nums text-gray-300">{game.awayAvgAllowed ?? '-'}</span>
+          </div>
+          <div className="flex justify-between text-gray-500">
+            <span>{game.homeTeam.split(' ').slice(-1)[0]} avg allowed (home)</span>
+            <span className="tabular-nums text-gray-300">{game.homeAvgAllowed ?? '-'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SoccerMatchCard = ({ match, onAddToParlay }) => {
   const [customLine, setCustomLine] = React.useState(match.overUnderLine || 2.5);
   const [teamPropsOpen, setTeamPropsOpen] = React.useState(false);
@@ -2579,7 +2741,7 @@ export default function StatScoutDashboard() {
 
   // Derive all navigation state from the URL
   const pathParts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
-  const currentSport = pathParts[0] === 'soccer' ? 'soccer' : 'nba';
+  const currentSport = pathParts[0] === 'soccer' ? 'soccer' : pathParts[0] === 'mlb' ? 'mlb' : 'nba';
   const currentView = currentSport === 'nba' ? (pathParts[1] === 'parlay' ? 'parlay' : 'props') : 'props';
   const soccerLeague = currentSport === 'soccer' ? (pathParts[1] || 'pl') : 'pl';
   const soccerView = currentSport === 'soccer' ? (pathParts[2] === 'players' ? 'playerProps' : 'matchTotals') : 'matchTotals';
@@ -2593,6 +2755,9 @@ export default function StatScoutDashboard() {
   );
 
   const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
+  const [mlbData, setMlbData] = useState(null);
+  const [mlbLoading, setMlbLoading] = useState(false);
+  const [mlbError, setMlbError] = useState(null);
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
@@ -2971,6 +3136,35 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, [currentSport, soccerLeague]);
 
+  // Fetch MLB data lazily when MLB tab is first visited
+  useEffect(() => {
+    if (currentSport !== 'mlb') return;
+    if (mlbData !== null) { setMlbLoading(false); return; }
+    setMlbLoading(true);
+    setMlbError(null);
+    let retryTimeout = null;
+    const fetchMlb = async (attempt = 1) => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/mlb/games`);
+        const data = await res.json();
+        if (data.success && data.games && data.games.length > 0) {
+          setMlbData(data.games);
+          setMlbLoading(false);
+        } else if (attempt < 12) {
+          retryTimeout = setTimeout(() => fetchMlb(attempt + 1), 5000);
+        } else {
+          setMlbError('No upcoming games found.');
+          setMlbLoading(false);
+        }
+      } catch {
+        setMlbError('Failed to load MLB data.');
+        setMlbLoading(false);
+      }
+    };
+    fetchMlb();
+    return () => { if (retryTimeout) clearTimeout(retryTimeout); };
+  }, [currentSport]);
+
   // Fetch soccer player props when a fixture is selected
   useEffect(() => {
     if (currentSport !== 'soccer' || soccerView !== 'playerProps' || !selectedSoccerFixture) return;
@@ -3131,17 +3325,17 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
             {/* Sport Tabs */}
             <div id="tour-sport-tabs" className="flex gap-1 mb-2">
-              {['nba', 'soccer'].map(sport => (
+              {[['nba', 'NBA'], ['soccer', 'Soccer'], ['mlb', 'MLB']].map(([sport, label]) => (
                 <button
                   key={sport}
-                  onClick={() => navigate(sport === 'soccer' ? '/soccer/pl/matches' : '/nba/props')}
+                  onClick={() => navigate(sport === 'soccer' ? '/soccer/pl/matches' : sport === 'mlb' ? '/mlb/games' : '/nba/props')}
                   className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                     currentSport === sport
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
                 >
-                  {sport === 'nba' ? 'NBA' : 'Soccer'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -3879,6 +4073,60 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             </div>
           )}
         </div>
+
+        {/* MLB Section */}
+        {currentSport === 'mlb' && (
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-1 h-5 bg-blue-500 rounded-full" />
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                MLB: Game Totals
+              </h2>
+              {mlbData && <span className="text-sm text-gray-500">{mlbData.length} games</span>}
+            </div>
+
+            {mlbLoading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-4 animate-pulse">
+                    <div className="h-3 bg-gray-800 rounded w-1/3 mb-2" />
+                    <div className="h-5 bg-gray-800 rounded w-2/3 mb-4" />
+                    <div className="h-8 bg-gray-800 rounded mb-2" />
+                    <div className="h-4 bg-gray-800 rounded w-full mb-1" />
+                    <div className="h-4 bg-gray-800 rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {mlbError && (
+              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
+                <div className="w-1 h-full bg-amber-500 rounded-full flex-shrink-0 self-stretch" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-400">No games available right now</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Odds are not yet posted for upcoming MLB games. Check back closer to game time.</p>
+                </div>
+              </div>
+            )}
+
+            {!mlbLoading && !mlbError && mlbData && mlbData.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {mlbData.map((game, idx) => (
+                  <MLBGameCard key={`${game.homeTeam}-${game.awayTeam}-${idx}`} game={game} />
+                ))}
+              </div>
+            )}
+
+            {!mlbLoading && !mlbError && mlbData && mlbData.length === 0 && (
+              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-5 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-amber-400">No games posted yet</p>
+                  <p className="text-xs text-gray-400 mt-0.5">MLB odds typically post a few days before game time. Check back soon.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Custom Parlay Builder Sidebar — visible regardless of sport */}
         {(currentSport === 'nba' || customParlayLegs.length > 0) && (

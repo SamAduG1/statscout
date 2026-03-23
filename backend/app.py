@@ -14,6 +14,7 @@ from team_quarter_analytics import TeamQuarterAnalytics
 from espn_injury_tracker import ESPNInjuryTracker
 from parlay_builder import ParlayBuilder
 from soccer_fetcher import SoccerFetcher
+from mlb_fetcher import mlb_fetcher_instance
 from datetime import datetime, timedelta
 import random
 import json
@@ -96,6 +97,12 @@ players_cache = {
     "building": False
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
+
+# MLB match cache
+MLB_CACHE_FILE = "/tmp/statscout_mlb_cache.json"
+MLB_CACHE_DURATION = 24 * 60 * 60  # 24 hours (conserves Odds API quota)
+_mlb_cache_disk = _load_specific_cache(MLB_CACHE_FILE)
+mlb_cache = {"data": _mlb_cache_disk, "last_updated": datetime.now() if _mlb_cache_disk else None, "building": False}
 
 # Soccer match cache - one entry per league
 SOCCER_CACHE_DURATION = 24 * 60 * 60  # 24 hours (conserves Odds API quota)
@@ -817,7 +824,50 @@ def health_check():
         "players_loaded": players_cache["data"]["count"] if players_cache["data"] else 0,
         **{f"soccer_{lg}_loaded": soccer_caches[lg]["data"]["count"] if soccer_caches[lg]["data"] else 0
            for lg in soccer_caches},
+        "mlb_loaded": mlb_cache["data"]["count"] if mlb_cache["data"] else 0,
     })
+
+
+def _build_mlb_cache_background():
+    """Build MLB game card cache in a background thread."""
+    import threading, time as _time
+    def _run():
+        mlb_cache["building"] = True
+        for attempt in range(1, 4):
+            try:
+                cards = mlb_fetcher_instance.fetch_all()
+                data = {"success": True, "count": len(cards), "games": cards}
+                mlb_cache["data"] = data
+                mlb_cache["last_updated"] = datetime.now()
+                _save_specific_cache(MLB_CACHE_FILE, data)
+                print(f"[MLB] Cache built ({len(cards)} games)")
+                break
+            except Exception as e:
+                print(f"[MLB] Build attempt {attempt} failed: {e}")
+                if attempt < 3:
+                    _time.sleep(15)
+        mlb_cache["building"] = False
+    threading.Thread(target=_run, daemon=True).start()
+
+
+@app.route('/api/mlb/games', methods=['GET'])
+def get_mlb_games():
+    """Get upcoming MLB games with run totals, moneylines, run lines, and historical over rates."""
+    now = datetime.now()
+    if mlb_cache["data"] is not None and mlb_cache["last_updated"] and mlb_cache["data"].get("count", 0) > 0:
+        age = (now - mlb_cache["last_updated"]).total_seconds()
+        if age < MLB_CACHE_DURATION:
+            print(f"[MLB] Serving from cache (age: {age:.0f}s)")
+            return jsonify(mlb_cache["data"])
+    disk = _load_specific_cache(MLB_CACHE_FILE)
+    if disk and disk.get("count", 0) > 0:
+        mlb_cache["data"] = disk
+        mlb_cache["last_updated"] = datetime.now()
+        print(f"[MLB] Loaded from disk ({disk['count']} games)")
+        return jsonify(disk)
+    if not mlb_cache["building"]:
+        _build_mlb_cache_background()
+    return jsonify({"success": True, "count": 0, "games": []})
 
 
 @app.route('/api/soccer/matches', methods=['GET'])
@@ -1763,7 +1813,8 @@ def generate_parlay():
 
 # Start background cache builds after all routes are defined
 _build_players_cache_background()
-_build_soccer_cache_background('pl')  # La Liga loads lazily on first request
+_build_soccer_cache_background('pl')  # Other soccer leagues load lazily on first request
+_build_mlb_cache_background()
 
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")
