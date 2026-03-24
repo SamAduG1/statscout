@@ -1295,7 +1295,180 @@ const hitRateToOdds = (hitRate) => {
   return Math.round(100 * ((1 - p) / p));
 };
 
-const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
+const SoccerPlayerDetailModal = ({ player, onClose }) => {
+  if (!player) return null;
+  const fmt = d => { const dt = new Date(d + 'T12:00:00'); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+
+  const GoalTrend = ({ arr }) => {
+    if (!arr || !arr.length) return null;
+    const max = Math.max(...arr, 1);
+    return (
+      <div className="flex gap-0.5 items-end h-12 bg-gray-50 dark:bg-gray-900 rounded-lg p-1.5">
+        {arr.map((v, i) => (
+          <div key={i} title={`${v} goals`} className="flex-1 rounded-sm bg-blue-500 opacity-80 hover:opacity-100 transition-opacity"
+            style={{ height: `${Math.max(8, (v / max) * 100)}%` }} />
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 p-5 rounded-t-xl z-10">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-[3px] h-6 bg-blue-500 rounded-full flex-shrink-0" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{player.name}</h2>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${POS_BADGE[player.position] || 'bg-gray-500/20 text-gray-400'}`}>{player.position}</span>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-3">{player.team} - vs {player.opponent} tonight</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          {/* Quick stats */}
+          <div className="grid grid-cols-4 gap-2 mt-4">
+            {[
+              ['Goals/G', player.goalsArr && player.goalsArr.length ? (player.goalsArr.reduce((a,b)=>a+b,0)/player.goalsArr.length).toFixed(2) : '--'],
+              ['Shots/G', player.shotsArr && player.shotsArr.length ? (player.shotsArr.reduce((a,b)=>a+b,0)/player.shotsArr.length).toFixed(1) : '--'],
+              ['Ast/G',   player.assistsArr && player.assistsArr.length ? (player.assistsArr.reduce((a,b)=>a+b,0)/player.assistsArr.length).toFixed(2) : '--'],
+              ['Min/G',   player.avgMinutes],
+            ].map(([label, val]) => (
+              <div key={label} className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">{label}</div>
+                <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 space-y-6">
+          {/* Goal trend */}
+          {player.goalsArr && player.goalsArr.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                Goal Trend (last 15 matches)
+              </h3>
+              <GoalTrend arr={player.goalsArr} />
+            </div>
+          )}
+
+          {/* Home / Away splits */}
+          {(player.homeSplit || player.awaySplit) && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                Home / Away Splits
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[['Home', player.homeSplit], ['Away', player.awaySplit]].map(([label, split]) => (
+                  <div key={label} className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-3">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{label} ({split?.games ?? 0}G)</div>
+                    {split ? (
+                      <div className="grid grid-cols-3 gap-x-3 gap-y-1">
+                        {[['Goals', split.goals], ['Shots', split.shots], ['Assists', split.assists]].map(([k, v]) => (
+                          <div key={k} className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400">{k}</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{v ?? '--'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-gray-400">No data</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* H2H vs tonight's opponent */}
+          {player.h2hGames && player.h2hGames.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-amber-500 rounded-full flex-shrink-0" />
+                vs {player.opponent} - Past Matchups
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-1.5 pr-2 text-gray-500 font-medium">Date</th>
+                      <th className="text-left py-1.5 pr-2 text-gray-500 font-medium">H/A</th>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">Goals</th>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">Shots</th>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">Ast</th>
+                      <th className="text-right py-1.5 text-gray-500 font-medium">Min</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {player.h2hGames.map((g, i) => (
+                      <tr key={i} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
+                        <td className="py-1.5 pr-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmt(g.date)}</td>
+                        <td className="py-1.5 pr-2"><span className={`text-[10px] font-semibold px-1 rounded ${g.venue === 'home' ? 'bg-blue-500/15 text-blue-400' : 'bg-gray-500/15 text-gray-400'}`}>{g.venue === 'home' ? 'H' : 'A'}</span></td>
+                        <td className="py-1.5 pr-2 text-right font-semibold text-gray-900 dark:text-white tabular-nums">{g.goals ?? '--'}</td>
+                        <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.shots ?? '--'}</td>
+                        <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.assists ?? '--'}</td>
+                        <td className="py-1.5 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.minutesPlayed ?? '--'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {player.h2hGames && player.h2hGames.length === 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 italic">No recorded matchups vs {player.opponent} this season.</p>
+          )}
+
+          {/* Game log */}
+          {player.gameLog && player.gameLog.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                Recent Game Log
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-1.5 pr-2 text-gray-500 font-medium">Date</th>
+                      <th className="text-left py-1.5 pr-2 text-gray-500 font-medium">Opponent</th>
+                      <th className="text-left py-1.5 pr-2 text-gray-500 font-medium">H/A</th>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">Goals</th>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">Shots</th>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">Ast</th>
+                      <th className="text-right py-1.5 text-gray-500 font-medium">Min</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {player.gameLog.map((g, i) => (
+                      <tr key={i} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
+                        <td className="py-1.5 pr-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmt(g.date)}</td>
+                        <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-400 max-w-[90px] truncate">{g.opponent}</td>
+                        <td className="py-1.5 pr-2"><span className={`text-[10px] font-semibold px-1 rounded ${g.venue === 'home' ? 'bg-blue-500/15 text-blue-400' : 'bg-gray-500/15 text-gray-400'}`}>{g.venue === 'home' ? 'H' : 'A'}</span></td>
+                        <td className="py-1.5 pr-2 text-right font-semibold text-gray-900 dark:text-white tabular-nums">{g.goals ?? '--'}</td>
+                        <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.shots ?? '--'}</td>
+                        <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.assists ?? '--'}</td>
+                        <td className="py-1.5 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.minutesPlayed ?? '--'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
   const mdef = SOCCER_MARKETS.find(m => m.key === market) || SOCCER_MARKETS[0];
   // For GK market, use gcArr and invert (clean sheet = conceded < line)
   const isGkMarket = market === 'gk';
@@ -1324,7 +1497,8 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
   const gcAvg = isGkMarket && arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3">
+    <div className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3 ${onClick ? 'cursor-pointer hover:border-gray-300 dark:hover:border-gray-700 transition-colors' : ''}`}
+      onClick={onClick ? (e) => { if (e.target.type !== 'range') onClick(); } : undefined}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -1424,6 +1598,208 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay }) => {
   );
 };
 
+const MLBPlayerDetailModal = ({ player, onClose }) => {
+  if (!player) return null;
+  const fmt = d => { const dt = new Date(d + 'T12:00:00'); return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+  const isPitcher = player.isPitcher;
+
+  const GameTable = ({ rows, isPitcher }) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-200 dark:border-gray-700">
+            <th className="text-left py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">Date</th>
+            <th className="text-left py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">Opp</th>
+            <th className="text-left py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">H/A</th>
+            {isPitcher ? (
+              <>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">K</th>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">IP</th>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">ER</th>
+                <th className="text-right py-1.5 text-gray-500 dark:text-gray-400 font-medium">H</th>
+              </>
+            ) : (
+              <>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">H</th>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">HR</th>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">RBI</th>
+                <th className="text-right py-1.5 pr-2 text-gray-500 dark:text-gray-400 font-medium">TB</th>
+                <th className="text-right py-1.5 text-gray-500 dark:text-gray-400 font-medium">AB</th>
+              </>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((g, i) => (
+            <tr key={i} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
+              <td className="py-1.5 pr-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmt(g.date)}</td>
+              <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-400 max-w-[80px] truncate">{(g.opponent || '').replace(/^(vs\s?|@\s?)/i,'').split(' ').slice(-1)[0]}</td>
+              <td className="py-1.5 pr-2"><span className={`text-[10px] font-semibold px-1 rounded ${g.isHome ? 'bg-blue-500/15 text-blue-400' : 'bg-gray-500/15 text-gray-400'}`}>{g.isHome ? 'H' : 'A'}</span></td>
+              {isPitcher ? (
+                <>
+                  <td className="py-1.5 pr-2 text-right font-semibold text-gray-900 dark:text-white tabular-nums">{g.strikeouts ?? '--'}</td>
+                  <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.inningsPitched ?? '--'}</td>
+                  <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.earnedRuns ?? '--'}</td>
+                  <td className="py-1.5 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.hitsAllowed ?? '--'}</td>
+                </>
+              ) : (
+                <>
+                  <td className="py-1.5 pr-2 text-right font-semibold text-gray-900 dark:text-white tabular-nums">{g.hits ?? '--'}</td>
+                  <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.homeRuns ?? '--'}</td>
+                  <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.rbi ?? '--'}</td>
+                  <td className="py-1.5 pr-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.totalBases ?? '--'}</td>
+                  <td className="py-1.5 text-right text-gray-700 dark:text-gray-300 tabular-nums">{g.atBats ?? '--'}</td>
+                </>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const trendArr = isPitcher ? (player.strikeoutsArr || []) : (player.hitsArr || []);
+  const trendMax = Math.max(...trendArr, 1);
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 p-5 rounded-t-xl z-10">
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-[3px] h-6 bg-blue-500 rounded-full flex-shrink-0" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{player.name}</h2>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${MLB_POS_BADGE[player.position] || 'bg-gray-500/20 text-gray-400'}`}>{player.position}</span>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-3">{player.team} - vs {player.opponent} tonight</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          {/* Quick stats */}
+          <div className="grid grid-cols-4 gap-2 mt-4">
+            {isPitcher ? (
+              <>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Avg K</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.avgKs ?? '--'}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Home K</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.homeAvgKs ?? '--'}</div>
+                  <div className="text-[10px] text-gray-400">{player.homeGames}G</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Away K</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.awayAvgKs ?? '--'}</div>
+                  <div className="text-[10px] text-gray-400">{player.awayGames}G</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Starts</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.gamesPlayed}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Avg H</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.avgHits ?? '--'}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Avg TB</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.avgTB ?? '--'}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Home G</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.homeGames ?? '--'}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-2.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Total G</div>
+                  <div className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">{player.gamesPlayed}</div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="p-5 space-y-6">
+          {/* Trend chart */}
+          {trendArr.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                {isPitcher ? 'Strikeout Trend (last 20 starts)' : 'Hits Trend (last 20 games)'}
+              </h3>
+              <div className="flex gap-0.5 items-end h-16 bg-gray-50 dark:bg-gray-900 rounded-lg p-2">
+                {trendArr.map((v, i) => (
+                  <div key={i} title={`${v}`} className="flex-1 rounded-sm bg-blue-500 opacity-80 hover:opacity-100 transition-opacity"
+                    style={{ height: `${Math.max(8, (v / trendMax) * 100)}%` }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Home/Away splits (batters only) */}
+          {!isPitcher && (player.homeSplit || player.awaySplit) && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                Home / Away Splits
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[['Home', player.homeSplit], ['Away', player.awaySplit]].map(([label, split]) => (
+                  <div key={label} className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg p-3">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{label} ({split?.games ?? 0}G)</div>
+                    {split ? (
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        {[['Hits', split.hits], ['HR', split.homeRuns], ['RBI', split.rbi], ['TB', split.totalBases]].map(([k, v]) => (
+                          <div key={k} className="flex items-center justify-between">
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400">{k}</span>
+                            <span className="text-[11px] font-semibold text-gray-900 dark:text-white tabular-nums">{v ?? '--'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-gray-400">No data</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* H2H vs tonight */}
+          {player.h2hGames && player.h2hGames.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-amber-500 rounded-full flex-shrink-0" />
+                vs {player.opponent} - Past Matchups
+              </h3>
+              <GameTable rows={player.h2hGames} isPitcher={isPitcher} />
+            </div>
+          )}
+          {player.h2hGames && player.h2hGames.length === 0 && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 italic">No recorded matchups vs {player.opponent} this season.</p>
+          )}
+
+          {/* Full game log */}
+          {player.gameLog && player.gameLog.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-0.5 h-4 bg-blue-500 rounded-full flex-shrink-0" />
+                Recent Game Log
+              </h3>
+              <GameTable rows={player.gameLog} isPitcher={isPitcher} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MLB_MARKETS = [
   { key: 'hits',  label: 'Hits',        arr: 'hitsArr',       min: 0.5, max: 2.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
   { key: 'tb',    label: 'Total Bases', arr: 'totalBasesArr', min: 0.5, max: 3.5,  step: 0.5, defaultLine: 1.5,  playerType: 'batter' },
@@ -1445,7 +1821,7 @@ const MLB_POS_BADGE = {
   DH: 'bg-gray-500/20 text-gray-400',   P:  'bg-red-500/20 text-red-400',
 };
 
-const MLBPlayerCard = ({ player, market }) => {
+const MLBPlayerCard = ({ player, market, onClick }) => {
   const mdef = MLB_MARKETS.find(m => m.key === market) || MLB_MARKETS[0];
   const [line, setLine] = React.useState(mdef.defaultLine);
   React.useEffect(() => { setLine(mdef.defaultLine); }, [market]);
@@ -1460,7 +1836,8 @@ const MLBPlayerCard = ({ player, market }) => {
   for (let v = mdef.min; v <= mdef.max + 0.01; v += mdef.step) steps.push(Math.round(v * 10) / 10);
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3">
+    <div className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3 ${onClick ? 'cursor-pointer hover:border-gray-300 dark:hover:border-gray-700 transition-colors' : ''}`}
+      onClick={onClick ? (e) => { if (e.target.type !== 'range') onClick(); } : undefined}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight">{player.name}</p>
@@ -2890,6 +3267,8 @@ export default function StatScoutDashboard() {
   const [soccerPlayersData, setSoccerPlayersData] = useState({}); // keyed by "home_away"
   const [soccerPropsMarket, setSoccerPropsMarket] = useState('goals');
   const [soccerPropsTeamFilter, setSoccerPropsTeamFilter] = useState(null); // null | 'home' | 'away'
+  const [selectedMlbPlayer, setSelectedMlbPlayer] = useState(null);
+  const [selectedSoccerPlayer, setSelectedSoccerPlayer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [selectedTeams, setSelectedTeams] = useState([]); // Multi-select teams
@@ -4205,7 +4584,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                           return visible.length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                               {visible.map(p => (
-                                <SoccerPlayerCard key={p.id} player={p} market={soccerPropsMarket} onAddToParlay={addSoccerLeg} />
+                                <SoccerPlayerCard key={p.id} player={p} market={soccerPropsMarket} onAddToParlay={addSoccerLeg} onClick={() => setSelectedSoccerPlayer(p)} />
                               ))}
                             </div>
                           ) : (
@@ -4423,7 +4802,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                         return visible.length > 0 ? (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {visible.map(p => (
-                              <MLBPlayerCard key={p.id} player={p} market={mlbPropsMarket} />
+                              <MLBPlayerCard key={p.id} player={p} market={mlbPropsMarket} onClick={() => setSelectedMlbPlayer(p)} />
                             ))}
                           </div>
                         ) : (
@@ -4683,6 +5062,22 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             )}
           </>
         )}
+
+      {/* MLB Player Detail Modal */}
+      {selectedMlbPlayer && (
+        <MLBPlayerDetailModal
+          player={selectedMlbPlayer}
+          onClose={() => setSelectedMlbPlayer(null)}
+        />
+      )}
+
+      {/* Soccer Player Detail Modal */}
+      {selectedSoccerPlayer && (
+        <SoccerPlayerDetailModal
+          player={selectedSoccerPlayer}
+          onClose={() => setSelectedSoccerPlayer(null)}
+        />
+      )}
 
       {/* Guided Tour */}
       <Joyride

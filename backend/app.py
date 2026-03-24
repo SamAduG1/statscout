@@ -691,12 +691,29 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
             return None
         return round(sum(1 for v in values if v > line) / len(values) * 100)
 
+    def safe_avg(arr):
+        return round(sum(arr) / len(arr), 2) if arr else None
+
+    def venue_split(gs, venue_val):
+        gs_v = [g for g in gs if g.venue == venue_val]
+        if not gs_v:
+            return None
+        return {
+            "goals":   safe_avg([g.goals for g in gs_v]),
+            "shots":   safe_avg([g.shots for g in gs_v]),
+            "assists": safe_avg([g.assists for g in gs_v]),
+            "games":   len(gs_v),
+        }
+
     try:
         players_out = []
         for team_odds, team_us, side in [
             (home_team_odds, home_us, "home"),
             (away_team_odds, away_us, "away"),
         ]:
+            opp_us   = away_us   if side == "home" else home_us
+            opp_odds = away_team_odds if side == "home" else home_team_odds
+
             # Try exact match, then case-insensitive fallback
             players = session.query(SoccerPlayer).filter(
                 SoccerPlayer.league == league,
@@ -725,6 +742,34 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                 ga      = [g.goals + g.assists for g in active]
                 mins    = [g.minutes_played for g in active]
 
+                # H2H: games against tonight's opponent
+                h2h = [g for g in active if opp_us.lower() in (g.opponent or "").lower()]
+
+                game_log = [
+                    {
+                        "date":          g.match_date.isoformat(),
+                        "opponent":      g.opponent,
+                        "venue":         g.venue,
+                        "goals":         g.goals,
+                        "shots":         g.shots,
+                        "assists":       g.assists,
+                        "minutesPlayed": g.minutes_played,
+                    }
+                    for g in active[-15:]
+                ]
+                h2h_log = [
+                    {
+                        "date":          g.match_date.isoformat(),
+                        "opponent":      g.opponent,
+                        "venue":         g.venue,
+                        "goals":         g.goals,
+                        "shots":         g.shots,
+                        "assists":       g.assists,
+                        "minutesPlayed": g.minutes_played,
+                    }
+                    for g in h2h[-8:]
+                ]
+
                 player_dict = {
                     "id":           p.id,
                     "understatId":  p.understat_id,
@@ -734,6 +779,7 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     "position":     p.position,
                     "gamesPlayed":  len(active),
                     "avgMinutes":   round(sum(mins) / len(mins), 1),
+                    "opponent":     opp_odds,
                     # Goals
                     "goals_over05":   hit_rate(goals, 0.5),
                     "goals_over15":   hit_rate(goals, 1.5),
@@ -753,6 +799,11 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     "shotsArr":   shots[-15:],
                     "assistsArr": assists[-15:],
                     "gaArr":      ga[-15:],
+                    # Detail data
+                    "gameLog":    game_log,
+                    "h2hGames":   h2h_log,
+                    "homeSplit":  venue_split(active, "home"),
+                    "awaySplit":  venue_split(active, "away"),
                 }
 
                 # GK: clean sheet % + goals conceded array
@@ -820,7 +871,7 @@ MLB_PLAYERS_CACHE_DURATION = 12 * 60 * 60  # 12 hours
 
 def _compute_mlb_players(home_team_odds, away_team_odds):
     """
-    Query DB for players on both teams and build props arrays.
+    Query DB for players on both teams and build props arrays + detail data.
     home_team_odds / away_team_odds are Odds API team names (same as game cards).
     """
     from models import get_engine, get_session, MLBPlayer, MLBPlayerGame
@@ -832,38 +883,79 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
     engine = get_engine()
     session = get_session(engine)
 
+    def safe_avg(arr):
+        return round(sum(arr) / len(arr), 2) if arr else None
+
+    def batter_splits(gs):
+        if not gs:
+            return None
+        return {
+            "hits":       safe_avg([g.hits for g in gs if g.hits is not None]),
+            "homeRuns":   safe_avg([g.home_runs for g in gs if g.home_runs is not None]),
+            "rbi":        safe_avg([g.rbi for g in gs if g.rbi is not None]),
+            "totalBases": safe_avg([g.total_bases for g in gs if g.total_bases is not None]),
+            "games":      len(gs),
+        }
+
     try:
         players_out = []
         for team_odds, team_mlb, side in [
             (home_team_odds, home_mlb, "home"),
             (away_team_odds, away_mlb, "away"),
         ]:
-            players = session.query(MLBPlayer).filter(
-                MLBPlayer.team == team_mlb
-            ).all()
+            opp_mlb  = away_mlb  if side == "home" else home_mlb
+            opp_odds = away_team_odds if side == "home" else home_team_odds
+
+            players = session.query(MLBPlayer).filter(MLBPlayer.team == team_mlb).all()
             if not players:
-                # Case-insensitive fallback
-                players = session.query(MLBPlayer).filter(
-                    MLBPlayer.team.ilike(team_mlb)
-                ).all()
+                players = session.query(MLBPlayer).filter(MLBPlayer.team.ilike(team_mlb)).all()
 
             for p in players:
-                games = (
+                all_games = (
                     session.query(MLBPlayerGame)
                     .filter_by(player_id=p.id)
                     .order_by(MLBPlayerGame.game_date.asc())
                     .all()
                 )
-                if len(games) < 5:
+                if len(all_games) < 5:
                     continue
 
-                recent = games[-20:]
+                recent = all_games[-20:]
+                h2h = [g for g in all_games if opp_mlb.lower() in (g.opponent or "").lower()]
 
                 if p.is_pitcher:
-                    ks = [g.strikeouts for g in recent if g.strikeouts is not None]
+                    ks   = [g.strikeouts for g in recent if g.strikeouts is not None]
                     outs = [g.outs_recorded for g in recent if g.outs_recorded is not None]
                     if len(ks) < 5:
                         continue
+
+                    home_g = [g for g in all_games if g.is_home and g.strikeouts is not None]
+                    away_g = [g for g in all_games if not g.is_home and g.strikeouts is not None]
+
+                    game_log = [
+                        {
+                            "date":           g.game_date.isoformat(),
+                            "opponent":       g.opponent,
+                            "isHome":         g.is_home,
+                            "strikeouts":     g.strikeouts,
+                            "inningsPitched": g.innings_pitched,
+                            "earnedRuns":     g.earned_runs,
+                            "hitsAllowed":    g.hits_allowed,
+                        }
+                        for g in all_games[-15:]
+                    ]
+                    h2h_log = [
+                        {
+                            "date":           g.game_date.isoformat(),
+                            "opponent":       g.opponent,
+                            "isHome":         g.is_home,
+                            "strikeouts":     g.strikeouts,
+                            "inningsPitched": g.innings_pitched,
+                            "earnedRuns":     g.earned_runs,
+                        }
+                        for g in h2h[-8:]
+                    ]
+
                     player_dict = {
                         "id":          p.id,
                         "name":        p.name,
@@ -871,24 +963,64 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "teamSide":    side,
                         "position":    p.position,
                         "isPitcher":   True,
-                        "gamesPlayed": len(games),
+                        "gamesPlayed": len(all_games),
+                        "opponent":    opp_odds,
                         "strikeoutsArr": ks,
                         "outsArr":       outs,
-                        "avgKs":         round(sum(ks) / len(ks), 1) if ks else None,
+                        "avgKs":         safe_avg(ks),
+                        "homeAvgKs":     safe_avg([g.strikeouts for g in home_g]),
+                        "awayAvgKs":     safe_avg([g.strikeouts for g in away_g]),
+                        "homeGames":     len(home_g),
+                        "awayGames":     len(away_g),
+                        "gameLog":       game_log,
+                        "h2hGames":      h2h_log,
                     }
+
                 else:
-                    hits  = [g.hits for g in recent if g.hits is not None]
-                    hrs   = [g.home_runs for g in recent if g.home_runs is not None]
-                    rbi   = [g.rbi for g in recent if g.rbi is not None]
-                    runs  = [g.runs for g in recent if g.runs is not None]
-                    tb    = [g.total_bases for g in recent if g.total_bases is not None]
-                    hrr   = [
+                    hits = [g.hits for g in recent if g.hits is not None]
+                    hrs  = [g.home_runs for g in recent if g.home_runs is not None]
+                    rbi  = [g.rbi for g in recent if g.rbi is not None]
+                    runs = [g.runs for g in recent if g.runs is not None]
+                    tb   = [g.total_bases for g in recent if g.total_bases is not None]
+                    hrr  = [
                         (g.hits or 0) + (g.runs or 0) + (g.rbi or 0)
                         for g in recent
                         if g.hits is not None and g.runs is not None and g.rbi is not None
                     ]
                     if len(hits) < 5:
                         continue
+
+                    home_g = [g for g in all_games if g.is_home and g.hits is not None]
+                    away_g = [g for g in all_games if not g.is_home and g.hits is not None]
+
+                    game_log = [
+                        {
+                            "date":       g.game_date.isoformat(),
+                            "opponent":   g.opponent,
+                            "isHome":     g.is_home,
+                            "hits":       g.hits,
+                            "homeRuns":   g.home_runs,
+                            "rbi":        g.rbi,
+                            "runs":       g.runs,
+                            "totalBases": g.total_bases,
+                            "atBats":     g.at_bats,
+                        }
+                        for g in all_games[-15:]
+                    ]
+                    h2h_log = [
+                        {
+                            "date":       g.game_date.isoformat(),
+                            "opponent":   g.opponent,
+                            "isHome":     g.is_home,
+                            "hits":       g.hits,
+                            "homeRuns":   g.home_runs,
+                            "rbi":        g.rbi,
+                            "totalBases": g.total_bases,
+                            "atBats":     g.at_bats,
+                        }
+                        for g in h2h[-8:]
+                    ]
+
                     player_dict = {
                         "id":          p.id,
                         "name":        p.name,
@@ -896,15 +1028,22 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "teamSide":    side,
                         "position":    p.position,
                         "isPitcher":   False,
-                        "gamesPlayed": len(games),
+                        "gamesPlayed": len(all_games),
+                        "opponent":    opp_odds,
                         "hitsArr":       hits,
                         "homeRunsArr":   hrs,
                         "rbiArr":        rbi,
                         "runsArr":       runs,
                         "totalBasesArr": tb,
                         "hrrArr":        hrr,
-                        "avgHits":       round(sum(hits) / len(hits), 2) if hits else None,
-                        "avgTB":         round(sum(tb) / len(tb), 2) if tb else None,
+                        "avgHits":       safe_avg(hits),
+                        "avgTB":         safe_avg(tb),
+                        "homeSplit":     batter_splits(home_g),
+                        "awaySplit":     batter_splits(away_g),
+                        "homeGames":     len(home_g),
+                        "awayGames":     len(away_g),
+                        "gameLog":       game_log,
+                        "h2hGames":      h2h_log,
                     }
 
                 players_out.append(player_dict)
