@@ -1577,7 +1577,10 @@ const MLBGameCard = ({ game }) => {
         </div>
         {game.trustScore != null && (
           <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
-            <div className={`flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(game.trustScore)}`}>
+            <div
+              className={`flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(game.trustScore)}`}
+              title="MLB trust scores are naturally lower than NBA/soccer because bookmakers set totals very close to 50/50. A score of 40-65 is normal for baseball and reflects market efficiency, not a data problem."
+            >
               <span className="text-[9px] font-semibold uppercase tracking-wide opacity-70">Trust</span>
               <span className="text-sm font-bold leading-tight">{game.trustScore}</span>
             </div>
@@ -2186,7 +2189,7 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
 
   return (
     <div
-      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 shadow-sm p-5 hover:shadow-lg hover:border-l-blue-400 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer flex flex-col"
+      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 shadow-sm p-5 hover:shadow-lg hover:border-l-blue-400 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer flex flex-col tour-player-card"
       onClick={onClick}
     >
       <div className="flex justify-between items-start mb-3">
@@ -2867,6 +2870,9 @@ export default function StatScoutDashboard() {
   const [showSoccerTourBanner, setShowSoccerTourBanner] = useState(
     () => !localStorage.getItem('statscout_tour_soccer')
   );
+  const [showMlbTourBanner, setShowMlbTourBanner] = useState(
+    () => !localStorage.getItem('statscout_tour_mlb')
+  );
 
   const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
   const [mlbData, setMlbData] = useState(null);
@@ -3436,7 +3442,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { setTourKey(k => k + 1); setRunTour(true); }}
+                  onClick={() => {
+                    navigate('/nba/props');
+                    setTimeout(() => { setTourKey(k => k + 1); setRunTour(true); }, 400);
+                  }}
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
                   title="Take a guided tour"
                 >
@@ -3977,7 +3986,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <div className="flex items-center justify-between bg-blue-600/10 border border-blue-500/25 rounded-xl px-4 py-3 mb-5 gap-3">
                   <div className="flex items-center gap-2.5">
                     <Target className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span className="text-sm text-gray-300">New to soccer on StatScout? Take a quick 4-step tour.</span>
+                    <span className="text-sm text-gray-300">New to soccer on StatScout? Take a quick 4-step tour - or explore <span className="font-semibold text-white">Player Props</span> above for individual goal, shot, and assist stats.</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
@@ -4233,6 +4242,27 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 <span className="text-sm text-gray-500 ml-auto">{mlbData.length} games</span>
               )}
             </div>
+
+            {/* MLB first-visit banner */}
+            {showMlbTourBanner && (
+              <div className="flex items-center justify-between bg-blue-600/10 border border-blue-500/25 rounded-xl px-4 py-3 mb-5 gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Target className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span className="text-sm text-gray-300">
+                    New to MLB on StatScout? Drag the O/U slider on any card to instantly recalculate over rates. The trust score badge tells you how much signal the data carries - hover it for context on why MLB scores are lower than other sports. Hit <span className="font-semibold text-white">Player Props</span> above once the season is underway for pitcher strikeouts and batter stats.
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowMlbTourBanner(false);
+                    localStorage.setItem('statscout_tour_mlb', 'done');
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-800 shrink-0"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
             {/* Game Totals view */}
             {mlbView === 'gameTotals' && (
@@ -4665,8 +4695,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           {
             target: '#tour-sport-tabs',
             disableBeacon: true,
-            title: 'NBA and Soccer',
-            content: 'StatScout covers 5 soccer leagues alongside the NBA: Premier League, La Liga, Bundesliga, Serie A, and Ligue 1. Match totals, win probability, and individual player props across all of them.',
+            title: 'Three sports, one place',
+            content: 'StatScout covers NBA player props, MLB game totals, and 5 soccer leagues (Premier League, La Liga, Bundesliga, Serie A, Ligue 1). Switch between them any time - your filters and settings stay put.',
           },
           {
             target: '#tour-stats-overview',
@@ -4697,6 +4727,12 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             disableBeacon: true,
             title: 'Trust score: signal vs. noise',
             content: 'The trust score (0-100) blends hit rate, sample size, recent form consistency, and market pricing into one number. Think of it as a confidence filter. Props above 80 are high confidence. Below 50, the data is too thin or inconsistent to lean on.',
+          },
+          {
+            target: '.tour-player-card',
+            disableBeacon: true,
+            title: 'Tap any card for the full breakdown',
+            content: "Click a player card to open the detail view. Inside you'll find: full game logs for the season, how the player has performed specifically against tonight's opponent in past matchups, and a 2nd half estimator that projects how much of a stat they are likely to produce after halftime.",
           },
           {
             target: '.tour-add-parlay',
@@ -4795,6 +4831,34 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           buttonSkip: { color: '#6b7280', fontSize: '12px' },
         }}
       />
+      {/* Footer */}
+      <footer className="border-t border-gray-200 dark:border-gray-800 mt-16">
+        <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-gray-700 dark:text-gray-200"><span className="text-blue-500">Stat</span>Scout</span>
+            <span>- Built by Sam Adu</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <a
+              href="https://www.linkedin.com/in/samuel-adu-g/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-500 transition-colors"
+            >
+              LinkedIn
+            </a>
+            <a
+              href="https://github.com/SamAduG1/statscout"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-500 transition-colors"
+            >
+              GitHub
+            </a>
+            <span className="text-gray-400 dark:text-gray-600">Have feedback? Reach out on LinkedIn.</span>
+          </div>
+        </div>
+      </footer>
       </div>
   );
 }
