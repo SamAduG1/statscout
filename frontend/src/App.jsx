@@ -1562,42 +1562,43 @@ const MLBGameCard = ({ game }) => {
   const homeWinPct = hp && ap ? Math.round(hp / (hp + ap) * 100) : game.homeWinProb;
   const awayWinPct = hp && ap ? Math.round(ap / (hp + ap) * 100) : game.awayWinProb;
 
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden border-l-[3px] border-l-blue-500">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{localDate} - {localTime}</div>
-            <div className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-              {game.awayTeam} <span className="text-gray-400 font-normal">@</span> {game.homeTeam}
-            </div>
-          </div>
-          {game.trustScore != null && (
-            <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${getTrustColor(game.trustScore)}`}>
-              {game.trustScore} Trust
-            </span>
-          )}
-        </div>
+  const awayLast = game.awayTeam.split(' ').slice(-1)[0];
+  const homeLast = game.homeTeam.split(' ').slice(-1)[0];
 
-        {/* Win probability bar */}
-        {homeWinPct != null && awayWinPct != null && (
-          <div className="mt-2">
-            <div className="flex rounded-full overflow-hidden h-2">
-              <div style={{ width: `${awayWinPct}%` }} className="bg-purple-500" />
-              <div style={{ width: `${homeWinPct}%` }} className="bg-blue-500" />
-            </div>
-            <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-              <span className="text-purple-400">{game.awayTeam.split(' ').slice(-1)[0]} {awayWinPct}%</span>
-              <span className="text-blue-400">{homeWinPct}% {game.homeTeam.split(' ').slice(-1)[0]}</span>
-            </div>
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-5 flex flex-col">
+      {/* Header */}
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs text-gray-500 mb-0.5">{localDate} · {localTime}</div>
+          <div className="text-base font-bold text-gray-900 dark:text-white leading-snug">
+            {game.awayTeam} <span className="text-gray-400 dark:text-gray-500 font-normal text-sm">@</span> {game.homeTeam}
           </div>
+        </div>
+        {game.trustScore != null && (
+          <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap flex-shrink-0 ${getTrustColor(game.trustScore)}`}>
+            {game.trustScore} Trust
+          </span>
         )}
       </div>
 
-      {/* O/U section */}
-      <div className="px-4 pb-3 border-t border-gray-800 pt-3">
-        <div className="grid grid-cols-3 gap-2 mb-3">
+      {/* Win probability bar */}
+      {homeWinPct != null && awayWinPct != null && (
+        <div className="mb-3">
+          <div className="flex rounded-full overflow-hidden h-2">
+            <div style={{ width: `${awayWinPct}%` }} className="bg-purple-500" />
+            <div style={{ width: `${homeWinPct}%` }} className="bg-blue-500" />
+          </div>
+          <div className="flex justify-between text-xs mt-0.5">
+            <span className="text-purple-400">{awayLast} {awayWinPct}%</span>
+            <span className="text-blue-400">{homeWinPct}% {homeLast}</span>
+          </div>
+        </div>
+      )}
+
+      {/* O/U stats */}
+      <div className="mb-3">
+        <div className="grid grid-cols-3 gap-2 mb-2">
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-0.5">O/U Line</div>
             <input
@@ -1608,7 +1609,7 @@ const MLBGameCard = ({ game }) => {
                 const v = parseFloat(e.target.value);
                 if (!isNaN(v) && v >= 4 && v <= 15) setOuLine(v);
               }}
-              className="w-full text-xl font-bold tabular-nums text-center text-gray-900 dark:text-white bg-transparent border-b border-gray-700 focus:border-blue-500 focus:outline-none pb-0.5"
+              className="w-full text-xl font-bold tabular-nums text-center text-gray-900 dark:text-white bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none pb-0.5"
             />
             {lineChanged && <div className="text-xs text-blue-400">adjusted</div>}
           </div>
@@ -1617,7 +1618,7 @@ const MLBGameCard = ({ game }) => {
             <div className={`text-xl font-bold tabular-nums ${getRateColor(adjustedOverRate)}`}>
               {adjustedOverRate != null ? `${adjustedOverRate}%` : '-'}
             </div>
-            <div className="text-xs text-gray-500">{runTotals.length}g sample</div>
+            <div className="text-xs text-gray-500">{runTotals.length}g</div>
           </div>
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-0.5">Expected</div>
@@ -1626,8 +1627,6 @@ const MLBGameCard = ({ game }) => {
             </div>
           </div>
         </div>
-
-        {/* Slider */}
         <input
           type="range"
           min={4} max={15} step={0.5}
@@ -1635,56 +1634,54 @@ const MLBGameCard = ({ game }) => {
           onChange={e => setOuLine(parseFloat(e.target.value))}
           className="w-full accent-blue-500 h-1.5"
         />
-        <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+        <div className="flex justify-between text-xs text-gray-500 mt-0.5">
           <span>4</span><span>O/U</span><span>15</span>
         </div>
       </div>
 
       {/* Moneyline + Run line */}
-      <div className="px-4 pb-4 border-t border-gray-800 pt-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-2 gap-3 text-sm">
         <div>
           <div className="text-xs text-gray-500 mb-1">Moneyline</div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">{game.awayTeam.split(' ').slice(-1)[0]}</span>
-            <span className={`font-semibold tabular-nums ${game.awayMoneyline > 0 ? 'text-green-400' : 'text-gray-300'}`}>{fmtOdds(game.awayMoneyline)}</span>
+          <div className="flex justify-between">
+            <span className="text-gray-500 dark:text-gray-400">{awayLast}</span>
+            <span className={`font-semibold tabular-nums ${game.awayMoneyline > 0 ? 'text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>{fmtOdds(game.awayMoneyline)}</span>
           </div>
-          <div className="flex justify-between text-sm mt-0.5">
-            <span className="text-gray-400">{game.homeTeam.split(' ').slice(-1)[0]}</span>
-            <span className={`font-semibold tabular-nums ${game.homeMoneyline > 0 ? 'text-green-400' : 'text-gray-300'}`}>{fmtOdds(game.homeMoneyline)}</span>
+          <div className="flex justify-between mt-0.5">
+            <span className="text-gray-500 dark:text-gray-400">{homeLast}</span>
+            <span className={`font-semibold tabular-nums ${game.homeMoneyline > 0 ? 'text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>{fmtOdds(game.homeMoneyline)}</span>
           </div>
         </div>
         <div>
           <div className="text-xs text-gray-500 mb-1">Run Line</div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">{game.awayTeam.split(' ').slice(-1)[0]} {game.runLine != null ? (game.runLine > 0 ? `+${game.runLine}` : game.runLine) : ''}</span>
-            <span className="font-semibold tabular-nums text-gray-300">{fmtOdds(game.runLineOddsAway)}</span>
+          <div className="flex justify-between">
+            <span className="text-gray-500 dark:text-gray-400">{awayLast} {game.runLine != null ? (game.runLine > 0 ? `+${game.runLine}` : game.runLine) : ''}</span>
+            <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-300">{fmtOdds(game.runLineOddsAway)}</span>
           </div>
-          <div className="flex justify-between text-sm mt-0.5">
-            <span className="text-gray-400">{game.homeTeam.split(' ').slice(-1)[0]} {game.runLine != null ? (game.runLine < 0 ? game.runLine : `+${game.runLine}`) : ''}</span>
-            <span className="font-semibold tabular-nums text-gray-300">{fmtOdds(game.runLineOddsHome)}</span>
+          <div className="flex justify-between mt-0.5">
+            <span className="text-gray-500 dark:text-gray-400">{homeLast} {game.runLine != null ? (game.runLine < 0 ? game.runLine : `+${game.runLine}`) : ''}</span>
+            <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-300">{fmtOdds(game.runLineOddsHome)}</span>
           </div>
         </div>
       </div>
 
       {/* Avg runs breakdown */}
-      <div className="px-4 pb-4 border-t border-gray-800 pt-3">
-        <div className="flex flex-col gap-1 text-xs">
-          <div className="flex justify-between text-gray-500">
-            <span>{game.awayTeam.split(' ').slice(-1)[0]} avg runs (away)</span>
-            <span className="tabular-nums text-gray-300">{game.awayAvgRuns ?? '-'}</span>
-          </div>
-          <div className="flex justify-between text-gray-500">
-            <span>{game.homeTeam.split(' ').slice(-1)[0]} avg runs (home)</span>
-            <span className="tabular-nums text-gray-300">{game.homeAvgRuns ?? '-'}</span>
-          </div>
-          <div className="flex justify-between text-gray-500">
-            <span>{game.awayTeam.split(' ').slice(-1)[0]} avg allowed (away)</span>
-            <span className="tabular-nums text-gray-300">{game.awayAvgAllowed ?? '-'}</span>
-          </div>
-          <div className="flex justify-between text-gray-500">
-            <span>{game.homeTeam.split(' ').slice(-1)[0]} avg allowed (home)</span>
-            <span className="tabular-nums text-gray-300">{game.homeAvgAllowed ?? '-'}</span>
-          </div>
+      <div className="mt-auto grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <div className="flex justify-between text-gray-500">
+          <span>{awayLast} scored (away)</span>
+          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.awayAvgRuns ?? '-'}</span>
+        </div>
+        <div className="flex justify-between text-gray-500">
+          <span>{homeLast} scored (home)</span>
+          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.homeAvgRuns ?? '-'}</span>
+        </div>
+        <div className="flex justify-between text-gray-500">
+          <span>{awayLast} allowed (away)</span>
+          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.awayAvgAllowed ?? '-'}</span>
+        </div>
+        <div className="flex justify-between text-gray-500">
+          <span>{homeLast} allowed (home)</span>
+          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.homeAvgAllowed ?? '-'}</span>
         </div>
       </div>
     </div>
@@ -4252,7 +4249,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   </div>
                 )}
                 {!mlbLoading && !mlbError && mlbData && mlbData.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {mlbData.map((game, idx) => (
                       <MLBGameCard key={`${game.homeTeam}-${game.awayTeam}-${idx}`} game={game} />
                     ))}
