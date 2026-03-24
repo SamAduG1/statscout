@@ -1570,37 +1570,27 @@ const MLBGameCard = ({ game }) => {
       {/* Header */}
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-xs text-gray-500 mb-0.5">{localDate} · {localTime}</div>
           <div className="text-base font-bold text-gray-900 dark:text-white leading-snug">
             {game.awayTeam} <span className="text-gray-400 dark:text-gray-500 font-normal text-sm">@</span> {game.homeTeam}
           </div>
+          <div className="text-xs text-gray-500 mt-0.5">{localDate} · {localTime}</div>
         </div>
         {game.trustScore != null && (
-          <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap flex-shrink-0 ${getTrustColor(game.trustScore)}`}>
-            {game.trustScore} Trust
-          </span>
+          <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+            <div className={`flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(game.trustScore)}`}>
+              <span className="text-[9px] font-semibold uppercase tracking-wide opacity-70">Trust</span>
+              <span className="text-sm font-bold leading-tight">{game.trustScore}</span>
+            </div>
+            <span className="text-[9px] text-gray-400 dark:text-gray-500 text-center leading-tight max-w-[64px]">{getTrustLabel(game.trustScore)}</span>
+          </div>
         )}
       </div>
 
-      {/* Win probability bar */}
-      {homeWinPct != null && awayWinPct != null && (
-        <div className="mb-3">
-          <div className="flex rounded-full overflow-hidden h-2">
-            <div style={{ width: `${awayWinPct}%` }} className="bg-purple-500" />
-            <div style={{ width: `${homeWinPct}%` }} className="bg-blue-500" />
-          </div>
-          <div className="flex justify-between text-xs mt-0.5">
-            <span className="text-purple-400">{awayLast} {awayWinPct}%</span>
-            <span className="text-blue-400">{homeWinPct}% {homeLast}</span>
-          </div>
-        </div>
-      )}
-
       {/* O/U stats */}
-      <div className="mb-3">
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          <div className="text-center">
-            <div className="text-xs text-gray-500 mb-0.5">O/U Line</div>
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mb-3">
+        <div className="grid grid-cols-3 gap-2 text-center mb-2">
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">O/U Line</div>
             <input
               type="number"
               min={4} max={15} step={0.5}
@@ -1611,17 +1601,17 @@ const MLBGameCard = ({ game }) => {
               }}
               className="w-full text-xl font-bold tabular-nums text-center text-gray-900 dark:text-white bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:outline-none pb-0.5"
             />
-            {lineChanged && <div className="text-xs text-blue-400">adjusted</div>}
+            {lineChanged && <div className="text-[10px] text-gray-400">Book: {game.ouLine}</div>}
           </div>
-          <div className="text-center">
-            <div className="text-xs text-gray-500 mb-0.5">Over Rate</div>
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Over Rate</div>
             <div className={`text-xl font-bold tabular-nums ${getRateColor(adjustedOverRate)}`}>
               {adjustedOverRate != null ? `${adjustedOverRate}%` : '-'}
             </div>
             <div className="text-xs text-gray-500">{runTotals.length}g</div>
           </div>
-          <div className="text-center">
-            <div className="text-xs text-gray-500 mb-0.5">Expected</div>
+          <div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Expected</div>
             <div className={`text-xl font-bold tabular-nums ${game.expectedTotal != null ? (game.expectedTotal > ouLine ? 'text-green-500' : 'text-red-400') : 'text-gray-400'}`}>
               {game.expectedTotal ?? '-'}
             </div>
@@ -1634,8 +1624,12 @@ const MLBGameCard = ({ game }) => {
           onChange={e => setOuLine(parseFloat(e.target.value))}
           className="w-full accent-blue-500 h-1.5"
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-          <span>4</span><span>O/U</span><span>15</span>
+        <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+          <span>4</span>
+          {lineChanged && (
+            <button onClick={() => setOuLine(game.ouLine || 8.5)} className="text-blue-500 hover:underline">Reset</button>
+          )}
+          <span>15</span>
         </div>
       </div>
 
@@ -1665,24 +1659,41 @@ const MLBGameCard = ({ game }) => {
         </div>
       </div>
 
-      {/* Avg runs breakdown */}
-      <div className="mt-auto grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <div className="flex justify-between text-gray-500">
-          <span>{awayLast} scored (away)</span>
-          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.awayAvgRuns ?? '-'}</span>
+      {/* Inner stats box: avg runs + win probability */}
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 space-y-1 mt-auto">
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>{awayLast} avg scored (away)</span>
+          <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{game.awayAvgRuns ?? '-'}</span>
         </div>
-        <div className="flex justify-between text-gray-500">
-          <span>{homeLast} scored (home)</span>
-          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.homeAvgRuns ?? '-'}</span>
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>{homeLast} avg scored (home)</span>
+          <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{game.homeAvgRuns ?? '-'}</span>
         </div>
-        <div className="flex justify-between text-gray-500">
-          <span>{awayLast} allowed (away)</span>
-          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.awayAvgAllowed ?? '-'}</span>
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>{awayLast} avg allowed (away)</span>
+          <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{game.awayAvgAllowed ?? '-'}</span>
         </div>
-        <div className="flex justify-between text-gray-500">
-          <span>{homeLast} allowed (home)</span>
-          <span className="tabular-nums text-gray-700 dark:text-gray-300">{game.homeAvgAllowed ?? '-'}</span>
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+          <span>{homeLast} avg allowed (home)</span>
+          <span className="tabular-nums font-medium text-gray-700 dark:text-gray-300">{game.homeAvgAllowed ?? '-'}</span>
         </div>
+        {homeWinPct != null && awayWinPct != null && (
+          <div className="pt-1">
+            <div className="text-[10px] text-gray-400 dark:text-gray-500 mb-1">Win probability (moneyline)</div>
+            <div className="flex rounded overflow-hidden h-4 text-[10px] font-semibold">
+              <div className="flex items-center justify-center bg-purple-600/80 text-white" style={{ width: `${awayWinPct}%` }}>
+                {awayWinPct >= 20 ? `${awayWinPct}%` : ''}
+              </div>
+              <div className="flex items-center justify-center bg-blue-600/80 text-white" style={{ width: `${homeWinPct}%` }}>
+                {homeWinPct >= 20 ? `${homeWinPct}%` : ''}
+              </div>
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+              <span className="text-purple-400">{awayLast} {awayWinPct}%</span>
+              <span className="text-blue-400">{homeWinPct}% {homeLast}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -4203,7 +4214,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
         {/* MLB Section */}
         {currentSport === 'mlb' && (
-          <div>
+          <div className="max-w-7xl mx-auto px-6 py-8">
             {/* Header + sub-tabs */}
             <div className="flex items-center gap-3 mb-6 flex-wrap">
               <div className="w-1 h-5 bg-blue-500 rounded-full" />
