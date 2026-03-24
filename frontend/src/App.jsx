@@ -1576,7 +1576,7 @@ const MLBGameCard = ({ game }) => {
           <div className="text-xs text-gray-500 mt-0.5">{localDate} · {localTime}</div>
         </div>
         {game.trustScore != null && (
-          <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+          <div className="flex-shrink-0 flex flex-col items-center gap-0.5 tour-mlb-trust">
             <div
               className={`flex flex-col items-center px-2 py-1 rounded-md border tabular-nums ${getTrustColor(game.trustScore)}`}
               title="MLB trust scores are naturally lower than NBA/soccer because bookmakers set totals very close to 50/50. A score of 40-65 is normal for baseball and reflects market efficiency, not a data problem."
@@ -1590,7 +1590,7 @@ const MLBGameCard = ({ game }) => {
       </div>
 
       {/* O/U stats */}
-      <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mb-3">
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mb-3 tour-mlb-ou">
         <div className="grid grid-cols-3 gap-2 text-center mb-2">
           <div>
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">O/U Line</div>
@@ -2867,6 +2867,8 @@ export default function StatScoutDashboard() {
   const [tourKey, setTourKey] = useState(0);
   const [runSoccerTour, setRunSoccerTour] = useState(false);
   const [soccerTourKey, setSoccerTourKey] = useState(0);
+  const [runMlbTour, setRunMlbTour] = useState(false);
+  const [mlbTourKey, setMlbTourKey] = useState(0);
   const [showSoccerTourBanner, setShowSoccerTourBanner] = useState(
     () => !localStorage.getItem('statscout_tour_soccer')
   );
@@ -4228,7 +4230,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             <div className="flex items-center gap-3 mb-6 flex-wrap">
               <div className="w-1 h-5 bg-blue-500 rounded-full" />
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">MLB</h2>
-              <div className="flex gap-1 ml-1">
+              <div id="tour-mlb-tabs" className="flex gap-1 ml-1">
                 {[['gameTotals', 'Game Totals'], ['playerProps', 'Player Props']].map(([key, label]) => (
                   <button key={key}
                     onClick={() => navigate(key === 'playerProps' ? '/mlb/players' : '/mlb/games')}
@@ -4248,19 +4250,30 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               <div className="flex items-center justify-between bg-blue-600/10 border border-blue-500/25 rounded-xl px-4 py-3 mb-5 gap-3">
                 <div className="flex items-center gap-2.5">
                   <Target className="w-4 h-4 text-blue-400 shrink-0" />
-                  <span className="text-sm text-gray-300">
-                    New to MLB on StatScout? Drag the O/U slider on any card to instantly recalculate over rates. The trust score badge tells you how much signal the data carries - hover it for context on why MLB scores are lower than other sports. Hit <span className="font-semibold text-white">Player Props</span> above once the season is underway for pitcher strikeouts and batter stats.
-                  </span>
+                  <span className="text-sm text-gray-300">New to MLB on StatScout? Take a quick 3-step tour - or dive straight into the game cards and explore <span className="font-semibold text-white">Player Props</span> above for pitcher strikeouts and batter stats.</span>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowMlbTourBanner(false);
-                    localStorage.setItem('statscout_tour_mlb', 'done');
-                  }}
-                  className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-800 shrink-0"
-                >
-                  Dismiss
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setShowMlbTourBanner(false);
+                      localStorage.setItem('statscout_tour_mlb', 'done');
+                      setMlbTourKey(k => k + 1);
+                      setRunMlbTour(true);
+                    }}
+                    className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded hover:bg-blue-500/10"
+                  >
+                    Take tour
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMlbTourBanner(false);
+                      localStorage.setItem('statscout_tour_mlb', 'done');
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded hover:bg-gray-800"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             )}
 
@@ -4292,7 +4305,9 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 {!mlbLoading && !mlbError && mlbData && mlbData.length > 0 && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {mlbData.map((game, idx) => (
-                      <MLBGameCard key={`${game.homeTeam}-${game.awayTeam}-${idx}`} game={game} />
+                      <div key={`${game.homeTeam}-${game.awayTeam}-${idx}`} className={idx === 0 ? 'tour-mlb-game-card' : ''}>
+                        <MLBGameCard game={game} />
+                      </div>
                     ))}
                   </div>
                 )}
@@ -4831,6 +4846,54 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
           buttonSkip: { color: '#6b7280', fontSize: '12px' },
         }}
       />
+      {/* MLB Micro-Tour */}
+      <Joyride
+        key={mlbTourKey}
+        run={runMlbTour}
+        continuous
+        showSkipButton
+        showProgress
+        scrollToFirstStep
+        callback={({ status }) => {
+          if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) setRunMlbTour(false);
+        }}
+        steps={[
+          {
+            target: '.tour-mlb-game-card',
+            disableBeacon: true,
+            title: 'Game card',
+            content: 'Each card covers an upcoming MLB game. Historical run totals from the 2025 season power the over rate and expected total. The win probability bar is derived from the live moneyline odds.',
+          },
+          {
+            target: '.tour-mlb-ou',
+            disableBeacon: true,
+            title: 'Adjust the O/U line',
+            content: "Drag the slider or type directly into the line field. The over rate recalculates instantly against your custom number. Use this to find a line where the historical data gives you a stronger edge than the book's posted total.",
+          },
+          {
+            target: '.tour-mlb-trust',
+            disableBeacon: true,
+            title: 'Trust score in baseball',
+            content: 'MLB trust scores run lower than NBA or soccer by design — bookmakers set baseball totals very close to 50/50, so the market is efficient. A score of 40-65 is normal and healthy. Hover the badge any time for a full explanation.',
+          },
+        ]}
+        styles={{
+          options: {
+            primaryColor: '#3b82f6',
+            backgroundColor: '#111827',
+            textColor: '#f3f4f6',
+            arrowColor: '#111827',
+            overlayColor: 'rgba(0,0,0,0.65)',
+            zIndex: 9999,
+          },
+          tooltip: { borderRadius: '12px', fontSize: '14px' },
+          tooltipTitle: { fontSize: '15px', fontWeight: '700', color: '#ffffff' },
+          buttonNext: { backgroundColor: '#3b82f6', borderRadius: '8px', fontSize: '13px', fontWeight: '600' },
+          buttonBack: { color: '#9ca3af', fontSize: '13px' },
+          buttonSkip: { color: '#6b7280', fontSize: '12px' },
+        }}
+      />
+
       {/* Footer */}
       <footer className="border-t border-gray-200 dark:border-gray-800 mt-16">
         <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
