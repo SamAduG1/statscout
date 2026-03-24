@@ -4605,20 +4605,24 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
         {/* MLB Section */}
         {currentSport === 'mlb' && (
           <div className="max-w-7xl mx-auto px-6 py-8">
-            {/* Header + sub-tabs */}
-            <div className="flex items-center gap-3 mb-6 flex-wrap">
+            {/* Nav row - matches soccer league pill row */}
+            <div id="tour-mlb-tabs" className="flex flex-wrap items-center gap-3 mb-5">
+              {[['gameTotals', 'Game Totals'], ['playerProps', 'Player Props']].map(([key, label]) => (
+                <button key={key}
+                  onClick={() => navigate(key === 'playerProps' ? '/mlb/players' : '/mlb/games')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    mlbView === key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                  }`}
+                >{label}</button>
+              ))}
+            </div>
+
+            {/* Section heading */}
+            <div className="flex items-center gap-2 mb-6">
               <div className="w-1 h-5 bg-blue-500 rounded-full" />
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">MLB</h2>
-              <div id="tour-mlb-tabs" className="flex gap-1 ml-1">
-                {[['gameTotals', 'Game Totals'], ['playerProps', 'Player Props']].map(([key, label]) => (
-                  <button key={key}
-                    onClick={() => navigate(key === 'playerProps' ? '/mlb/players' : '/mlb/games')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      mlbView === key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-                    }`}
-                  >{label}</button>
-                ))}
-              </div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                MLB: {mlbView === 'gameTotals' ? 'Game Totals' : 'Player Props'}
+              </h2>
               {mlbView === 'gameTotals' && mlbData && (
                 <span className="text-sm text-gray-500 ml-auto">{mlbData.length} games</span>
               )}
