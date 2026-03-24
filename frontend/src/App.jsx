@@ -3339,9 +3339,9 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
   }, [darkMode]);
 
   // Auto-start NBA tour when arriving from landing page "How it works" button
-  // Only if they haven't already completed it
+  // Always start even if previously completed - user explicitly asked for it
   useEffect(() => {
-    if (location.state?.startTour && !loading && !localStorage.getItem('statscout_tour_nba')) {
+    if (location.state?.startTour && !loading) {
       const timer = setTimeout(() => {
         setTourKey(k => k + 1);
         setRunTour(true);
