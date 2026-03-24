@@ -5224,6 +5224,13 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             title: 'Player props too',
             content: 'Switch to Player Props at the top to see individual player stats: goals, shots, assists, and more. Select a fixture to load that match\'s players and add any leg directly to your parlay.',
           },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            title: 'Tap any player card for the full breakdown',
+            content: 'Click a player card to open their detail view: full season game log, past matchups specifically against tonight\'s opponent, and home vs away splits - so you can see if a player performs differently depending on the venue.',
+          },
         ]}
         styles={{
           options: {
@@ -5270,6 +5277,13 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             disableBeacon: true,
             title: 'Trust score in baseball',
             content: 'MLB trust scores run lower than NBA or soccer by design — bookmakers set baseball totals very close to 50/50, so the market is efficient. A score of 40-65 is normal and healthy. Hover the badge any time for a full explanation.',
+          },
+          {
+            target: 'body',
+            placement: 'center',
+            disableBeacon: true,
+            title: 'Tap any player card for the full breakdown',
+            content: 'On the Player Props tab, click any batter or pitcher card to open their detail view: season game log, past matchups against tonight\'s opponent, and home vs away splits to spot venue-based trends.',
           },
         ]}
         styles={{
