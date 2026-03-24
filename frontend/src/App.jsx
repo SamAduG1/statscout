@@ -4260,7 +4260,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             {mlbView === 'gameTotals' && (
               <>
                 {mlbLoading && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-4xl mx-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 animate-pulse">
                         <div className="h-3 bg-gray-800 rounded w-1/3 mb-2" />
@@ -4282,7 +4282,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   </div>
                 )}
                 {!mlbLoading && !mlbError && mlbData && mlbData.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-4xl mx-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     {mlbData.map((game, idx) => (
                       <MLBGameCard key={`${game.homeTeam}-${game.awayTeam}-${idx}`} game={game} />
                     ))}
