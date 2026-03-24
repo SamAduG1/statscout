@@ -3995,8 +3995,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       onClick={() => {
                         setShowSoccerTourBanner(false);
                         localStorage.setItem('statscout_tour_soccer', 'done');
-                        setSoccerTourKey(k => k + 1);
-                        setRunSoccerTour(true);
+                        navigate(`/soccer/${soccerLeague}/matches`);
+                        setTimeout(() => { setSoccerTourKey(k => k + 1); setRunSoccerTour(true); }, 400);
                       }}
                       className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded hover:bg-blue-500/10"
                     >
@@ -4257,8 +4257,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     onClick={() => {
                       setShowMlbTourBanner(false);
                       localStorage.setItem('statscout_tour_mlb', 'done');
-                      setMlbTourKey(k => k + 1);
-                      setRunMlbTour(true);
+                      navigate('/mlb/games');
+                      setTimeout(() => { setMlbTourKey(k => k + 1); setRunMlbTour(true); }, 400);
                     }}
                     className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded hover:bg-blue-500/10"
                   >
