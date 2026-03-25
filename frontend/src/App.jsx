@@ -1496,6 +1496,11 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
   // GK secondary: show goals allowed avg
   const gcAvg = isGkMarket && arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
 
+  const trust = React.useMemo(
+    () => computePlayerTrust(arr, isGkMarket ? v => v < line : v => v > line, player.avgMinutes),
+    [arr, line, isGkMarket, player.avgMinutes]
+  );
+
   return (
     <div className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-4 flex flex-col gap-3 ${onClick ? 'cursor-pointer hover:border-gray-300 dark:hover:border-gray-700 transition-colors' : ''}`}
       onClick={onClick ? (e) => { if (e.target.type !== 'range') onClick(); } : undefined}>
@@ -1530,6 +1535,17 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
             style={{ width: `${hitRate ?? 0}%` }} />
         </div>
       </div>
+
+      {/* Trust Score */}
+      {trust != null && (
+        <div className={`flex items-center justify-between rounded-lg border px-3 py-1.5 ${getTrustBadgeClass(trust)}`}>
+          <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Trust</span>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold tabular-nums">{trust}</span>
+            <span className="text-[10px] font-medium opacity-80">{getTrustLabel(trust)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Line slider */}
       {steps.length > 1 && (
@@ -1832,6 +1848,11 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
 
   const getRateColor = r => r == null ? 'text-gray-400' : r >= 70 ? 'text-green-500' : r >= 55 ? 'text-blue-500' : 'text-red-400';
 
+  const trust = React.useMemo(
+    () => computePlayerTrust(arr, v => v > line),
+    [arr, line]
+  );
+
   const steps = [];
   for (let v = mdef.min; v <= mdef.max + 0.01; v += mdef.step) steps.push(Math.round(v * 10) / 10);
 
@@ -1865,6 +1886,17 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
             style={{ width: `${hitRate ?? 0}%` }} />
         </div>
       </div>
+
+      {/* Trust Score */}
+      {trust != null && (
+        <div className={`flex items-center justify-between rounded-lg border px-3 py-1.5 ${getTrustBadgeClass(trust)}`}>
+          <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Trust</span>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold tabular-nums">{trust}</span>
+            <span className="text-[10px] font-medium opacity-80">{getTrustLabel(trust)}</span>
+          </div>
+        </div>
+      )}
 
       {steps.length > 1 && (
         <div>
@@ -2483,6 +2515,52 @@ const getTrustLabel = (score) => {
   if (score >= 50) return 'Slight edge';
   if (score >= 40) return 'Proceed with caution';
   return 'Taking a longshot';
+};
+
+const getTrustBadgeClass = (score) => {
+  if (score >= 80) return 'bg-green-500/10 text-green-500 border-green-500/30';
+  if (score >= 70) return 'bg-amber-500/10 text-amber-500 border-amber-500/30';
+  if (score >= 60) return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30';
+  return 'bg-red-500/10 text-red-400 border-red-400/30';
+};
+
+// Shared trust computation for player prop cards.
+// arr: array of recent stat values, line: current O/U line, hitFn: v => bool (does this value beat the line)
+const computePlayerTrust = (arr, hitFn, avgMinutes) => {
+  if (!arr || arr.length < 5) return null;
+
+  let score = 0;
+
+  // Factor 1: Hit rate — how far from 50/50 is the signal? (40% MLB / 35% soccer)
+  const hitWeight = avgMinutes !== undefined ? 35 : 40;
+  const hr = arr.filter(hitFn).length / arr.length;
+  score += Math.min(Math.abs(hr - 0.5) * 4, 1.0) * hitWeight;
+
+  // Factor 2: Consistency / std dev — lower variance = more predictable (25% MLB / 20% soccer)
+  const consistencyWeight = avgMinutes !== undefined ? 20 : 25;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const std = Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
+  const cv = mean > 0 ? std / mean : 2;
+  score += Math.max(0, 1 - Math.min(cv, 2) / 2) * consistencyWeight;
+
+  // Factor 3: Recent form — last 5 hit rate, bonus when trending same direction as overall (20%)
+  const last5 = arr.slice(-5);
+  const recentHr = last5.filter(hitFn).length / last5.length;
+  const aligned = (hr >= 0.5 && recentHr >= 0.5) || (hr < 0.5 && recentHr < 0.5);
+  score += Math.min(Math.abs(recentHr - 0.5) * 4, 1.0) * (aligned ? 20 : 8);
+
+  // Factor 4: Minutes reliability — soccer only (15%)
+  if (avgMinutes !== undefined) {
+    const minScore = avgMinutes >= 85 ? 1.0 : avgMinutes >= 70 ? 0.75 : avgMinutes >= 55 ? 0.4 : 0.15;
+    score += minScore * 15;
+  }
+
+  // Factor 5: Sample size confidence (15% MLB / 10% soccer)
+  const sampleWeight = avgMinutes !== undefined ? 10 : 15;
+  const sampleScore = arr.length >= 20 ? 1.0 : arr.length >= 10 ? 0.7 : 0.4;
+  score += sampleScore * sampleWeight;
+
+  return Math.round(Math.min(score, 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
