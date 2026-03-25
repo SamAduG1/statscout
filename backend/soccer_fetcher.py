@@ -190,7 +190,7 @@ COMPETITIONS = {
         "regions": "uk,eu",
     },
     "ligue1": {
-        "odds_sport": "soccer_france_ligue_one",
+        "odds_sport": "soccer_france_ligue_1",
         "fd_code": "FL1",
         "name": "Ligue 1",
         "odds_to_fd": LIGUE1_ODDS_TO_FD,
