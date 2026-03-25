@@ -2525,42 +2525,40 @@ const getTrustBadgeClass = (score) => {
 };
 
 // Shared trust computation for player prop cards.
-// arr: array of recent stat values, line: current O/U line, hitFn: v => bool (does this value beat the line)
+// arr: recent stat values, hitFn: v => bool, avgMinutes: soccer-only minutes reliability.
+// Core signal is hr^1.5 * 100 — monotonically increasing so raising the line always lowers trust.
 const computePlayerTrust = (arr, hitFn, avgMinutes) => {
   if (!arr || arr.length < 5) return null;
 
-  let score = 0;
-
-  // Factor 1: Hit rate — how far from 50/50 is the signal? (40% MLB / 35% soccer)
-  const hitWeight = avgMinutes !== undefined ? 35 : 40;
   const hr = arr.filter(hitFn).length / arr.length;
-  score += Math.min(Math.abs(hr - 0.5) * 4, 1.0) * hitWeight;
 
-  // Factor 2: Consistency / std dev — lower variance = more predictable (25% MLB / 20% soccer)
-  const consistencyWeight = avgMinutes !== undefined ? 20 : 25;
+  // Base score: power curve on hit rate (0-100).
+  // 30% hr → 16, 50% → 35, 65% → 52, 75% → 65, 80% → 72, 85% → 78, 90% → 85.
+  // Monotonically increases with hr — raising the line always lowers trust.
+  let score = Math.pow(hr, 1.5) * 100;
+
+  // Modifier 1: Consistency — low variance adds up to +10 pts.
   const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
   const std = Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
   const cv = mean > 0 ? std / mean : 2;
-  score += Math.max(0, 1 - Math.min(cv, 2) / 2) * consistencyWeight;
+  score += Math.max(0, 1 - Math.min(cv, 2) / 2) * 10;
 
-  // Factor 3: Recent form — last 5 hit rate, bonus when trending same direction as overall (20%)
+  // Modifier 2: Recent form — trending up adds up to +8, trending down subtracts up to -8.
   const last5 = arr.slice(-5);
   const recentHr = last5.filter(hitFn).length / last5.length;
-  const aligned = (hr >= 0.5 && recentHr >= 0.5) || (hr < 0.5 && recentHr < 0.5);
-  score += Math.min(Math.abs(recentHr - 0.5) * 4, 1.0) * (aligned ? 20 : 8);
+  score += Math.max(-8, Math.min(8, (recentHr - hr) * 20));
 
-  // Factor 4: Minutes reliability — soccer only (15%)
+  // Modifier 3: Minutes reliability (soccer only) — up to +5 pts.
   if (avgMinutes !== undefined) {
-    const minScore = avgMinutes >= 85 ? 1.0 : avgMinutes >= 70 ? 0.75 : avgMinutes >= 55 ? 0.4 : 0.15;
-    score += minScore * 15;
+    score += avgMinutes >= 85 ? 5 : avgMinutes >= 70 ? 3 : avgMinutes >= 55 ? 1 : 0;
   }
 
-  // Factor 5: Sample size confidence (15% MLB / 10% soccer)
-  const sampleWeight = avgMinutes !== undefined ? 10 : 15;
-  const sampleScore = arr.length >= 20 ? 1.0 : arr.length >= 10 ? 0.7 : 0.4;
-  score += sampleScore * sampleWeight;
+  // Modifier 4: Sample size confidence — up to +8 pts (MLB) / +5 pts (soccer).
+  const maxSample = avgMinutes !== undefined ? 5 : 8;
+  const sampleBonus = arr.length >= 20 ? maxSample : arr.length >= 10 ? Math.round(maxSample * 0.65) : Math.round(maxSample * 0.3);
+  score += sampleBonus;
 
-  return Math.round(Math.min(score, 100));
+  return Math.round(Math.min(Math.max(score, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
