@@ -25,7 +25,7 @@ load_dotenv()
 from models import get_engine, get_session, init_db, MLBPlayer, MLBPlayerGame
 
 MLB_BASE = "https://statsapi.mlb.com/api/v1"
-SEASON = 2025
+SEASON = 2026
 PITCHER_POSITIONS = {"P", "SP", "RP", "TWP"}
 
 
@@ -57,22 +57,34 @@ def get_roster(team_id):
     return data.get("roster", [])
 
 
-def get_game_log(player_id, group):
-    """Fetch per-game stats. group = 'hitting' or 'pitching'."""
-    try:
-        data = _get(f"people/{player_id}/stats", {
-            "stats": "gameLog",
-            "season": SEASON,
-            "group": group,
-            "gameType": "R",
-        })
-        stats_list = data.get("stats", [])
-        if not stats_list:
-            return []
-        return stats_list[0].get("splits", [])
-    except Exception as e:
-        print(f"    [warn] game log failed: {e}")
-        return []
+def get_game_log(player_id, group, include_postseason=True):
+    """Fetch per-game stats. group = 'hitting' or 'pitching'.
+    Fetches regular season + postseason (Wild Card, ALDS/NLDS, ALCS/NLCS, World Series).
+    """
+    splits = []
+    seen_dates = set()
+
+    for game_type in (["R", "F", "D", "L", "W"] if include_postseason else ["R"]):
+        try:
+            data = _get(f"people/{player_id}/stats", {
+                "stats": "gameLog",
+                "season": SEASON,
+                "group": group,
+                "gameType": game_type,
+            })
+            stats_list = data.get("stats", [])
+            if not stats_list:
+                continue
+            for split in stats_list[0].get("splits", []):
+                d = split.get("date", "")
+                if d and d not in seen_dates:
+                    seen_dates.add(d)
+                    splits.append(split)
+        except Exception as e:
+            print(f"    [warn] game log ({game_type}) failed: {e}")
+
+    splits.sort(key=lambda s: s.get("date", ""))
+    return splits
 
 
 def upsert_player(session, player_id, name, team, position, is_pitcher):

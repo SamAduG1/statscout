@@ -37,7 +37,7 @@ def get_last_game_date(session, player_id):
 def update_player(session, player, season):
     group = "pitching" if player.is_pitcher else "hitting"
     try:
-        splits = get_game_log(player.id, group)
+        splits = get_game_log(player.id, group, include_postseason=False)
         # Filter splits to only new games
         last_date = get_last_game_date(session, player.id)
         if last_date:
