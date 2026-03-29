@@ -4834,7 +4834,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       <option value="">All Games ({mlbTodayMatchups.length})</option>
                       {mlbTodayMatchups.map(m => (
                         <option key={m.key} value={m.key}>
-                          {mlbAbbr(m.awayTeam)} @ {mlbAbbr(m.homeTeam)}
+                          {m.awayTeam} @ {m.homeTeam}
                         </option>
                       ))}
                     </select>
