@@ -1094,6 +1094,82 @@ def get_mlb_players():
         return jsonify({"success": False, "error": str(e), "count": 0, "players": []})
 
 
+@app.route('/api/mlb/players/today', methods=['GET'])
+def get_mlb_players_today():
+    """
+    Get MLB player props for ALL games today.
+    Returns a flat array of all players tagged with matchup field.
+    Cached for MLB_PLAYERS_CACHE_DURATION. No params required.
+    """
+    TODAY_CACHE_FILE = "/tmp/mlbp_today.json"
+    cached = _load_specific_cache(TODAY_CACHE_FILE)
+    if cached:
+        ts = cached.get('ts')
+        if ts:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+            if age < MLB_PLAYERS_CACHE_DURATION and cached.get('count', 0) > 0:
+                return jsonify(cached)
+
+    # Get today's games from mlb_cache
+    games = []
+    if mlb_cache["data"] and mlb_cache["data"].get("games"):
+        games = mlb_cache["data"]["games"]
+    if not games:
+        return jsonify({"success": True, "count": 0, "players": [], "matchups": []})
+
+    safe = lambda s: s.replace(' ', '_').replace('/', '-')
+    all_players = []
+    matchups = []
+
+    for game in games:
+        home_team = game.get("homeTeam", "")
+        away_team = game.get("awayTeam", "")
+        if not home_team or not away_team:
+            continue
+
+        matchup_label = f"{away_team} @ {home_team}"
+        matchups.append({"key": f"{home_team}__{away_team}", "label": matchup_label, "homeTeam": home_team, "awayTeam": away_team})
+
+        # Use existing per-game cache if fresh
+        cache_key = f"/tmp/mlbp_{safe(home_team)}_{safe(away_team)}.json"
+        per_game_cached = _load_specific_cache(cache_key)
+        players = None
+        if per_game_cached:
+            ts = per_game_cached.get('ts')
+            if ts:
+                age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+                if age < MLB_PLAYERS_CACHE_DURATION and per_game_cached.get('count', 0) > 0:
+                    players = per_game_cached.get('players', [])
+
+        if players is None:
+            try:
+                data = _compute_mlb_players(home_team, away_team)
+                data['ts'] = datetime.now().isoformat()
+                if data['count'] > 0:
+                    _save_specific_cache(cache_key, data)
+                players = data.get('players', [])
+            except Exception as e:
+                print(f"[MLB TODAY] Error for {home_team} vs {away_team}: {e}")
+                players = []
+
+        # Tag each player with their matchup
+        for p in players:
+            p['matchupKey'] = f"{home_team}__{away_team}"
+            p['matchupLabel'] = matchup_label
+        all_players.extend(players)
+
+    result = {
+        "success": True,
+        "count": len(all_players),
+        "players": all_players,
+        "matchups": matchups,
+        "ts": datetime.now().isoformat(),
+    }
+    if len(all_players) > 0:
+        _save_specific_cache(TODAY_CACHE_FILE, result)
+    return jsonify(result)
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
