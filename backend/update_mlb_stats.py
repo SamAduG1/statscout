@@ -38,10 +38,12 @@ def update_player(session, player, season):
     group = "pitching" if player.is_pitcher else "hitting"
     try:
         splits = get_game_log(player.id, group, include_postseason=False)
-        # Filter splits to only new games
+        # Re-process last 3 days to catch stat corrections (e.g. extra innings)
+        # plus any genuinely new games
         last_date = get_last_game_date(session, player.id)
         if last_date:
-            splits = [s for s in splits if s.get("date", "") > str(last_date)]
+            cutoff = last_date - timedelta(days=3)
+            splits = [s for s in splits if s.get("date", "") >= str(cutoff)]
 
         if not splits:
             return 0

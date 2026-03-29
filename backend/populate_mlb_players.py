@@ -120,17 +120,15 @@ def insert_games(session, player, splits):
         except ValueError:
             continue
 
-        existing = session.query(MLBPlayerGame).filter_by(
-            player_id=player.id,
-            game_date=game_date,
-        ).first()
-        if existing:
-            continue
-
         is_home = split.get("isHome", True)
         opponent_data = split.get("opponent", {})
         opponent = opponent_data.get("name", "Unknown")
         stat = split.get("stat", {})
+
+        existing = session.query(MLBPlayerGame).filter_by(
+            player_id=player.id,
+            game_date=game_date,
+        ).first()
 
         if player.is_pitcher:
             ip_str = stat.get("inningsPitched", "0")
@@ -138,47 +136,51 @@ def insert_games(session, player, splits):
                 ip = float(ip_str)
             except (ValueError, TypeError):
                 ip = 0.0
-            # Convert innings like 6.1 -> 6 full innings + 1 out = 19 outs
             full_innings = int(ip)
             partial = round((ip - full_innings) * 10)
             outs = full_innings * 3 + partial
 
-            game = MLBPlayerGame(
-                player_id=player.id,
-                game_date=game_date,
-                opponent=opponent,
-                is_home=is_home,
-                season=str(SEASON),
-                strikeouts=stat.get("strikeOuts"),
-                innings_pitched=ip,
-                hits_allowed=stat.get("hits"),
-                earned_runs=stat.get("earnedRuns"),
-                outs_recorded=outs,
-            )
+            if existing:
+                existing.strikeouts = stat.get("strikeOuts")
+                existing.innings_pitched = ip
+                existing.hits_allowed = stat.get("hits")
+                existing.earned_runs = stat.get("earnedRuns")
+                existing.outs_recorded = outs
+            else:
+                session.add(MLBPlayerGame(
+                    player_id=player.id, game_date=game_date,
+                    opponent=opponent, is_home=is_home, season=str(SEASON),
+                    strikeouts=stat.get("strikeOuts"), innings_pitched=ip,
+                    hits_allowed=stat.get("hits"), earned_runs=stat.get("earnedRuns"),
+                    outs_recorded=outs,
+                ))
+                new_count += 1
+
         else:
-            # Skip plate appearances where player didn't bat (pinch runner, etc.)
             at_bats = stat.get("atBats")
             plate_apps = stat.get("plateAppearances", 0)
             if not plate_apps:
                 continue
 
-            game = MLBPlayerGame(
-                player_id=player.id,
-                game_date=game_date,
-                opponent=opponent,
-                is_home=is_home,
-                season=str(SEASON),
-                hits=stat.get("hits"),
-                home_runs=stat.get("homeRuns"),
-                rbi=stat.get("rbi"),
-                runs=stat.get("runs"),
-                total_bases=stat.get("totalBases"),
-                at_bats=at_bats,
-                walks=stat.get("baseOnBalls"),
-            )
+            if existing:
+                existing.hits = stat.get("hits")
+                existing.home_runs = stat.get("homeRuns")
+                existing.rbi = stat.get("rbi")
+                existing.runs = stat.get("runs")
+                existing.total_bases = stat.get("totalBases")
+                existing.at_bats = at_bats
+                existing.walks = stat.get("baseOnBalls")
+            else:
+                session.add(MLBPlayerGame(
+                    player_id=player.id, game_date=game_date,
+                    opponent=opponent, is_home=is_home, season=str(SEASON),
+                    hits=stat.get("hits"), home_runs=stat.get("homeRuns"),
+                    rbi=stat.get("rbi"), runs=stat.get("runs"),
+                    total_bases=stat.get("totalBases"), at_bats=at_bats,
+                    walks=stat.get("baseOnBalls"),
+                ))
+                new_count += 1
 
-        session.add(game)
-        new_count += 1
     return new_count
 
 
