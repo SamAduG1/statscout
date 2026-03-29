@@ -1234,11 +1234,11 @@ def get_all_mlb_players():
 
 @app.route('/api/admin/refresh-mlb-cache', methods=['POST'])
 def refresh_mlb_cache():
-    """Delete stale MLB player cache files so they rebuild on next request.
+    """Delete stale MLB player cache files then rebuild async in background.
     Called by GitHub Action after update_mlb_stats.py runs.
     Protected by ADMIN_SECRET env var.
     """
-    import os, glob
+    import os, glob, threading
     secret = request.headers.get('X-Admin-Secret', '')
     expected = os.getenv('ADMIN_SECRET', '')
     if not expected or secret != expected:
@@ -1253,7 +1253,21 @@ def refresh_mlb_cache():
             pass
 
     print(f"[ADMIN] MLB cache cleared: {removed}")
-    return jsonify({"success": True, "cleared": len(removed)})
+
+    # Rebuild all-players cache in background so it's ready before next user request
+    def _rebuild():
+        try:
+            print("[ADMIN] Rebuilding MLB all-players cache...")
+            data = _compute_all_mlb_players()
+            data['ts'] = datetime.now().isoformat()
+            if data['count'] > 0:
+                _save_specific_cache(MLB_ALL_PLAYERS_CACHE_FILE, data)
+            print(f"[ADMIN] MLB cache rebuilt ({data['count']} players)")
+        except Exception as e:
+            print(f"[ADMIN] Cache rebuild failed: {e}")
+
+    threading.Thread(target=_rebuild, daemon=True).start()
+    return jsonify({"success": True, "cleared": len(removed), "rebuilding": True})
 
 
 @app.route('/api/mlb/players', methods=['GET'])
