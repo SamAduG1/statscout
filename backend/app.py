@@ -100,7 +100,7 @@ PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
 # MLB match cache
 MLB_CACHE_FILE = "/tmp/statscout_mlb_cache.json"
-MLB_CACHE_DURATION = 3 * 60 * 60  # 3 hours
+MLB_CACHE_DURATION = 6 * 60 * 60  # 6 hours
 _mlb_cache_disk = _load_specific_cache(MLB_CACHE_FILE)
 mlb_cache = {"data": _mlb_cache_disk, "last_updated": datetime.now() if _mlb_cache_disk else None, "building": False}
 
@@ -866,7 +866,7 @@ def get_soccer_players():
         return jsonify({"success": False, "error": str(e), "count": 0, "players": []}), 500
 
 
-MLB_PLAYERS_CACHE_DURATION = 3 * 60 * 60  # 3 hours (refreshes after daily DB update)
+MLB_PLAYERS_CACHE_DURATION = 6 * 60 * 60  # 6 hours (matches MLB game cache TTL)
 
 
 def _compute_mlb_players(home_team_odds, away_team_odds):
