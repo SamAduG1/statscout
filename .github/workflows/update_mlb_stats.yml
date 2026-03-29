@@ -30,3 +30,9 @@ jobs:
         run: |
           cd backend
           python update_mlb_stats.py
+
+      - name: Clear MLB player cache on Render
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST https://statscout-backend.onrender.com/api/admin/refresh-mlb-cache \
+            -H "X-Admin-Secret: ${{ secrets.ADMIN_SECRET }}"

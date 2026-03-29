@@ -3353,10 +3353,11 @@ export default function StatScoutDashboard() {
   const [mlbTodayLoading, setMlbTodayLoading] = useState(false);
   const [mlbTodayError, setMlbTodayError] = useState(null);
   const [mlbPropsMarket, setMlbPropsMarket] = useState('hits');
-  const [mlbPropsMatchupFilter, setMlbPropsMatchupFilter] = useState(null); // matchupKey or null = all
+  const [mlbPropsTeamFilters, setMlbPropsTeamFilters] = useState([]); // array of selected team names
   const [mlbPropsTeamFilter, setMlbPropsTeamFilter] = useState(null); // 'home'|'away'|null
   const [mlbPropsSearch, setMlbPropsSearch] = useState('');
   const [mlbPropsPlayingToday, setMlbPropsPlayingToday] = useState(false);
+  const [mlbPropsTeamSearch, setMlbPropsTeamSearch] = useState('');
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
@@ -4849,8 +4850,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   ))}
                 </div>
 
-                {/* Row 2: Search + team dropdown + playing today toggle */}
-                <div className="flex flex-wrap items-center gap-2 mb-5">
+                {/* Row 2: Search + team filter + playing today toggle */}
+                <div className="flex flex-wrap items-center gap-2 mb-3">
                   <input
                     type="text"
                     placeholder="Search player..."
@@ -4859,21 +4860,59 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     className="bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   {mlbTodayPlayers.length > 0 && (() => {
-                    const teams = [...new Set(mlbTodayPlayers.map(p => p.team))].filter(Boolean).sort();
+                    const allTeams = [...new Set(mlbTodayPlayers.map(p => p.team))].filter(Boolean).sort();
+                    const filtered = mlbPropsTeamSearch
+                      ? allTeams.filter(t => t.toLowerCase().includes(mlbPropsTeamSearch.toLowerCase()))
+                      : allTeams;
                     return (
-                      <select
-                        value={mlbPropsMatchupFilter || ''}
-                        onChange={e => { setMlbPropsMatchupFilter(e.target.value || null); setMlbPropsTeamFilter(null); setMlbPropsPlayingToday(false); }}
-                        className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">All Teams</option>
-                        {teams.map(t => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
+                      <div className="relative group">
+                        <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 cursor-pointer min-w-[140px]">
+                          <span className="text-sm text-gray-300 flex-1">
+                            {mlbPropsTeamFilters.length === 0 ? 'All Teams' : `${mlbPropsTeamFilters.length} team${mlbPropsTeamFilters.length > 1 ? 's' : ''}`}
+                          </span>
+                          <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                        <div className="absolute top-full left-0 mt-1 w-64 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-20 hidden group-focus-within:block group-hover:block">
+                          <div className="p-2 border-b border-gray-800">
+                            <input
+                              type="text"
+                              placeholder="Filter teams..."
+                              value={mlbPropsTeamSearch}
+                              onChange={e => setMlbPropsTeamSearch(e.target.value)}
+                              className="w-full bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="max-h-56 overflow-y-auto py-1">
+                            {filtered.map(t => (
+                              <label key={t} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={mlbPropsTeamFilters.includes(t)}
+                                  onChange={() => {
+                                    setMlbPropsTeamFilters(prev =>
+                                      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                                    );
+                                    setMlbPropsPlayingToday(false);
+                                  }}
+                                  className="accent-blue-500 w-3.5 h-3.5"
+                                />
+                                <span className="text-sm text-gray-300">{t}</span>
+                                {mlbTodayMatchups.some(m => m.homeTeam === t || m.awayTeam === t) && (
+                                  <span className="ml-auto text-[10px] text-blue-400 font-medium">today</span>
+                                )}
+                              </label>
+                            ))}
+                          </div>
+                          {mlbPropsTeamFilters.length > 0 && (
+                            <div className="p-2 border-t border-gray-800">
+                              <button onClick={() => setMlbPropsTeamFilters([])} className="text-xs text-gray-500 hover:text-gray-300">Clear selection</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     );
                   })()}
-                  {mlbTodayMatchups.length > 0 && !mlbPropsMatchupFilter && (
+                  {mlbTodayMatchups.length > 0 && mlbPropsTeamFilters.length === 0 && (
                     <button
                       onClick={() => setMlbPropsPlayingToday(v => !v)}
                       className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
@@ -4884,6 +4923,17 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     >Playing today</button>
                   )}
                 </div>
+                {/* Selected team chips */}
+                {mlbPropsTeamFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {mlbPropsTeamFilters.map(t => (
+                      <span key={t} className="flex items-center gap-1 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                        {t}
+                        <button onClick={() => setMlbPropsTeamFilters(prev => prev.filter(x => x !== t))} className="hover:text-white ml-0.5">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Loading skeletons */}
                 {mlbTodayLoading && (
@@ -4916,8 +4966,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       if (isPitcherMarket && !p.isPitcher) return false;
                       if (!isPitcherMarket && p.isPitcher) return false;
                       if ((p[activeMdef.arr] || []).length < 5) return false;
-                      if (mlbPropsMatchupFilter && p.team !== mlbPropsMatchupFilter) return false;
-                      if (mlbPropsTeamFilter && p.teamSide !== mlbPropsTeamFilter) return false;
+                      if (mlbPropsTeamFilters.length > 0 && !mlbPropsTeamFilters.includes(p.team)) return false;
                       if (mlbPropsPlayingToday && !p.playingToday) return false;
                       if (searchLower && !p.name?.toLowerCase().includes(searchLower)) return false;
                       return true;

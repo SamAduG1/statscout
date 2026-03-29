@@ -1232,6 +1232,30 @@ def get_all_mlb_players():
         return jsonify({"success": False, "error": str(e), "count": 0, "players": []})
 
 
+@app.route('/api/admin/refresh-mlb-cache', methods=['POST'])
+def refresh_mlb_cache():
+    """Delete stale MLB player cache files so they rebuild on next request.
+    Called by GitHub Action after update_mlb_stats.py runs.
+    Protected by ADMIN_SECRET env var.
+    """
+    import os, glob
+    secret = request.headers.get('X-Admin-Secret', '')
+    expected = os.getenv('ADMIN_SECRET', '')
+    if not expected or secret != expected:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    removed = []
+    for path in glob.glob('/tmp/mlbp_*.json'):
+        try:
+            os.remove(path)
+            removed.append(path)
+        except Exception:
+            pass
+
+    print(f"[ADMIN] MLB cache cleared: {removed}")
+    return jsonify({"success": True, "cleared": len(removed)})
+
+
 @app.route('/api/mlb/players', methods=['GET'])
 def get_mlb_players():
     """
