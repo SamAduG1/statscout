@@ -1816,6 +1816,21 @@ const MLBPlayerDetailModal = ({ player, onClose }) => {
   );
 };
 
+const MLB_TEAM_ABBR = {
+  'Arizona Diamondbacks': 'ARI', 'Atlanta Braves': 'ATL', 'Baltimore Orioles': 'BAL',
+  'Boston Red Sox': 'BOS', 'Chicago Cubs': 'CHC', 'Chicago White Sox': 'CWS',
+  'Cincinnati Reds': 'CIN', 'Cleveland Guardians': 'CLE', 'Colorado Rockies': 'COL',
+  'Detroit Tigers': 'DET', 'Houston Astros': 'HOU', 'Kansas City Royals': 'KC',
+  'Los Angeles Angels': 'LAA', 'Los Angeles Dodgers': 'LAD', 'Miami Marlins': 'MIA',
+  'Milwaukee Brewers': 'MIL', 'Minnesota Twins': 'MIN', 'New York Mets': 'NYM',
+  'New York Yankees': 'NYY', 'Oakland Athletics': 'OAK', 'Athletics': 'ATH',
+  'Philadelphia Phillies': 'PHI', 'Pittsburgh Pirates': 'PIT', 'San Diego Padres': 'SD',
+  'San Francisco Giants': 'SF', 'Seattle Mariners': 'SEA', 'St. Louis Cardinals': 'STL',
+  'Tampa Bay Rays': 'TB', 'Texas Rangers': 'TEX', 'Toronto Blue Jays': 'TOR',
+  'Washington Nationals': 'WSH',
+};
+const mlbAbbr = name => MLB_TEAM_ABBR[name] || name.split(' ').pop().slice(0, 3).toUpperCase();
+
 const MLB_MARKETS = [
   { key: 'hits',  label: 'Hits',        arr: 'hitsArr',       min: 0.5, max: 2.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
   { key: 'tb',    label: 'Total Bases', arr: 'totalBasesArr', min: 0.5, max: 3.5,  step: 0.5, defaultLine: 1.5,  playerType: 'batter' },
@@ -4791,8 +4806,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             {/* Player Props view */}
             {mlbView === 'playerProps' && (
               <>
-                {/* Market tabs */}
-                <div className="flex flex-wrap gap-2 mb-4">
+                {/* Row 1: Market tabs */}
+                <div className="flex flex-wrap gap-2 mb-3">
                   {MLB_MARKETS.map(m => (
                     <button key={m.key} onClick={() => setMlbPropsMarket(m.key)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -4801,48 +4816,44 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   ))}
                 </div>
 
-                {/* Search + matchup filter row */}
-                <div className="flex flex-wrap items-center gap-3 mb-4">
+                {/* Row 2: Search + game dropdown + team filter */}
+                <div className="flex flex-wrap items-center gap-2 mb-5">
                   <input
                     type="text"
                     placeholder="Search player..."
                     value={mlbPropsSearch}
                     onChange={e => setMlbPropsSearch(e.target.value)}
-                    className="bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 text-sm w-44 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   {mlbTodayMatchups.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        onClick={() => { setMlbPropsMatchupFilter(null); setMlbPropsTeamFilter(null); }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          mlbPropsMatchupFilter === null ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-                        }`}>All Games</button>
+                    <select
+                      value={mlbPropsMatchupFilter || ''}
+                      onChange={e => { setMlbPropsMatchupFilter(e.target.value || null); setMlbPropsTeamFilter(null); }}
+                      className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">All Games ({mlbTodayMatchups.length})</option>
                       {mlbTodayMatchups.map(m => (
-                        <button key={m.key}
-                          onClick={() => { setMlbPropsMatchupFilter(m.key); setMlbPropsTeamFilter(null); }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            mlbPropsMatchupFilter === m.key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-                          }`}>{m.label}</button>
+                        <option key={m.key} value={m.key}>
+                          {mlbAbbr(m.awayTeam)} @ {mlbAbbr(m.homeTeam)}
+                        </option>
                       ))}
-                    </div>
+                    </select>
                   )}
+                  {mlbPropsMatchupFilter && (() => {
+                    const m = mlbTodayMatchups.find(x => x.key === mlbPropsMatchupFilter);
+                    if (!m) return null;
+                    return (
+                      <div className="flex gap-1.5">
+                        {[[null, 'Both'], ['away', mlbAbbr(m.awayTeam)], ['home', mlbAbbr(m.homeTeam)]].map(([val, label]) => (
+                          <button key={String(val)} onClick={() => setMlbPropsTeamFilter(val)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                              mlbPropsTeamFilter === val ? 'bg-gray-600 text-white' : 'bg-gray-800/60 text-gray-400 hover:text-gray-200'
+                            }`}>{label}</button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
-
-                {/* Team filter (only when a specific matchup is selected) */}
-                {mlbPropsMatchupFilter && (() => {
-                  const m = mlbTodayMatchups.find(x => x.key === mlbPropsMatchupFilter);
-                  if (!m) return null;
-                  return (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {[[null, 'Both Teams'], ['home', m.homeTeam], ['away', m.awayTeam]].map(([val, label]) => (
-                        <button key={String(val)} onClick={() => setMlbPropsTeamFilter(val)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            mlbPropsTeamFilter === val ? 'bg-gray-700 text-white' : 'bg-gray-800/50 text-gray-500 hover:text-gray-300'
-                          }`}>{label}</button>
-                      ))}
-                    </div>
-                  );
-                })()}
 
                 {/* Loading skeletons */}
                 {mlbTodayLoading && (
