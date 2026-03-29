@@ -4849,7 +4849,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   ))}
                 </div>
 
-                {/* Row 2: Search + game dropdown + team filter + playing today toggle */}
+                {/* Row 2: Search + team dropdown + playing today toggle */}
                 <div className="flex flex-wrap items-center gap-2 mb-5">
                   <input
                     type="text"
@@ -4858,35 +4858,22 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     onChange={e => setMlbPropsSearch(e.target.value)}
                     className="bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
-                  {mlbTodayMatchups.length > 0 && (
-                    <select
-                      value={mlbPropsMatchupFilter || ''}
-                      onChange={e => { setMlbPropsMatchupFilter(e.target.value || null); setMlbPropsTeamFilter(null); setMlbPropsPlayingToday(false); }}
-                      className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">All Teams</option>
-                      {mlbTodayMatchups.map(m => (
-                        <option key={m.key} value={m.key}>
-                          {m.awayTeam} @ {m.homeTeam}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {mlbPropsMatchupFilter && (() => {
-                    const m = mlbTodayMatchups.find(x => x.key === mlbPropsMatchupFilter);
-                    if (!m) return null;
+                  {mlbTodayPlayers.length > 0 && (() => {
+                    const teams = [...new Set(mlbTodayPlayers.map(p => p.team))].filter(Boolean).sort();
                     return (
-                      <div className="flex gap-1.5">
-                        {[[null, 'Both'], ['away', mlbAbbr(m.awayTeam)], ['home', mlbAbbr(m.homeTeam)]].map(([val, label]) => (
-                          <button key={String(val)} onClick={() => setMlbPropsTeamFilter(val)}
-                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                              mlbPropsTeamFilter === val ? 'bg-gray-600 text-white' : 'bg-gray-800/60 text-gray-400 hover:text-gray-200'
-                            }`}>{label}</button>
+                      <select
+                        value={mlbPropsMatchupFilter || ''}
+                        onChange={e => { setMlbPropsMatchupFilter(e.target.value || null); setMlbPropsTeamFilter(null); setMlbPropsPlayingToday(false); }}
+                        className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">All Teams</option>
+                        {teams.map(t => (
+                          <option key={t} value={t}>{t}</option>
                         ))}
-                      </div>
+                      </select>
                     );
                   })()}
-                  {!mlbPropsMatchupFilter && mlbTodayMatchups.length > 0 && (
+                  {mlbTodayMatchups.length > 0 && !mlbPropsMatchupFilter && (
                     <button
                       onClick={() => setMlbPropsPlayingToday(v => !v)}
                       className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
@@ -4929,7 +4916,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       if (isPitcherMarket && !p.isPitcher) return false;
                       if (!isPitcherMarket && p.isPitcher) return false;
                       if ((p[activeMdef.arr] || []).length < 5) return false;
-                      if (mlbPropsMatchupFilter && p.matchupKey !== mlbPropsMatchupFilter) return false;
+                      if (mlbPropsMatchupFilter && p.team !== mlbPropsMatchupFilter) return false;
                       if (mlbPropsTeamFilter && p.teamSide !== mlbPropsTeamFilter) return false;
                       if (mlbPropsPlayingToday && !p.playingToday) return false;
                       if (searchLower && !p.name?.toLowerCase().includes(searchLower)) return false;
@@ -4945,7 +4932,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   return visible.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {visible.map(p => (
-                        <MLBPlayerCard key={`${p.id}_${p.matchupKey}`} player={p} market={mlbPropsMarket} onClick={() => setSelectedMlbPlayer(p)} />
+                        <MLBPlayerCard key={p.id} player={p} market={mlbPropsMarket} onClick={() => setSelectedMlbPlayer(p)} />
                       ))}
                     </div>
                   ) : (
