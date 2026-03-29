@@ -1060,6 +1060,178 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
         session.close()
 
 
+def _compute_all_mlb_players():
+    """
+    Build props arrays for every MLB player in the DB regardless of today's schedule.
+    No opponent/teamSide context — h2hGames omitted. Used for the all-players view.
+    """
+    from models import get_engine, get_session, MLBPlayer, MLBPlayerGame
+    from mlb_fetcher import ODDS_TO_MLB
+
+    # Reverse map: MLB Stats API name -> Odds API name
+    MLB_TO_ODDS = {v: k for k, v in ODDS_TO_MLB.items()}
+
+    engine = get_engine()
+    session = get_session(engine)
+
+    def safe_avg(arr):
+        return round(sum(arr) / len(arr), 2) if arr else None
+
+    def batter_splits(gs):
+        if not gs:
+            return None
+        return {
+            "hits":       safe_avg([g.hits for g in gs if g.hits is not None]),
+            "homeRuns":   safe_avg([g.home_runs for g in gs if g.home_runs is not None]),
+            "rbi":        safe_avg([g.rbi for g in gs if g.rbi is not None]),
+            "totalBases": safe_avg([g.total_bases for g in gs if g.total_bases is not None]),
+            "games":      len(gs),
+        }
+
+    try:
+        all_players = session.query(MLBPlayer).all()
+        players_out = []
+
+        for p in all_players:
+            all_games = (
+                session.query(MLBPlayerGame)
+                .filter_by(player_id=p.id)
+                .order_by(MLBPlayerGame.game_date.asc())
+                .all()
+            )
+            if len(all_games) < 5:
+                continue
+
+            recent = all_games[-20:]
+            team_odds = MLB_TO_ODDS.get(p.team, p.team)
+
+            if p.is_pitcher:
+                ks   = [g.strikeouts for g in recent if g.strikeouts is not None]
+                outs = [g.outs_recorded for g in recent if g.outs_recorded is not None]
+                if len(ks) < 5:
+                    continue
+
+                home_g = [g for g in all_games if g.is_home and g.strikeouts is not None]
+                away_g = [g for g in all_games if not g.is_home and g.strikeouts is not None]
+
+                game_log = [
+                    {
+                        "date":           g.game_date.isoformat(),
+                        "opponent":       g.opponent,
+                        "isHome":         g.is_home,
+                        "strikeouts":     g.strikeouts,
+                        "inningsPitched": g.innings_pitched,
+                        "earnedRuns":     g.earned_runs,
+                        "hitsAllowed":    g.hits_allowed,
+                    }
+                    for g in all_games[-15:]
+                ]
+
+                players_out.append({
+                    "id":            p.id,
+                    "name":          p.name,
+                    "team":          team_odds,
+                    "teamDbName":    p.team,
+                    "position":      p.position,
+                    "isPitcher":     True,
+                    "gamesPlayed":   len(all_games),
+                    "strikeoutsArr": ks,
+                    "outsArr":       outs,
+                    "avgKs":         safe_avg(ks),
+                    "homeAvgKs":     safe_avg([g.strikeouts for g in home_g]),
+                    "awayAvgKs":     safe_avg([g.strikeouts for g in away_g]),
+                    "homeGames":     len(home_g),
+                    "awayGames":     len(away_g),
+                    "gameLog":       game_log,
+                    "h2hGames":      [],
+                })
+
+            else:
+                hits = [g.hits for g in recent if g.hits is not None]
+                hrs  = [g.home_runs for g in recent if g.home_runs is not None]
+                rbi  = [g.rbi for g in recent if g.rbi is not None]
+                runs = [g.runs for g in recent if g.runs is not None]
+                tb   = [g.total_bases for g in recent if g.total_bases is not None]
+                hrr  = [
+                    (g.hits or 0) + (g.runs or 0) + (g.rbi or 0)
+                    for g in recent
+                    if g.hits is not None and g.runs is not None and g.rbi is not None
+                ]
+                if len(hits) < 5:
+                    continue
+
+                home_g = [g for g in all_games if g.is_home and g.hits is not None]
+                away_g = [g for g in all_games if not g.is_home and g.hits is not None]
+
+                game_log = [
+                    {
+                        "date":       g.game_date.isoformat(),
+                        "opponent":   g.opponent,
+                        "isHome":     g.is_home,
+                        "hits":       g.hits,
+                        "homeRuns":   g.home_runs,
+                        "rbi":        g.rbi,
+                        "runs":       g.runs,
+                        "totalBases": g.total_bases,
+                        "atBats":     g.at_bats,
+                    }
+                    for g in all_games[-15:]
+                ]
+
+                players_out.append({
+                    "id":            p.id,
+                    "name":          p.name,
+                    "team":          team_odds,
+                    "teamDbName":    p.team,
+                    "position":      p.position,
+                    "isPitcher":     False,
+                    "gamesPlayed":   len(all_games),
+                    "hitsArr":       hits,
+                    "homeRunsArr":   hrs,
+                    "rbiArr":        rbi,
+                    "runsArr":       runs,
+                    "totalBasesArr": tb,
+                    "hrrArr":        hrr,
+                    "avgHits":       safe_avg(hits),
+                    "avgTB":         safe_avg(tb),
+                    "homeSplit":     batter_splits(home_g),
+                    "awaySplit":     batter_splits(away_g),
+                    "homeGames":     len(home_g),
+                    "awayGames":     len(away_g),
+                    "gameLog":       game_log,
+                    "h2hGames":      [],
+                })
+
+        players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))
+        return {"success": True, "count": len(players_out), "players": players_out}
+    finally:
+        session.close()
+
+
+MLB_ALL_PLAYERS_CACHE_FILE = "/tmp/mlbp_all.json"
+
+
+@app.route('/api/mlb/players/all', methods=['GET'])
+def get_all_mlb_players():
+    """Return props for every MLB player in DB (no matchup required). Cached 6h."""
+    cached = _load_specific_cache(MLB_ALL_PLAYERS_CACHE_FILE)
+    if cached:
+        ts = cached.get('ts')
+        if ts:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+            if age < MLB_PLAYERS_CACHE_DURATION and cached.get('count', 0) > 0:
+                return jsonify(cached)
+    try:
+        data = _compute_all_mlb_players()
+        data['ts'] = datetime.now().isoformat()
+        if data['count'] > 0:
+            _save_specific_cache(MLB_ALL_PLAYERS_CACHE_FILE, data)
+        return jsonify(data)
+    except Exception as e:
+        print(f"[MLB ALL PLAYERS] Error: {e}")
+        return jsonify({"success": False, "error": str(e), "count": 0, "players": []})
+
+
 @app.route('/api/mlb/players', methods=['GET'])
 def get_mlb_players():
     """
@@ -1202,6 +1374,26 @@ def _build_mlb_cache_background():
                 if attempt < 3:
                     _time.sleep(15)
         mlb_cache["building"] = False
+
+        # Pre-warm all-players cache
+        try:
+            cached = _load_specific_cache(MLB_ALL_PLAYERS_CACHE_FILE)
+            needs_rebuild = True
+            if cached:
+                ts = cached.get('ts')
+                if ts:
+                    age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+                    if age < MLB_PLAYERS_CACHE_DURATION and cached.get('count', 0) > 0:
+                        needs_rebuild = False
+            if needs_rebuild:
+                print("[MLB] Building all-players cache...")
+                data = _compute_all_mlb_players()
+                data['ts'] = datetime.now().isoformat()
+                if data['count'] > 0:
+                    _save_specific_cache(MLB_ALL_PLAYERS_CACHE_FILE, data)
+                print(f"[MLB] All-players cache ready ({data['count']} players)")
+        except Exception as e:
+            print(f"[MLB] All-players pre-warm failed: {e}")
 
         # Pre-warm today's player props so first user request is instant
         if mlb_cache["data"] and mlb_cache["data"].get("games"):

@@ -3356,6 +3356,7 @@ export default function StatScoutDashboard() {
   const [mlbPropsMatchupFilter, setMlbPropsMatchupFilter] = useState(null); // matchupKey or null = all
   const [mlbPropsTeamFilter, setMlbPropsTeamFilter] = useState(null); // 'home'|'away'|null
   const [mlbPropsSearch, setMlbPropsSearch] = useState('');
+  const [mlbPropsPlayingToday, setMlbPropsPlayingToday] = useState(false);
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
@@ -3765,20 +3766,52 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
     return () => { if (retryTimeout) clearTimeout(retryTimeout); };
   }, [currentSport]);
 
-  // Fetch all MLB player props for today's games
+  // Fetch all MLB players (all teams, not just today's games)
   useEffect(() => {
     if (currentSport !== 'mlb' || mlbView !== 'playerProps') return;
     if (mlbTodayPlayers.length > 0 || mlbTodayLoading) return;
     setMlbTodayLoading(true);
     setMlbTodayError(null);
-    fetch(`${API_BASE_URL}/mlb/players/today`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.count > 0) {
-          setMlbTodayPlayers(data.players);
-          setMlbTodayMatchups(data.matchups || []);
+
+    // Fetch all players + today's matchups in parallel
+    Promise.all([
+      fetch(`${API_BASE_URL}/mlb/players/all`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/mlb/games`).then(r => r.json()),
+    ])
+      .then(([playersData, gamesData]) => {
+        if (playersData.success && playersData.count > 0) {
+          // Tag players whose team is playing today
+          const todayGames = gamesData.games || [];
+          const matchups = todayGames.map(g => ({
+            key: `${g.homeTeam}__${g.awayTeam}`,
+            label: `${g.awayTeam} @ ${g.homeTeam}`,
+            homeTeam: g.homeTeam,
+            awayTeam: g.awayTeam,
+          }));
+          const playingTeams = new Set(todayGames.flatMap(g => [g.homeTeam, g.awayTeam]));
+          const tagged = playersData.players.map(p => ({
+            ...p,
+            matchupKey: (() => {
+              const game = todayGames.find(g => g.homeTeam === p.team || g.awayTeam === p.team);
+              return game ? `${game.homeTeam}__${game.awayTeam}` : null;
+            })(),
+            matchupLabel: (() => {
+              const game = todayGames.find(g => g.homeTeam === p.team || g.awayTeam === p.team);
+              return game ? `${game.awayTeam} @ ${game.homeTeam}` : null;
+            })(),
+            teamSide: (() => {
+              const game = todayGames.find(g => g.homeTeam === p.team);
+              if (game) return 'home';
+              const game2 = todayGames.find(g => g.awayTeam === p.team);
+              if (game2) return 'away';
+              return null;
+            })(),
+            playingToday: playingTeams.has(p.team),
+          }));
+          setMlbTodayPlayers(tagged);
+          setMlbTodayMatchups(matchups);
         } else {
-          setMlbTodayError('No player data found for today\'s games.');
+          setMlbTodayError('No player data found. Run populate_mlb_players.py first.');
         }
         setMlbTodayLoading(false);
       })
@@ -4816,7 +4849,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   ))}
                 </div>
 
-                {/* Row 2: Search + game dropdown + team filter */}
+                {/* Row 2: Search + game dropdown + team filter + playing today toggle */}
                 <div className="flex flex-wrap items-center gap-2 mb-5">
                   <input
                     type="text"
@@ -4828,10 +4861,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   {mlbTodayMatchups.length > 0 && (
                     <select
                       value={mlbPropsMatchupFilter || ''}
-                      onChange={e => { setMlbPropsMatchupFilter(e.target.value || null); setMlbPropsTeamFilter(null); }}
+                      onChange={e => { setMlbPropsMatchupFilter(e.target.value || null); setMlbPropsTeamFilter(null); setMlbPropsPlayingToday(false); }}
                       className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <option value="">All Games ({mlbTodayMatchups.length})</option>
+                      <option value="">All Teams</option>
                       {mlbTodayMatchups.map(m => (
                         <option key={m.key} value={m.key}>
                           {m.awayTeam} @ {m.homeTeam}
@@ -4853,6 +4886,16 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       </div>
                     );
                   })()}
+                  {!mlbPropsMatchupFilter && mlbTodayMatchups.length > 0 && (
+                    <button
+                      onClick={() => setMlbPropsPlayingToday(v => !v)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+                        mlbPropsPlayingToday
+                          ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                          : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:text-gray-200'
+                      }`}
+                    >Playing today</button>
+                  )}
                 </div>
 
                 {/* Loading skeletons */}
@@ -4888,6 +4931,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       if ((p[activeMdef.arr] || []).length < 5) return false;
                       if (mlbPropsMatchupFilter && p.matchupKey !== mlbPropsMatchupFilter) return false;
                       if (mlbPropsTeamFilter && p.teamSide !== mlbPropsTeamFilter) return false;
+                      if (mlbPropsPlayingToday && !p.playingToday) return false;
                       if (searchLower && !p.name?.toLowerCase().includes(searchLower)) return false;
                       return true;
                     })
