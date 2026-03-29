@@ -1184,7 +1184,7 @@ def health_check():
 
 
 def _build_mlb_cache_background():
-    """Build MLB game card cache in a background thread."""
+    """Build MLB game card cache, then pre-warm today's player props cache."""
     import threading, time as _time
     def _run():
         mlb_cache["building"] = True
@@ -1202,6 +1202,52 @@ def _build_mlb_cache_background():
                 if attempt < 3:
                     _time.sleep(15)
         mlb_cache["building"] = False
+
+        # Pre-warm today's player props so first user request is instant
+        if mlb_cache["data"] and mlb_cache["data"].get("games"):
+            print("[MLB] Pre-warming today's player props cache...")
+            try:
+                safe = lambda s: s.replace(' ', '_').replace('/', '-')
+                TODAY_CACHE_FILE = "/tmp/mlbp_today.json"
+                all_players = []
+                matchups = []
+                for game in mlb_cache["data"]["games"]:
+                    home_team = game.get("homeTeam", "")
+                    away_team = game.get("awayTeam", "")
+                    if not home_team or not away_team:
+                        continue
+                    matchup_label = f"{away_team} @ {home_team}"
+                    matchups.append({"key": f"{home_team}__{away_team}", "label": matchup_label, "homeTeam": home_team, "awayTeam": away_team})
+                    cache_key = f"/tmp/mlbp_{safe(home_team)}_{safe(away_team)}.json"
+                    per_game_cached = _load_specific_cache(cache_key)
+                    players = None
+                    if per_game_cached:
+                        ts = per_game_cached.get('ts')
+                        if ts:
+                            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+                            if age < MLB_PLAYERS_CACHE_DURATION and per_game_cached.get('count', 0) > 0:
+                                players = per_game_cached.get('players', [])
+                    if players is None:
+                        try:
+                            data = _compute_mlb_players(home_team, away_team)
+                            data['ts'] = datetime.now().isoformat()
+                            if data['count'] > 0:
+                                _save_specific_cache(cache_key, data)
+                            players = data.get('players', [])
+                        except Exception as e:
+                            print(f"[MLB TODAY] Pre-warm error for {home_team} vs {away_team}: {e}")
+                            players = []
+                    for p in players:
+                        p['matchupKey'] = f"{home_team}__{away_team}"
+                        p['matchupLabel'] = matchup_label
+                    all_players.extend(players)
+                result = {"success": True, "count": len(all_players), "players": all_players, "matchups": matchups, "ts": datetime.now().isoformat()}
+                if len(all_players) > 0:
+                    _save_specific_cache(TODAY_CACHE_FILE, result)
+                print(f"[MLB] Today's props cache ready ({len(all_players)} players across {len(matchups)} games)")
+            except Exception as e:
+                print(f"[MLB] Pre-warm failed: {e}")
+
     threading.Thread(target=_run, daemon=True).start()
 
 
