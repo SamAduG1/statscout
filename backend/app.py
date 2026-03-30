@@ -726,21 +726,31 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                 ).all()
 
             for p in players:
-                games = (
+                all_games = (
                     session.query(SoccerPlayerGame)
-                    .filter_by(player_id=p.id, season=str(2025))
+                    .filter_by(player_id=p.id)
                     .order_by(SoccerPlayerGame.match_date.asc())
                     .all()
                 )
-                active = [g for g in games if g.minutes_played > 0]
-                if len(active) < 3:
+                games_prev = [g for g in all_games if g.season == '2024' and g.minutes_played > 0]
+                games_curr = [g for g in all_games if g.season == '2025' and g.minutes_played > 0]
+                active = games_curr  # current season for display/splits
+                if len(active) < 3 and len(games_prev) < 3:
                     continue
+                if not active:
+                    active = games_prev
 
                 goals   = [g.goals for g in active]
                 shots   = [g.shots for g in active]
                 assists = [g.assists for g in active]
                 ga      = [g.goals + g.assists for g in active]
                 mins    = [g.minutes_played for g in active]
+
+                # xG and xA arrays (current season, filtering None)
+                xg_curr  = [g.xG for g in games_curr if g.xG is not None]
+                xa_curr  = [g.xA for g in games_curr if g.xA is not None]
+                xg_prev  = [g.xG for g in games_prev if g.xG is not None]
+                xa_prev  = [g.xA for g in games_prev if g.xA is not None]
 
                 # H2H: games against tonight's opponent
                 h2h = [g for g in active if opp_us.lower() in (g.opponent or "").lower()]
@@ -754,6 +764,8 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                         "shots":         g.shots,
                         "assists":       g.assists,
                         "minutesPlayed": g.minutes_played,
+                        "xG":            g.xG,
+                        "xA":            g.xA,
                     }
                     for g in active[-15:]
                 ]
@@ -778,7 +790,8 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     "teamSide":     side,
                     "position":     p.position,
                     "gamesPlayed":  len(active),
-                    "avgMinutes":   round(sum(mins) / len(mins), 1),
+                    "gamesCurr":    len(games_curr),
+                    "avgMinutes":   round(sum(mins) / len(mins), 1) if mins else 0,
                     "opponent":     opp_odds,
                     # Goals
                     "goals_over05":   hit_rate(goals, 0.5),
@@ -794,11 +807,19 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     # GK
                     "cleanSheet": None,
                     "gcArr": [],
-                    # Raw arrays for live slider + bar graph (last 15 games, oldest first)
+                    # Raw arrays (current season, last 15 games oldest first)
                     "goalsArr":   goals[-15:],
                     "shotsArr":   shots[-15:],
                     "assistsArr": assists[-15:],
                     "gaArr":      ga[-15:],
+                    # xG/xA arrays for blended trust (current + prior season)
+                    "xgArr":      xg_curr[-15:],
+                    "xaArr":      xa_curr[-15:],
+                    "xgArrPrev":  xg_prev,
+                    "xaArrPrev":  xa_prev,
+                    "goalsPrev":  [g.goals for g in games_prev],
+                    "shotsPrev":  [g.shots for g in games_prev],
+                    "assistsPrev":[g.assists for g in games_prev],
                     # Detail data
                     "gameLog":    game_log,
                     "h2hGames":   h2h_log,

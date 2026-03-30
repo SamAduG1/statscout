@@ -182,6 +182,8 @@ class SoccerPlayerGame(Base):
     assists         = Column(Integer, nullable=False, default=0)
     key_passes      = Column(Integer, nullable=False, default=0)
     minutes_played  = Column(Integer, nullable=False, default=0)
+    xG              = Column(Float, nullable=True)     # expected goals from Understat
+    xA              = Column(Float, nullable=True)     # expected assists from Understat
     goals_conceded  = Column(Integer, nullable=True)   # GK only: goals conceded in that match
     season          = Column(String, nullable=False)   # e.g. '2025'
 

@@ -1478,9 +1478,40 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
   React.useEffect(() => { setLine(mdef.defaultLine); }, [market]);
 
   const arr = player[mdef.arr] || [];
+
+  // Prior season array for season blending
+  const prevArr = React.useMemo(() => {
+    if (market === 'goals') return player.goalsPrev || [];
+    if (market === 'shots') return player.shotsPrev || [];
+    if (market === 'assists') return player.assistsPrev || [];
+    if (market === 'ga') {
+      const gp = player.goalsPrev || [];
+      const ap = player.assistsPrev || [];
+      return gp.map((g, i) => g + (ap[i] || 0));
+    }
+    return [];
+  }, [market, player.goalsPrev, player.shotsPrev, player.assistsPrev]);
+
+  // Blend prior + current season; fall back to current-only if blended too small
+  const blendedArr = React.useMemo(() => blendSoccerArrays(prevArr, arr), [prevArr, arr]);
+  const displayArr = blendedArr.length >= 5 ? blendedArr : arr;
+
   const hitRate = isGkMarket
-    ? (arr.length ? Math.round(arr.filter(v => v < line).length / arr.length * 100) : null)
-    : calcHitRate(arr, line);
+    ? (displayArr.length ? Math.round(displayArr.filter(v => v < line).length / displayArr.length * 100) : null)
+    : calcHitRate(displayArr, line);
+
+  // xG/xA co-signal array for trust computation
+  const xSignalArr = React.useMemo(() => {
+    if (market === 'goals') return player.xgArr || [];
+    if (market === 'assists') return player.xaArr || [];
+    if (market === 'ga') {
+      const xg = player.xgArr || [];
+      const xa = player.xaArr || [];
+      const len = Math.min(xg.length, xa.length);
+      return xg.slice(0, len).map((v, i) => v + xa[i]);
+    }
+    return null;
+  }, [market, player.xgArr, player.xaArr]);
 
   const getRateColor = (rate) => {
     if (rate == null) return 'text-gray-400 dark:text-gray-500';
@@ -1497,8 +1528,14 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
   const gcAvg = isGkMarket && arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
 
   const trust = React.useMemo(
-    () => computePlayerTrust(arr, isGkMarket ? v => v < line : v => v > line, player.avgMinutes),
-    [arr, line, isGkMarket, player.avgMinutes]
+    () => computeSoccerPlayerTrust(
+      displayArr,
+      isGkMarket ? v => v < line : v => v > line,
+      player.avgMinutes,
+      isGkMarket ? null : xSignalArr,
+      line
+    ),
+    [displayArr, line, isGkMarket, player.avgMinutes, xSignalArr]
   );
 
   return (
@@ -2565,6 +2602,19 @@ const blendMlbArrays = (arr2025, arr2026) => {
   return [...slice25, ...slice26];
 };
 
+// Blend prior season (2024) and current season (2025) arrays for soccer trust.
+const blendSoccerArrays = (prev, curr) => {
+  const nCurr = (curr || []).length;
+  const nPrev = (prev || []).length;
+  if (nCurr === 0 && nPrev === 0) return [];
+  if (nPrev === 0) return curr || [];
+  // Weight schedule: <8 curr games = 25/75; 8-17 = 50/50; 18+ = 70/30
+  const wCurr = nCurr < 8 ? 0.25 : nCurr < 18 ? 0.50 : 0.70;
+  const wPrev = 1 - wCurr;
+  const take = 30;
+  return [...(prev || []).slice(-Math.round(wPrev * take)), ...(curr || []).slice(-Math.round(wCurr * take))];
+};
+
 // Shared trust computation for player prop cards.
 // arr: recent stat values, hitFn: v => bool, avgMinutes: soccer-only minutes reliability.
 // Core signal is hr^1.5 * 100 - monotonically increasing so raising the line always lowers trust.
@@ -2600,6 +2650,18 @@ const computePlayerTrust = (arr, hitFn, avgMinutes) => {
   score += sampleBonus;
 
   return Math.round(Math.min(Math.max(score, 0), 100));
+};
+
+// Soccer-specific trust: wraps computePlayerTrust and adds xG/xA co-signal modifier.
+// xSignalArr: xgArr for goals/ga markets, xaArr for assists market, null otherwise.
+const computeSoccerPlayerTrust = (arr, hitFn, avgMinutes, xSignalArr, line) => {
+  const base = computePlayerTrust(arr, hitFn, avgMinutes);
+  if (base === null) return null;
+  if (!xSignalArr || xSignalArr.length < 3 || !line) return base;
+  const avgX = xSignalArr.reduce((a, b) => a + b, 0) / xSignalArr.length;
+  // Positive when model predicts over the line, negative when under
+  const modifier = Math.max(-10, Math.min(10, (avgX - line) / Math.max(line, 0.3) * 12));
+  return Math.round(Math.min(Math.max(base + modifier, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {

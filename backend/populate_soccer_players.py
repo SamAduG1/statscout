@@ -152,6 +152,15 @@ def insert_matches(session, player, matches, all_teams=None):
             except (ValueError, TypeError):
                 goals_conceded = None
 
+        try:
+            xg_val = float(m.get("xG", 0) or 0)
+        except (ValueError, TypeError):
+            xg_val = None
+        try:
+            xa_val = float(m.get("xA", 0) or 0)
+        except (ValueError, TypeError):
+            xa_val = None
+
         game = SoccerPlayerGame(
             player_id=player.id,
             match_date=match_date,
@@ -159,10 +168,12 @@ def insert_matches(session, player, matches, all_teams=None):
             venue=venue,
             goals=int(m.get("goals", 0) or 0),
             shots=int(m.get("shots", 0) or 0),
-            shots_on_target=0,  # not in match data; update via separate source if needed
+            shots_on_target=0,  # not in Understat per-match data
             assists=int(m.get("assists", 0) or 0),
             key_passes=int(m.get("key_passes", 0) or 0),
             minutes_played=mins,
+            xG=xg_val,
+            xA=xa_val,
             goals_conceded=goals_conceded,
             season=str(SEASON),
         )
