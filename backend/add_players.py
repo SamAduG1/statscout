@@ -19,6 +19,18 @@ SEASON = '2025-26'
 
 # (name, team, position)
 NEW_PLAYERS = [
+    ('Gui Santos',               'GSW', 'F'),
+    ("De'Anthony Melton",        'GSW', 'G'),
+    ('Jayson Tatum',             'BOS', 'F'),
+    ('Baylor Scheierman',        'BOS', 'G'),
+    ('Micah Potter',             'IND', 'C'),
+    ('Obi Toppin',               'IND', 'F'),
+    ('Andre Jackson Jr.',        'MIL', 'G'),
+    ('Taurean Prince',           'MIL', 'F'),
+    ('Scoot Henderson',          'POR', 'G'),
+    ('Ochai Agbaji',             'BKN', 'G'),
+    ('Ben Saraf',                'BKN', 'G'),
+    ('Devin Carter',             'SAC', 'G'),
     ('Dejounte Murray',          'NOP', 'G'),
     ('Javon Small',              'MEM', 'G'),
     ('Rayan Rupert',             'MEM', 'G'),
