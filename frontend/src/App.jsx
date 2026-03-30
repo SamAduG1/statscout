@@ -1858,14 +1858,20 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
   React.useEffect(() => { setLine(mdef.defaultLine); }, [market]);
 
   const arr = player[mdef.arr] || [];
-  const hitRate = arr.length ? Math.round(arr.filter(v => v > line).length / arr.length * 100) : null;
+  const arr2025 = player[mdef.arr + '2025'] || [];
+  const arr2026 = player[mdef.arr + '2026'] || [];
+  const blendedArr = React.useMemo(() => blendMlbArrays(arr2025, arr2026), [arr2025, arr2026]);
+
+  // Use blended array for hit rate and trust; fall back to recent arr if no season splits
+  const displayArr = blendedArr.length >= 5 ? blendedArr : arr;
+  const hitRate = displayArr.length ? Math.round(displayArr.filter(v => v > line).length / displayArr.length * 100) : null;
   const avgVal = arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
 
   const getRateColor = r => r == null ? 'text-gray-400' : r >= 70 ? 'text-green-500' : r >= 55 ? 'text-blue-500' : 'text-red-400';
 
   const trust = React.useMemo(
-    () => computePlayerTrust(arr, v => v > line),
-    [arr, line]
+    () => computePlayerTrust(displayArr, v => v > line),
+    [displayArr, line]
   );
 
   const steps = [];
@@ -2539,9 +2545,29 @@ const getTrustBadgeClass = (score) => {
   return 'bg-red-500/10 text-red-400 border-red-400/30';
 };
 
+// Blend prior season (2025) and current season (2026) arrays for MLB trust.
+// Weight shifts toward current season as sample size grows.
+const blendMlbArrays = (arr2025, arr2026) => {
+  const n26 = (arr2026 || []).length;
+  const n25 = (arr2025 || []).length;
+  if (n26 === 0 && n25 === 0) return [];
+  if (n25 === 0) return arr2026 || [];
+  // Weight schedule: <20 games this season = 30% current / 70% prior
+  //                  20-49 games = 50/50
+  //                  50+ games = 75% current / 25% prior
+  const w26 = n26 < 20 ? 0.30 : n26 < 50 ? 0.50 : 0.75;
+  const w25 = 1 - w26;
+  // Build blended array by sampling proportionally
+  const take25 = Math.round(w25 * 60); // up to 60 total games
+  const take26 = Math.round(w26 * 60);
+  const slice25 = (arr2025 || []).slice(-take25);
+  const slice26 = (arr2026 || []).slice(-take26);
+  return [...slice25, ...slice26];
+};
+
 // Shared trust computation for player prop cards.
 // arr: recent stat values, hitFn: v => bool, avgMinutes: soccer-only minutes reliability.
-// Core signal is hr^1.5 * 100 — monotonically increasing so raising the line always lowers trust.
+// Core signal is hr^1.5 * 100 - monotonically increasing so raising the line always lowers trust.
 const computePlayerTrust = (arr, hitFn, avgMinutes) => {
   if (!arr || arr.length < 5) return null;
 
@@ -3974,7 +4000,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                   <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
                 <a
-                  href="https://buymeacoffee.com/statscout"
+                  href="https://buymeacoffee.com/SamAduG"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

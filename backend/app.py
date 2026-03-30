@@ -1099,16 +1099,25 @@ def _compute_all_mlb_players():
                 .order_by(MLBPlayerGame.game_date.asc())
                 .all()
             )
-            if len(all_games) < 5:
+
+            games_2025 = [g for g in all_games if g.season == '2025']
+            games_2026 = [g for g in all_games if g.season == '2026']
+
+            # Need at least 5 games combined to show a player
+            if len(games_2025) + len(games_2026) < 5:
                 continue
 
+            # Use last 20 games across both seasons for display/splits
             recent = all_games[-20:]
             team_odds = MLB_TO_ODDS.get(p.team, p.team)
 
             if p.is_pitcher:
-                ks   = [g.strikeouts for g in recent if g.strikeouts is not None]
+                ks_2025 = [g.strikeouts for g in games_2025 if g.strikeouts is not None]
+                ks_2026 = [g.strikeouts for g in games_2026 if g.strikeouts is not None]
+                ks_recent = [g.strikeouts for g in recent if g.strikeouts is not None]
                 outs = [g.outs_recorded for g in recent if g.outs_recorded is not None]
-                if len(ks) < 5:
+
+                if len(ks_2025) + len(ks_2026) < 5:
                     continue
 
                 home_g = [g for g in all_games if g.is_home and g.strikeouts is not None]
@@ -1128,37 +1137,62 @@ def _compute_all_mlb_players():
                 ]
 
                 players_out.append({
-                    "id":            p.id,
-                    "name":          p.name,
-                    "team":          team_odds,
-                    "teamDbName":    p.team,
-                    "position":      p.position,
-                    "isPitcher":     True,
-                    "gamesPlayed":   len(all_games),
-                    "strikeoutsArr": ks,
-                    "outsArr":       outs,
-                    "avgKs":         safe_avg(ks),
-                    "homeAvgKs":     safe_avg([g.strikeouts for g in home_g]),
-                    "awayAvgKs":     safe_avg([g.strikeouts for g in away_g]),
-                    "homeGames":     len(home_g),
-                    "awayGames":     len(away_g),
-                    "gameLog":       game_log,
-                    "h2hGames":      [],
+                    "id":              p.id,
+                    "name":            p.name,
+                    "team":            team_odds,
+                    "teamDbName":      p.team,
+                    "position":        p.position,
+                    "isPitcher":       True,
+                    "gamesPlayed":     len(all_games),
+                    "games2026":       len(games_2026),
+                    "strikeoutsArr":   ks_recent,
+                    "strikeoutsArr2025": ks_2025,
+                    "strikeoutsArr2026": ks_2026,
+                    "outsArr":         outs,
+                    "avgKs":           safe_avg(ks_recent),
+                    "homeAvgKs":       safe_avg([g.strikeouts for g in home_g]),
+                    "awayAvgKs":       safe_avg([g.strikeouts for g in away_g]),
+                    "homeGames":       len(home_g),
+                    "awayGames":       len(away_g),
+                    "gameLog":         game_log,
+                    "h2hGames":        [],
                 })
 
             else:
-                hits = [g.hits for g in recent if g.hits is not None]
-                hrs  = [g.home_runs for g in recent if g.home_runs is not None]
-                rbi  = [g.rbi for g in recent if g.rbi is not None]
-                runs = [g.runs for g in recent if g.runs is not None]
-                tb   = [g.total_bases for g in recent if g.total_bases is not None]
-                hrr  = [
+                def batter_arr(gs, field):
+                    return [getattr(g, field) for g in gs if getattr(g, field) is not None]
+
+                hits_2025 = batter_arr(games_2025, 'hits')
+                hits_2026 = batter_arr(games_2026, 'hits')
+                hits_recent = batter_arr(recent, 'hits')
+
+                if len(hits_2025) + len(hits_2026) < 5:
+                    continue
+
+                hrs_2025  = batter_arr(games_2025, 'home_runs')
+                hrs_2026  = batter_arr(games_2026, 'home_runs')
+                rbi_2025  = batter_arr(games_2025, 'rbi')
+                rbi_2026  = batter_arr(games_2026, 'rbi')
+                runs_2025 = batter_arr(games_2025, 'runs')
+                runs_2026 = batter_arr(games_2026, 'runs')
+                tb_2025   = batter_arr(games_2025, 'total_bases')
+                tb_2026   = batter_arr(games_2026, 'total_bases')
+
+                hrr_recent = [
                     (g.hits or 0) + (g.runs or 0) + (g.rbi or 0)
                     for g in recent
                     if g.hits is not None and g.runs is not None and g.rbi is not None
                 ]
-                if len(hits) < 5:
-                    continue
+                hrr_2025 = [
+                    (g.hits or 0) + (g.runs or 0) + (g.rbi or 0)
+                    for g in games_2025
+                    if g.hits is not None and g.runs is not None and g.rbi is not None
+                ]
+                hrr_2026 = [
+                    (g.hits or 0) + (g.runs or 0) + (g.rbi or 0)
+                    for g in games_2026
+                    if g.hits is not None and g.runs is not None and g.rbi is not None
+                ]
 
                 home_g = [g for g in all_games if g.is_home and g.hits is not None]
                 away_g = [g for g in all_games if not g.is_home and g.hits is not None]
@@ -1181,25 +1215,38 @@ def _compute_all_mlb_players():
                 players_out.append({
                     "id":            p.id,
                     "name":          p.name,
-                    "team":          team_odds,
-                    "teamDbName":    p.team,
-                    "position":      p.position,
-                    "isPitcher":     False,
-                    "gamesPlayed":   len(all_games),
-                    "hitsArr":       hits,
-                    "homeRunsArr":   hrs,
-                    "rbiArr":        rbi,
-                    "runsArr":       runs,
-                    "totalBasesArr": tb,
-                    "hrrArr":        hrr,
-                    "avgHits":       safe_avg(hits),
-                    "avgTB":         safe_avg(tb),
-                    "homeSplit":     batter_splits(home_g),
-                    "awaySplit":     batter_splits(away_g),
-                    "homeGames":     len(home_g),
-                    "awayGames":     len(away_g),
-                    "gameLog":       game_log,
-                    "h2hGames":      [],
+                    "team":              team_odds,
+                    "teamDbName":        p.team,
+                    "position":          p.position,
+                    "isPitcher":         False,
+                    "gamesPlayed":       len(all_games),
+                    "games2026":         len(games_2026),
+                    "hitsArr":           hits_recent,
+                    "hitsArr2025":       hits_2025,
+                    "hitsArr2026":       hits_2026,
+                    "homeRunsArr":       [g.home_runs for g in recent if g.home_runs is not None],
+                    "homeRunsArr2025":   hrs_2025,
+                    "homeRunsArr2026":   hrs_2026,
+                    "rbiArr":            [g.rbi for g in recent if g.rbi is not None],
+                    "rbiArr2025":        rbi_2025,
+                    "rbiArr2026":        rbi_2026,
+                    "runsArr":           [g.runs for g in recent if g.runs is not None],
+                    "runsArr2025":       runs_2025,
+                    "runsArr2026":       runs_2026,
+                    "totalBasesArr":     [g.total_bases for g in recent if g.total_bases is not None],
+                    "totalBasesArr2025": tb_2025,
+                    "totalBasesArr2026": tb_2026,
+                    "hrrArr":            hrr_recent,
+                    "hrrArr2025":        hrr_2025,
+                    "hrrArr2026":        hrr_2026,
+                    "avgHits":           safe_avg(hits_recent),
+                    "avgTB":             safe_avg([g.total_bases for g in recent if g.total_bases is not None]),
+                    "homeSplit":         batter_splits(home_g),
+                    "awaySplit":         batter_splits(away_g),
+                    "homeGames":         len(home_g),
+                    "awayGames":         len(away_g),
+                    "gameLog":           game_log,
+                    "h2hGames":          [],
                 })
 
         players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))
