@@ -3,7 +3,7 @@ StatScout Database Data Loader
 Handles loading and processing player data from SQLite database
 """
 
-from models import get_engine, get_session, Player, Game
+from models import get_engine, get_session, Player, Game, TeamGame
 from sqlalchemy import func, text
 from typing import Dict, List, Any
 
@@ -566,61 +566,52 @@ class DatabaseLoader:
 
     def get_team_pace_rating(self, team_abbrev: str, min_games: int = 10) -> Dict[str, Any]:
         """
-        Calculate a team's pace rating based on total scoring in their games
+        Calculate a team's pace rating based on actual team-level scoring data
+        from the team_games table (total points scored + allowed per game).
 
-        Pace indicates how fast a team plays (more possessions = higher pace = more stats)
+        Pace indicates how fast a team plays; high-pace opponents inflate counting stats.
 
         Args:
             team_abbrev: Team abbreviation (e.g., "LAL", "GSW")
-            min_games: Minimum games needed for reliable pace estimate
+            min_games: Minimum games needed for a reliable estimate
 
         Returns:
-            Dictionary with pace_rating, games_analyzed, and classification
+            Dictionary with pace_score (0-100), classification, and diagnostics
         """
-        # Get all games where this team was the opponent
-        opponent_games = self.session.query(Game).filter(
-            Game.opponent == team_abbrev
+        # Use TeamGame rows where this team is the opponent — gives us
+        # the combined score (team + opponent total) for each game they played
+        opp_rows = self.session.query(TeamGame).filter(
+            TeamGame.opponent == team_abbrev
         ).all()
 
-        if len(opponent_games) < min_games:
+        if len(opp_rows) < min_games:
             return {
                 "has_pace_data": False,
-                "reason": f"Not enough games (need {min_games}, have {len(opponent_games)})",
-                "pace_score": 50.0  # Neutral default
+                "reason": f"Not enough games (need {min_games}, have {len(opp_rows)})",
+                "pace_score": 50.0
             }
 
-        # Calculate average total points in games involving this team
-        # High-scoring games typically mean faster pace
-        total_points = []
-        for game in opponent_games:
-            # Sum player's points + estimate opponent's points
-            # (We don't store opponent score, so we estimate from game context)
-            total_points.append(game.points)
+        # Each row has total_points (the queried team's score) and opponent_points
+        # (the team_abbrev's score). Sum both to get the full game total.
+        game_totals = [r.total_points + r.opponent_points for r in opp_rows]
+        avg_total = sum(game_totals) / len(game_totals)
 
-        # Average points scored against this team
-        avg_points_allowed = sum(total_points) / len(total_points)
-
-        # NBA average is around 110-115 points per team per game
-        # Fast teams (105+ pace): Allow 115+ PPG
-        # Average teams (98-104 pace): Allow 108-115 PPG
-        # Slow teams (<98 pace): Allow <108 PPG
-
-        # Convert to pace score (0-100)
-        # Higher points allowed = faster pace = higher score
-        if avg_points_allowed >= 115:
-            pace_score = 100  # Very fast
+        # NBA average combined score is ~225-230 PPG (both teams).
+        # High-pace games (240+) inflate counting stats significantly.
+        if avg_total >= 240:
+            pace_score = 100
             classification = "Fast"
-        elif avg_points_allowed >= 112:
-            pace_score = 85
+        elif avg_total >= 232:
+            pace_score = 82
             classification = "Above Average"
-        elif avg_points_allowed >= 108:
-            pace_score = 65
+        elif avg_total >= 222:
+            pace_score = 60
             classification = "Average"
-        elif avg_points_allowed >= 105:
-            pace_score = 45
+        elif avg_total >= 212:
+            pace_score = 40
             classification = "Below Average"
         else:
-            pace_score = 30
+            pace_score = 22
             classification = "Slow"
 
         return {
@@ -628,8 +619,8 @@ class DatabaseLoader:
             "team": team_abbrev,
             "pace_score": pace_score,
             "classification": classification,
-            "avg_points_allowed": round(avg_points_allowed, 1),
-            "games_analyzed": len(opponent_games)
+            "avg_game_total": round(avg_total, 1),
+            "games_analyzed": len(opp_rows)
         }
 
     def get_half_tendency(self, player_name: str, stat_type: str = 'points', min_games: int = 10) -> Dict[str, Any]:

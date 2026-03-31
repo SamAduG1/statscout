@@ -19,14 +19,14 @@ class StatScoutCalculator:
             injury_tracker: Optional ESPNInjuryTracker instance for teammate injury boosts
         """
         # Trust score weights (must sum to 1.0)
-        self.hit_rate_weight = 0.28      # 28% weight for historical hit rate
-        self.recent_form_weight = 0.18   # 18% weight for recent performance
-        self.opponent_weight = 0.08      # 8% weight for opponent difficulty
-        self.teammate_weight = 0.08      # 8% weight for teammate injury boost
-        self.rest_weight = 0.15          # 15% weight for rest days (HIGH impact!)
-        self.usage_trend_weight = 0.10   # 10% weight for usage trending
-        self.consistency_weight = 0.05   # 5% weight for player consistency
-        self.pace_weight = 0.08          # 8% weight for opponent pace (NEW)
+        self.hit_rate_weight = 0.28      # 28% - primary signal
+        self.recent_form_weight = 0.18   # 18% - recent momentum
+        self.opponent_weight = 0.08      # 8%  - matchup quality
+        self.teammate_weight = 0.08      # 8%  - injury-driven usage boost
+        self.rest_weight = 0.11          # 11% - back-to-back penalty real; optimal-rest bonus marginal
+        self.usage_trend_weight = 0.10   # 10% - usage trending up/down
+        self.consistency_weight = 0.10   # 10% - reliability (raised from 5%; key for bettors)
+        self.pace_weight = 0.07          # 7%  - opponent tempo
 
         # Injury tracker for detecting out players
         self.injury_tracker = injury_tracker
@@ -80,15 +80,15 @@ class StatScoutCalculator:
             "total": total
         }
     
-    def calculate_recent_form(self, player_stats: List[float], line: float, recent_n: int = 3) -> float:
+    def calculate_recent_form(self, player_stats: List[float], line: float, recent_n: int = 5) -> float:
         """
         Calculate recent form score based on last N games
-        
+
         Args:
             player_stats: List of player's stat values (most recent last)
             line: The over/under betting line
-            recent_n: Number of recent games to consider
-            
+            recent_n: Number of recent games to consider (5 is more stable than 3)
+
         Returns:
             Recent form score (0-100)
         """
@@ -363,9 +363,16 @@ class StatScoutCalculator:
             (adjusted_pace * self.pace_weight)
         )
 
-        # Home court advantage boost (+5 points if at home)
+        # Home court advantage boost — scoring stats benefit more from crowd/familiarity;
+        # defensive/secondary stats (steals, blocks, 3pm) have negligible home effect
+        HOME_BOOST = {
+            "Points": 4, "Pts+Reb+Ast": 4, "Pts+Reb": 3, "Pts+Ast": 3,
+            "Rebounds": 2, "Assists": 2,
+            "Steals": 1, "Blocks": 1, "Three Pointers Made": 1,
+        }
         if is_home:
-            trust_score = min(100, trust_score + 5)
+            boost = HOME_BOOST.get(stat_type, 2)
+            trust_score = min(100, trust_score + boost)
 
         return round(trust_score, 1)
     
