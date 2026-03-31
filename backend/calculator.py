@@ -436,6 +436,27 @@ class StatScoutCalculator:
         # Co-star presence boost (applied after weighted average)
         trust_score = min(100, trust_score + costar_modifier)
 
+        # Venue split modifier: how does this player perform specifically at home vs away?
+        # Compares venue-specific hit rate to overall hit rate; each 10pp gap = ~4 trust pts.
+        # Capped at +-8 pts. Only applied when db_loader is available (NBA main flow).
+        if db_loader and player_name and line:
+            STAT_TO_COL = {
+                "Points": "points", "Rebounds": "rebounds", "Assists": "assists",
+                "Steals": "steals", "Blocks": "blocks", "3PM": "three_pm",
+                "Pts+Reb+Ast": None, "Pts+Reb": None, "Pts+Ast": None,
+            }
+            col = STAT_TO_COL.get(stat_type)
+            if col:
+                try:
+                    venue_hr = db_loader.get_venue_split_hit_rate(player_name, col, line, is_home)
+                    if venue_hr is not None:
+                        overall_hr = self.calculate_hit_rate(player_stats, line)
+                        split_delta = venue_hr - overall_hr  # positive = better at this venue
+                        venue_modifier = max(-8, min(8, split_delta * 0.4))
+                        trust_score = max(0, min(100, trust_score + venue_modifier))
+                except Exception:
+                    pass
+
         # Home court advantage boost — scoring stats benefit more from crowd/familiarity;
         # defensive/secondary stats (steals, blocks, 3pm) have negligible home effect
         HOME_BOOST = {

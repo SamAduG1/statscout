@@ -5,7 +5,7 @@ Handles loading and processing player data from SQLite database
 
 from models import get_engine, get_session, Player, Game, TeamGame
 from sqlalchemy import func, text
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 
 class DatabaseLoader:
@@ -197,6 +197,26 @@ class DatabaseLoader:
         
         return stat_values
     
+    def get_venue_split_hit_rate(self, player_name: str, stat_column: str, line: float, is_home: bool, min_games: int = 8) -> Optional[float]:
+        """
+        Return hit rate (0-100) for a player in home or away games only.
+        Returns None if fewer than min_games in that split.
+        """
+        player = self.session.query(Player).filter(Player.name == player_name).first()
+        if not player:
+            return None
+        games = (
+            self.session.query(Game)
+            .filter(Game.player_id == player.id, Game.is_home == is_home)
+            .order_by(Game.date)
+            .all()
+        )
+        values = [getattr(g, stat_column) for g in games if getattr(g, stat_column) is not None]
+        if len(values) < min_games:
+            return None
+        hits = sum(1 for v in values if v > line)
+        return round(hits / len(values) * 100, 1)
+
     def get_team_players(self, team_abbrev: str, exclude: str = None) -> List[str]:
         """Return list of player names on a given team, optionally excluding one player."""
         players = self.session.query(Player).filter(Player.team == team_abbrev).all()
