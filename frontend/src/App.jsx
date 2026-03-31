@@ -1975,8 +1975,8 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
   );
 
   const trust = React.useMemo(
-    () => computeMLBPlayerTrust(displayArr, v => v > line, parkInfo),
-    [displayArr, line, parkInfo]
+    () => computeMLBPlayerTrust(displayArr, v => v > line, parkInfo, player.isPitcher ? null : player.oppStarterEra),
+    [displayArr, line, parkInfo, player.isPitcher, player.oppStarterEra]
   );
 
   const steps = [];
@@ -2047,16 +2047,26 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
         </div>
       )}
 
-      <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between mt-auto">
-        {avgVal && <span className="text-[10px] text-gray-400">Avg {avgVal} / game</span>}
-        <div className="flex items-center gap-1.5 ml-auto">
+      {/* Starter + park context */}
+      {!player.isPitcher && (player.oppStarterName || parkInfo) && (
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+          {player.oppStarterName && (
+            <span className={`text-[10px] ${player.oppStarterEra != null && player.oppStarterEra >= 5.0 ? 'text-amber-400' : player.oppStarterEra != null && player.oppStarterEra <= 3.0 ? 'text-blue-400' : 'text-gray-400'}`}
+              title={player.oppStarterK9 ? `K/9: ${player.oppStarterK9}` : undefined}>
+              vs {player.oppStarterName}{player.oppStarterEra != null ? ` (${player.oppStarterEra} ERA)` : ''}
+            </span>
+          )}
           {parkInfo && (
             <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average)`}>
               Park {parkInfo.label}
             </span>
           )}
-          <span className="text-[10px] text-gray-400 capitalize">{player.teamSide} team</span>
         </div>
+      )}
+
+      <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between mt-auto">
+        {avgVal && <span className="text-[10px] text-gray-400">Avg {avgVal} / game</span>}
+        <span className="text-[10px] text-gray-400 capitalize ml-auto">{player.teamSide} team</span>
       </div>
     </div>
   );
@@ -2739,12 +2749,20 @@ const computeSoccerPlayerTrust = (arr, hitFn, avgMinutes, xSignalArr, line) => {
   return Math.round(Math.min(Math.max(base + modifier, 0), 100));
 };
 
-// MLB-specific trust: wraps computePlayerTrust and adds ballpark factor modifier.
-const computeMLBPlayerTrust = (arr, hitFn, parkInfo) => {
+// MLB-specific trust: wraps computePlayerTrust and adds ballpark + starter ERA modifiers.
+// eraModifier: positive for weak starters (high ERA), negative for elite starters (low ERA).
+// NBA average SP ERA is ~4.20; each 1-run deviation from 4.20 = ~2.5 trust pts, capped +-6.
+const getEraModifier = (era) => {
+  if (era == null) return 0;
+  return Math.max(-6, Math.min(6, (era - 4.20) * 2.5));
+};
+
+const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era) => {
   const base = computePlayerTrust(arr, hitFn);
   if (base === null) return null;
-  if (!parkInfo) return base;
-  return Math.round(Math.min(Math.max(base + parkInfo.modifier, 0), 100));
+  const parkMod = parkInfo ? parkInfo.modifier : 0;
+  const eraMod  = getEraModifier(era);
+  return Math.round(Math.min(Math.max(base + parkMod + eraMod, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
@@ -3966,6 +3984,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             const awayGame = todayGames.find(g => g.awayTeam === p.team);
             const game = homeGame || awayGame;
             const isHome = !!homeGame;
+            // Opposing starter: home batters face the away pitcher, away batters face the home pitcher
+            const oppStarterData = game
+              ? (isHome ? game.awayProbablePitcher : game.homeProbablePitcher)
+              : null;
             return {
               ...p,
               matchupKey: game ? `${game.homeTeam}__${game.awayTeam}` : null,
@@ -3973,8 +3995,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               teamSide: homeGame ? 'home' : awayGame ? 'away' : null,
               isHome,
               opponent: game ? (isHome ? game.awayTeam : game.homeTeam) : null,
-              // Park: home team's ballpark regardless of who we're analyzing
               parkTeamAbbr: game ? mlbAbbr(game.homeTeam) : null,
+              oppStarterName: oppStarterData?.name || null,
+              oppStarterEra:  oppStarterData?.era  ?? null,
+              oppStarterK9:   oppStarterData?.k9   ?? null,
               playingToday: playingTeams.has(p.team),
             };
           });

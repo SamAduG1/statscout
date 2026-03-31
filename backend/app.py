@@ -1109,6 +1109,17 @@ def _compute_all_mlb_players():
             "games":      len(gs),
         }
 
+    # Fetch today's probable pitchers once for all players
+    try:
+        probable_pitchers = mlb_fetcher_instance.get_probable_pitchers_with_stats()
+        print(f"[MLB ALL] Got {len(probable_pitchers)} probable pitchers")
+    except Exception as e:
+        print(f"[MLB ALL] Probable pitcher fetch failed: {e}")
+        probable_pitchers = {}
+
+    # Build MLB-name keyed lookup for quick access
+    # probable_pitchers is keyed by MLB full team name already
+
     try:
         all_players = session.query(MLBPlayer).all()
         players_out = []

@@ -186,7 +186,7 @@ class StatScoutCalculator:
         This is a modest effect (+5 to +10) compared to an injury boost (+25),
         and only applies to secondary players (non-stars themselves).
 
-        Returns a modifier delta (-10 to +10), not a 0-100 score.
+        Returns a modifier delta (0 to +5), not a 0-100 score.
         """
         if not db_loader:
             return 0.0
@@ -218,12 +218,14 @@ class StatScoutCalculator:
             if star_count == 0:
                 return 0.0
 
-            # Base modifier: +5 for having a star, +3 more if they're an elite playmaker
-            modifier = min(5.0 * star_count, 8.0)
+            # Base modifier: +3 per star (capped at +4 for multiple stars).
+            # Effect is real but modest - mostly already baked into the historical hit rate
+            # since those games were played with the star present.
+            modifier = min(3.0 * star_count, 4.0)
             if playmaker_present and stat_type.lower() in ('assists', 'points', 'pts+reb+ast', 'pts+ast'):
-                modifier += 3.0
+                modifier += 1.0  # Small extra bump for elite playmaker gravity
 
-            return round(min(modifier, 10.0), 1)
+            return round(min(modifier, 5.0), 1)
 
         except Exception as e:
             print(f"  [Warning] Co-star presence check failed: {e}")

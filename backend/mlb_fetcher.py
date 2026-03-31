@@ -7,6 +7,7 @@ StatScout MLB Fetcher
 import requests
 import os
 import statistics
+from datetime import date as _date
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +16,7 @@ ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 MLB_STATS_BASE = "https://statsapi.mlb.com/api/v1"
 ODDS_BASE = "https://api.the-odds-api.com/v4"
 SEASON = 2025  # 2025 MLB regular season for historical data
+CURRENT_SEASON = 2026  # Active season for probable pitcher stats
 
 # Odds API team name -> MLB Stats API full name (for any mismatches)
 ODDS_TO_MLB = {
@@ -118,6 +120,86 @@ class MLBFetcher:
 
         return stats
 
+    def get_probable_pitchers_with_stats(self, date_str=None):
+        """
+        Fetch today's probable starters + season ERA/K9/WHIP from MLB Stats API.
+        Returns dict keyed by MLB full team name:
+          { "New York Yankees": { "name": "Gerrit Cole", "era": 3.21, "k9": 9.8, "whip": 1.05 }, ... }
+        """
+        if date_str is None:
+            date_str = _date.today().isoformat()
+
+        try:
+            r = requests.get(
+                f"{MLB_STATS_BASE}/schedule",
+                params={
+                    "sportId": 1,
+                    "date": date_str,
+                    "gameType": "R,F,D,L,W",
+                    "fields": "dates,games,teams,home,away,team,name,probablePitcher,id,fullName",
+                },
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            print(f"[MLB] Probable pitcher schedule fetch failed: {e}")
+            return {}
+
+        # Build team -> pitcher_id map
+        team_to_pitcher = {}
+        for date_entry in data.get("dates", []):
+            for game in date_entry.get("games", []):
+                for side in ("home", "away"):
+                    t = game["teams"][side]
+                    pitcher = t.get("probablePitcher", {})
+                    if pitcher.get("id"):
+                        team_name = t["team"]["name"]
+                        team_to_pitcher[team_name] = {
+                            "name": pitcher.get("fullName", "TBD"),
+                            "id": pitcher["id"],
+                        }
+
+        if not team_to_pitcher:
+            return {}
+
+        # Fetch season stats for each pitcher (one call per pitcher)
+        result = {}
+        for team_name, info in team_to_pitcher.items():
+            stats = self._get_pitcher_season_stats(info["id"])
+            result[team_name] = {
+                "name": info["name"],
+                "era":  stats.get("era"),
+                "k9":   stats.get("k9"),
+                "whip": stats.get("whip"),
+                "gs":   stats.get("gs", 0),
+            }
+            print(f"[MLB] Starter {info['name']} ({team_name}): ERA {stats.get('era')}, K/9 {stats.get('k9')}")
+
+        return result
+
+    def _get_pitcher_season_stats(self, pitcher_id):
+        """Fetch a pitcher's current season ERA/K9/WHIP from MLB Stats API."""
+        try:
+            r = requests.get(
+                f"{MLB_STATS_BASE}/people/{pitcher_id}/stats",
+                params={"stats": "season", "season": CURRENT_SEASON, "group": "pitching"},
+                timeout=10,
+            )
+            r.raise_for_status()
+            splits = r.json().get("stats", [{}])[0].get("splits", [])
+            if not splits:
+                return {}
+            s = splits[0].get("stat", {})
+            return {
+                "era":  round(float(s.get("era", 0) or 0), 2),
+                "k9":   round(float(s.get("strikeoutsPer9Inn", 0) or 0), 1),
+                "whip": round(float(s.get("whip", 0) or 0), 2),
+                "gs":   int(s.get("gamesStarted", 0) or 0),
+            }
+        except Exception:
+            return {}
+
     def get_upcoming_odds(self):
         """Fetch upcoming MLB games with h2h, totals, and run line from Odds API."""
         r = requests.get(
@@ -185,7 +267,9 @@ class MLBFetcher:
 
         return round(min(score, 100))
 
-    def build_game_cards(self, upcoming_odds, team_stats):
+    def build_game_cards(self, upcoming_odds, team_stats, probable_pitchers=None):
+        if probable_pitchers is None:
+            probable_pitchers = {}
         cards = []
 
         for game in upcoming_odds:
@@ -266,10 +350,18 @@ class MLBFetcher:
                 home_win_prob = round(hp / total_p * 100)
                 away_win_prob = round(ap / total_p * 100)
 
+            # Probable pitchers (keyed by MLB full name via ODDS_TO_MLB)
+            home_mlb_name = ODDS_TO_MLB.get(odds_home, odds_home)
+            away_mlb_name = ODDS_TO_MLB.get(odds_away, odds_away)
+            home_starter = probable_pitchers.get(home_mlb_name)
+            away_starter = probable_pitchers.get(away_mlb_name)
+
             cards.append({
                 "homeTeam": odds_home,
                 "awayTeam": odds_away,
                 "commenceTime": game.get("commence_time"),
+                "homeProbablePitcher": home_starter,
+                "awayProbablePitcher": away_starter,
                 "homeMoneyline": h2h_home,
                 "awayMoneyline": h2h_away,
                 "runLine": run_line,
@@ -312,7 +404,15 @@ class MLBFetcher:
             print(f"[MLB] Odds unavailable: {e}")
             return []
 
-        cards = self.build_game_cards(upcoming, team_stats)
+        try:
+            print("[MLB] Fetching probable pitchers...")
+            probable_pitchers = self.get_probable_pitchers_with_stats()
+            print(f"[MLB] {len(probable_pitchers)} probable pitchers found")
+        except Exception as e:
+            print(f"[MLB] Probable pitcher fetch failed: {e}")
+            probable_pitchers = {}
+
+        cards = self.build_game_cards(upcoming, team_stats, probable_pitchers)
         print(f"[MLB] Built {len(cards)} game cards")
         return cards
 
