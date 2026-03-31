@@ -1617,6 +1617,27 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
         <p className="text-[10px] text-gray-400">Avg {gcAvg} goals allowed/game</p>
       )}
 
+      {/* Opponent defense vs this position */}
+      {!isGkMarket && player.oppDefense?.sampleSize >= 5 && (market === 'goals' || market === 'shots' || market === 'ga') && (() => {
+        const od = player.oppDefense;
+        const stat = market === 'shots' ? od.avgShots : od.avgGoals;
+        const label = market === 'shots' ? 'shots' : 'goals';
+        const hitRateVal = calcHitRate(displayArr, line);
+        // Compare opp defense avg to league avg for this position's market
+        // We use a rough league-average benchmark per position+stat:
+        const benchmarks = { FW: { goals: 0.35, shots: 1.8 }, MF: { goals: 0.18, shots: 1.1 }, DF: { goals: 0.07, shots: 0.5 } };
+        const bench = benchmarks[player.position]?.[label === 'shots' ? 'shots' : 'goals'];
+        const isHigh = bench ? stat > bench * 1.15 : false;
+        const isLow = bench ? stat < bench * 0.85 : false;
+        const color = isHigh ? 'text-green-500' : isLow ? 'text-red-400' : 'text-gray-400 dark:text-gray-500';
+        return (
+          <p className={`text-[10px] ${color}`}
+            title={`${player.opponent} concedes avg ${stat} ${label}/game to ${player.position}s (${od.sampleSize} games)`}>
+            Opp vs {player.position}: {stat} {label}/g
+          </p>
+        );
+      })()}
+
       {/* Footer */}
       <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between mt-auto">
         <span className="text-[10px] text-gray-400">Avg {player.avgMinutes} min/game</span>
@@ -2053,7 +2074,7 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
           {player.oppStarterName && (
             <span className={`text-[10px] ${player.oppStarterEra != null && player.oppStarterEra >= 5.0 ? 'text-amber-400' : player.oppStarterEra != null && player.oppStarterEra <= 3.0 ? 'text-blue-400' : 'text-gray-400'}`}
               title={player.oppStarterK9 ? `K/9: ${player.oppStarterK9}` : undefined}>
-              vs {player.oppStarterName}{player.oppStarterEra != null ? ` (${player.oppStarterEra} ERA)` : ''}
+              vs {player.oppStarterHand ? `${player.oppStarterHand}HP ` : ''}{player.oppStarterName}{player.oppStarterEra != null ? ` (${player.oppStarterEra} ERA)` : ''}
             </span>
           )}
           {parkInfo && (
@@ -2362,9 +2383,20 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
     }
     // Factor 5: Sample size confidence (10%)
     const fSample = Math.min(100, 40 + (minGames - 5) / 14 * 60);
-    const score = fHit * 0.30 + fGap * 0.25 + fOdds * 0.20 + fConsistency * 0.15 + fSample * 0.10;
-    return Math.round(score * 10) / 10;
-  }, [adjustedOverRate, customLine, match.expectedTotal, match.overOdds, match.homeGames, match.awayGames, combinedTotals]);
+    let trust = fHit * 0.30 + fGap * 0.25 + fOdds * 0.20 + fConsistency * 0.15 + fSample * 0.10;
+
+    // Referee tendency modifier: compare ref's avg goals to league avg (capped +-5 pts)
+    // Only applied when ref is assigned and has 5+ games of data in this season
+    if (match.refereeAvgGoals != null && match.leagueAvgGoals != null
+        && (match.refereeGamesCount || 0) >= 5) {
+      const refDev = match.refereeAvgGoals - match.leagueAvgGoals;
+      // Each 0.5-goal deviation from league avg shifts trust by ~5 pts
+      const refMod = Math.max(-5, Math.min(5, (refDev / 0.5) * 5));
+      trust = Math.max(0, Math.min(100, trust + refMod));
+    }
+
+    return Math.round(trust * 10) / 10;
+  }, [adjustedOverRate, customLine, match.expectedTotal, match.overOdds, match.homeGames, match.awayGames, combinedTotals, match.refereeAvgGoals, match.leagueAvgGoals, match.refereeGamesCount]);
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 border-l-[3px] border-l-blue-500 p-5 flex flex-col">
@@ -2376,6 +2408,17 @@ const SoccerMatchCard = ({ match, onAddToParlay }) => {
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {localDate}{localTime ? ` · ${localTime}` : ''}
+            {match.referee && (
+              <span className="ml-2 text-gray-400 dark:text-gray-500">
+                · Ref: {match.referee.split(' ').slice(-1)[0]}
+                {match.refereeAvgGoals != null && match.leagueAvgGoals != null && match.refereeGamesCount >= 5 && (() => {
+                  const dev = match.refereeAvgGoals - match.leagueAvgGoals;
+                  const color = dev > 0.3 ? 'text-green-500' : dev < -0.3 ? 'text-red-400' : 'text-gray-400 dark:text-gray-500';
+                  const arrow = dev > 0.3 ? ' ▲' : dev < -0.3 ? ' ▼' : '';
+                  return <span className={`ml-0.5 ${color}`} title={`${match.referee}: ${match.refereeAvgGoals} avg goals/game (league avg ${match.leagueAvgGoals}), ${match.refereeGamesCount} games`}>{arrow}</span>;
+                })()}
+              </span>
+            )}
           </div>
         </div>
         {trustScore != null && (
@@ -3999,6 +4042,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               oppStarterName: oppStarterData?.name || null,
               oppStarterEra:  oppStarterData?.era  ?? null,
               oppStarterK9:   oppStarterData?.k9   ?? null,
+              oppStarterHand: oppStarterData?.pitchHand ?? null,
               playingToday: playingTeams.has(p.team),
             };
           });

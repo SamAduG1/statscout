@@ -705,6 +705,32 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
             "games":   len(gs_v),
         }
 
+    def opp_def_vs_position(opp_team_us, position, league_code):
+        """
+        How many goals / shots do players of 'position' avg per game against opp_team_us?
+        Queries all players in the league who have faced this opponent.
+        Returns dict {avg_goals, avg_shots, sample_size} or None if <5 games found.
+        """
+        try:
+            rows = (
+                session.query(SoccerPlayerGame)
+                .join(SoccerPlayer, SoccerPlayer.id == SoccerPlayerGame.player_id)
+                .filter(
+                    SoccerPlayer.league == league_code,
+                    SoccerPlayer.position == position,
+                    SoccerPlayerGame.opponent.ilike(f"%{opp_team_us}%"),
+                    SoccerPlayerGame.minutes_played > 0,
+                )
+                .all()
+            )
+            if len(rows) < 5:
+                return None
+            avg_g = round(sum(r.goals for r in rows) / len(rows), 2)
+            avg_s = round(sum(r.shots for r in rows) / len(rows), 2)
+            return {"avgGoals": avg_g, "avgShots": avg_s, "sampleSize": len(rows)}
+        except Exception:
+            return None
+
     try:
         players_out = []
         for team_odds, team_us, side in [
@@ -826,6 +852,9 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     "homeSplit":  venue_split(active, "home"),
                     "awaySplit":  venue_split(active, "away"),
                 }
+
+                # Opponent defense vs this player's position
+                player_dict["oppDefense"] = opp_def_vs_position(opp_us, p.position, league)
 
                 # GK: clean sheet % + goals conceded array
                 if p.position == "GK":

@@ -214,20 +214,25 @@ class SoccerFetcher:
 
     # ── football-data.org ─────────────────────────────────────────────────────
 
-    def get_historical_results(self, fd_code='PL'):
-        """Get all completed 2025-26 matches for a competition (1 football-data.org call)."""
+    def get_all_fixtures(self, fd_code='PL'):
+        """
+        Get all 2025-26 matches for a competition in one call — both finished and upcoming.
+        Upcoming fixtures may include the assigned referee (typically 24-48h before kickoff).
+        Returns full list; caller splits by status.
+        """
         with _fd_semaphore:
             r = requests.get(
                 f"{self.FD_BASE}/competitions/{fd_code}/matches",
                 headers=self.fd_headers,
-                params={"season": SEASON, "status": "FINISHED"},
+                params={"season": SEASON},
                 timeout=15,
             )
         r.raise_for_status()
         data = r.json()
-        matches = data.get("matches", [])
-        print(f"[SOCCER] football-data.org — {len(matches)} finished {fd_code} matches")
-        return matches
+        all_matches = data.get("matches", [])
+        finished = [m for m in all_matches if m.get("status") == "FINISHED"]
+        print(f"[SOCCER] football-data.org — {len(finished)} finished / {len(all_matches)} total {fd_code} matches")
+        return all_matches
 
     # ── The Odds API ──────────────────────────────────────────────────────────
 
@@ -292,6 +297,58 @@ class SoccerFetcher:
                 stats[name][loc].append(entry)
                 stats[name]["all"].append(entry)
         return stats
+
+    def _build_referee_stats(self, all_matches):
+        """
+        Build per-referee goal stats from completed matches.
+        Returns (ref_stats_dict, league_avg_goals).
+        ref_stats = {name: {"avg_goals": float, "game_count": int}}
+        """
+        ref_totals = {}
+        all_totals = []
+        for match in all_matches:
+            if match.get("status") != "FINISHED":
+                continue
+            score = match.get("score", {}).get("fullTime", {})
+            hg = score.get("home")
+            ag = score.get("away")
+            if hg is None or ag is None:
+                continue
+            total = hg + ag
+            all_totals.append(total)
+            for ref in match.get("referees", []):
+                if ref.get("type") == "REFEREE":
+                    name = ref.get("name", "").strip()
+                    if name:
+                        ref_totals.setdefault(name, []).append(total)
+        league_avg = round(sum(all_totals) / len(all_totals), 2) if all_totals else 2.7
+        stats = {
+            name: {
+                "avg_goals": round(sum(totals) / len(totals), 2),
+                "game_count": len(totals),
+            }
+            for name, totals in ref_totals.items()
+        }
+        return stats, league_avg
+
+    def _build_referee_lookup(self, all_matches):
+        """
+        Build {(home_fd_norm, away_fd_norm): referee_name} for upcoming fixtures.
+        Keyed by normalized football-data.org team names so _build_match_card can look up directly.
+        """
+        upcoming_statuses = {"SCHEDULED", "TIMED", "IN_PLAY", "PAUSED", "POSTPONED"}
+        lookup = {}
+        for match in all_matches:
+            if match.get("status") not in upcoming_statuses:
+                continue
+            refs = match.get("referees", [])
+            referee = next((r.get("name", "").strip() for r in refs if r.get("type") == "REFEREE"), None)
+            if not referee:
+                continue
+            home = _norm(match["homeTeam"]["name"])
+            away = _norm(match["awayTeam"]["name"])
+            lookup[(home, away)] = referee
+        return lookup
 
     # ── Match card helpers ────────────────────────────────────────────────────
 
@@ -407,7 +464,8 @@ class SoccerFetcher:
                     return line, over_o, under_o, bookmaker
         return 2.5, None, None, None
 
-    def _build_match_card(self, event, team_stats, odds_to_fd=None):
+    def _build_match_card(self, event, team_stats, odds_to_fd=None,
+                          referee_stats=None, referee_lookup=None, league_avg_goals=None):
         """Build a single match card from an Odds API event + historical stats."""
         if odds_to_fd is None:
             odds_to_fd = ODDS_TO_FD
@@ -475,6 +533,17 @@ class SoccerFetcher:
             over_rate, expected, line, over_o, home_games, away_games, relevant
         )
 
+        # Referee lookup (only populated when referee has been appointed, usually 24-48h out)
+        referee_name = None
+        referee_avg_goals = None
+        referee_game_count = None
+        if referee_lookup and referee_stats:
+            referee_name = referee_lookup.get((home_fd, away_fd))
+            if referee_name and referee_name in referee_stats:
+                rs = referee_stats[referee_name]
+                referee_avg_goals = rs["avg_goals"]
+                referee_game_count = rs["game_count"]
+
         commence = event.get("commence_time", "")
 
         return {
@@ -510,6 +579,10 @@ class SoccerFetcher:
             "h1Expected": h1_expected,
             "h1HomeAvg": h1_home_avg,
             "h1AwayAvg": h1_away_avg,
+            "referee": referee_name,
+            "refereeAvgGoals": referee_avg_goals,
+            "refereeGamesCount": referee_game_count,
+            "leagueAvgGoals": league_avg_goals,
         }
 
     # ── Main entry point ──────────────────────────────────────────────────────
@@ -523,12 +596,19 @@ class SoccerFetcher:
         conf = COMPETITIONS.get(competition, COMPETITIONS["pl"])
         label = conf["name"]
 
-        print(f"[SOCCER] Fetching 2025-26 historical results for {label}...")
+        print(f"[SOCCER] Fetching 2025-26 {label} fixtures (historical + upcoming)...")
+        referee_stats = {}
+        referee_lookup = {}
+        league_avg_goals = None
         try:
-            results = self.get_historical_results(fd_code=conf["fd_code"])
-            team_stats = self._build_team_stats(results)
-            print(f"[SOCCER] Loaded stats for {len(team_stats)} teams "
-                  f"from {len(results)} historical matches")
+            all_matches = self.get_all_fixtures(fd_code=conf["fd_code"])
+            finished = [m for m in all_matches if m.get("status") == "FINISHED"]
+            team_stats = self._build_team_stats(finished)
+            referee_stats, league_avg_goals = self._build_referee_stats(all_matches)
+            referee_lookup = self._build_referee_lookup(all_matches)
+            assigned = len(referee_lookup)
+            print(f"[SOCCER] Loaded stats for {len(team_stats)} teams from {len(finished)} matches. "
+                  f"Referee stats: {len(referee_stats)} refs, {assigned} upcoming fixtures have referee assigned")
         except Exception as e:
             print(f"[SOCCER] Historical stats unavailable ({e}), continuing with odds only")
             team_stats = {}
@@ -536,7 +616,13 @@ class SoccerFetcher:
         print(f"[SOCCER] Fetching upcoming {label} fixtures and odds...")
         events = self.get_odds(sport_key=conf["odds_sport"], regions=conf["regions"])
 
-        matches = [self._build_match_card(ev, team_stats, conf["odds_to_fd"]) for ev in events]
+        matches = [
+            self._build_match_card(ev, team_stats, conf["odds_to_fd"],
+                                   referee_stats=referee_stats,
+                                   referee_lookup=referee_lookup,
+                                   league_avg_goals=league_avg_goals)
+            for ev in events
+        ]
         matches.sort(key=lambda m: m["commenceTime"])
 
         print(f"[SOCCER] Built {len(matches)} {label} match cards")

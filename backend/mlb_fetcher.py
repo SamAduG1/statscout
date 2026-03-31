@@ -168,18 +168,20 @@ class MLBFetcher:
         for team_name, info in team_to_pitcher.items():
             stats = self._get_pitcher_season_stats(info["id"])
             result[team_name] = {
-                "name": info["name"],
-                "era":  stats.get("era"),
-                "k9":   stats.get("k9"),
-                "whip": stats.get("whip"),
-                "gs":   stats.get("gs", 0),
+                "name":      info["name"],
+                "era":       stats.get("era"),
+                "k9":        stats.get("k9"),
+                "whip":      stats.get("whip"),
+                "gs":        stats.get("gs", 0),
+                "pitchHand": stats.get("pitchHand"),
             }
-            print(f"[MLB] Starter {info['name']} ({team_name}): ERA {stats.get('era')}, K/9 {stats.get('k9')}")
+            print(f"[MLB] Starter {info['name']} ({team_name}): ERA {stats.get('era')}, K/9 {stats.get('k9')}, Hand {stats.get('pitchHand')}")
 
         return result
 
     def _get_pitcher_season_stats(self, pitcher_id):
-        """Fetch a pitcher's current season ERA/K9/WHIP from MLB Stats API."""
+        """Fetch a pitcher's current season ERA/K9/WHIP + throwing hand from MLB Stats API."""
+        result = {}
         try:
             r = requests.get(
                 f"{MLB_STATS_BASE}/people/{pitcher_id}/stats",
@@ -188,17 +190,31 @@ class MLBFetcher:
             )
             r.raise_for_status()
             splits = r.json().get("stats", [{}])[0].get("splits", [])
-            if not splits:
-                return {}
-            s = splits[0].get("stat", {})
-            return {
-                "era":  round(float(s.get("era", 0) or 0), 2),
-                "k9":   round(float(s.get("strikeoutsPer9Inn", 0) or 0), 1),
-                "whip": round(float(s.get("whip", 0) or 0), 2),
-                "gs":   int(s.get("gamesStarted", 0) or 0),
-            }
+            if splits:
+                s = splits[0].get("stat", {})
+                result = {
+                    "era":  round(float(s.get("era", 0) or 0), 2),
+                    "k9":   round(float(s.get("strikeoutsPer9Inn", 0) or 0), 1),
+                    "whip": round(float(s.get("whip", 0) or 0), 2),
+                    "gs":   int(s.get("gamesStarted", 0) or 0),
+                }
         except Exception:
-            return {}
+            pass
+
+        # Fetch pitcher's throwing hand (lightweight separate call)
+        try:
+            r2 = requests.get(
+                f"{MLB_STATS_BASE}/people/{pitcher_id}",
+                params={"fields": "people,pitchHand,code"},
+                timeout=5,
+            )
+            r2.raise_for_status()
+            people = r2.json().get("people", [{}])
+            result["pitchHand"] = people[0].get("pitchHand", {}).get("code")  # "R" or "L"
+        except Exception:
+            result.setdefault("pitchHand", None)
+
+        return result
 
     def get_upcoming_odds(self):
         """Fetch upcoming MLB games with h2h, totals, and run line from Odds API."""
