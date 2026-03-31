@@ -20,6 +20,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 from dotenv import load_dotenv
 load_dotenv()
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from nba_api.stats.endpoints import leaguegamelog, boxscoresummaryv2
 from models import get_engine, get_session, TeamGame
 
@@ -27,10 +28,15 @@ SEASON = '2025-26'
 SLEEP_BETWEEN_CALLS = 0.7  # seconds — stay under NBA API rate limit
 
 
-def get_all_game_ids(session):
-    """Return set of game_ids already in DB."""
-    rows = session.query(TeamGame.game_id).all()
-    return {r[0] for r in rows}
+def get_existing_pairs(session):
+    """Return set of (game_id, team) pairs already in DB."""
+    from sqlalchemy import func
+    # Games fully inserted (both team rows present)
+    full = session.query(TeamGame.game_id).group_by(TeamGame.game_id).having(func.count() >= 2).all()
+    full_ids = {r[0] for r in full}
+    # Also track individual pairs to skip single-row partial games
+    pairs = session.query(TeamGame.game_id, TeamGame.team).all()
+    return full_ids, {(r[0], r[1]) for r in pairs}
 
 
 def fetch_league_games():
@@ -68,8 +74,8 @@ def main():
     engine = get_engine()
     session = get_session(engine)
 
-    existing_ids = get_all_game_ids(session)
-    print(f"{len(existing_ids)} game rows already in DB, will skip duplicates")
+    full_ids, existing_pairs = get_existing_pairs(session)
+    print(f"{len(full_ids)} games fully in DB, {len(existing_pairs)} total (game,team) pairs")
 
     df = fetch_league_games()
 
@@ -80,9 +86,9 @@ def main():
         games_map[row['GAME_ID']].append(row)
 
     game_ids = sorted(games_map.keys())
-    # Only process games where neither team is in DB yet
-    new_game_ids = [gid for gid in game_ids if gid not in existing_ids]
-    print(f"{len(new_game_ids)} new games to process\n")
+    # Process all games not fully inserted
+    new_game_ids = [gid for gid in game_ids if gid not in full_ids]
+    print(f"{len(new_game_ids)} games need processing\n")
 
     inserted = 0
     errors = 0
@@ -91,6 +97,10 @@ def main():
         rows = games_map[game_id]
         if len(rows) != 2:
             continue  # skip if not exactly 2 teams (shouldn't happen)
+
+        teams_needed = [r for r in rows if (game_id, r['TEAM_ABBREVIATION']) not in existing_pairs]
+        if not teams_needed:
+            continue
 
         try:
             time.sleep(SLEEP_BETWEEN_CALLS)
@@ -101,7 +111,7 @@ def main():
             time.sleep(2)
             continue
 
-        for row in rows:
+        for row in teams_needed:
             team = row['TEAM_ABBREVIATION']
             opp_row = [r for r in rows if r['TEAM_ABBREVIATION'] != team][0]
             opp = opp_row['TEAM_ABBREVIATION']
@@ -117,7 +127,7 @@ def main():
             tid = row['TEAM_ID']
             qs = quarter_scores.get(tid, {})
 
-            tg = TeamGame(
+            stmt = pg_insert(TeamGame).values(
                 game_id=game_id,
                 team=team,
                 opponent=opp,
@@ -132,8 +142,8 @@ def main():
                 total_points=total_pts,
                 opponent_points=opp_pts,
                 won=won,
-            )
-            session.add(tg)
+            ).on_conflict_do_nothing(constraint='uq_team_game')
+            session.execute(stmt)
             inserted += 1
 
         session.commit()

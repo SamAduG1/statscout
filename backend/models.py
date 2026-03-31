@@ -97,7 +97,7 @@ class TeamGame(Base):
     __tablename__ = 'team_games'
 
     id = Column(Integer, primary_key=True)
-    game_id = Column(String, unique=True, nullable=False, index=True)  # NBA API game ID
+    game_id = Column(String, nullable=False, index=True)  # NBA API game ID (not unique — two rows per game, one per team)
     team = Column(String, nullable=False, index=True)  # Team abbreviation (e.g., "LAL")
     opponent = Column(String, nullable=False)  # Opponent abbreviation
     date = Column(Date, nullable=False, index=True)
@@ -115,6 +115,10 @@ class TeamGame(Base):
     total_points = Column(Integer, nullable=False)
     opponent_points = Column(Integer, nullable=False)
     won = Column(Boolean, nullable=False)  # True if won, False if lost
+
+    __table_args__ = (
+        UniqueConstraint('game_id', 'team', name='uq_team_game'),
+    )
 
     def __repr__(self):
         return f"<TeamGame(team='{self.team}', opponent='{self.opponent}', date='{self.date}')>"
