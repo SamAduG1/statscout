@@ -197,6 +197,11 @@ class DatabaseLoader:
         
         return stat_values
     
+    def get_team_players(self, team_abbrev: str, exclude: str = None) -> List[str]:
+        """Return list of player names on a given team, optionally excluding one player."""
+        players = self.session.query(Player).filter(Player.team == team_abbrev).all()
+        return [p.name for p in players if p.name != exclude]
+
     def get_combined_stat_history(
         self,
         player_name: str,

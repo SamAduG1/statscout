@@ -1853,6 +1853,68 @@ const MLBPlayerDetailModal = ({ player, onClose }) => {
   );
 };
 
+// Ballpark factors normalized to 100 (multi-year 2022-2024 averages).
+// R = runs/hits/RBI/total-bases context; HR = home run context; K = pitcher strikeouts.
+// >100 = hitter-friendly (favors OVER); <100 = pitcher-friendly (favors UNDER).
+const MLB_PARK_FACTORS = {
+  COL: { R: 115, HR: 128, K: 95 },  // Coors Field - altitude inflates everything
+  CIN: { R: 109, HR: 118, K: 98 },  // Great American Ball Park
+  PHI: { R: 107, HR: 115, K: 98 },  // Citizens Bank Park
+  TEX: { R: 104, HR: 106, K: 99 },  // Globe Life Field
+  BAL: { R: 105, HR: 108, K: 99 },  // Camden Yards
+  BOS: { R: 103, HR: 104, K: 99 },  // Fenway Park
+  CHC: { R: 103, HR: 105, K: 100 }, // Wrigley Field
+  ATL: { R: 102, HR: 105, K: 100 }, // Truist Park
+  NYY: { R: 101, HR: 112, K: 99 },  // Yankee Stadium - short porch
+  HOU: { R:  99, HR: 110, K: 100 }, // Minute Maid - Crawford Boxes
+  MIL: { R:  99, HR: 102, K: 100 }, // American Family Field
+  ARI: { R: 100, HR: 103, K: 100 }, // Chase Field
+  DET: { R: 100, HR:  99, K: 100 }, // Comerica Park
+  LAA: { R: 100, HR: 100, K: 100 }, // Angel Stadium
+  WSH: { R:  99, HR:  99, K: 100 }, // Nationals Park
+  MIN: { R:  99, HR:  98, K: 100 }, // Target Field
+  TOR: { R:  98, HR: 101, K: 100 }, // Rogers Centre
+  CWS: { R:  98, HR:  99, K: 100 }, // Guaranteed Rate Field
+  CLE: { R:  98, HR:  97, K: 101 }, // Progressive Field
+  KC:  { R:  98, HR:  96, K: 101 }, // Kauffman Stadium
+  STL: { R:  98, HR:  96, K: 101 }, // Busch Stadium
+  PIT: { R:  97, HR:  97, K: 101 }, // PNC Park
+  TB:  { R:  97, HR:  95, K: 101 }, // Tropicana Field
+  NYM: { R:  96, HR:  94, K: 101 }, // Citi Field
+  OAK: { R:  99, HR:  99, K: 100 }, // Oakland Coliseum (interim Sacramento)
+  ATH: { R:  99, HR:  99, K: 100 }, // Athletics (Sacramento)
+  LAD: { R:  96, HR:  95, K: 101 }, // Dodger Stadium
+  SF:  { R:  95, HR:  93, K: 102 }, // Oracle Park
+  SEA: { R:  95, HR:  92, K: 102 }, // T-Mobile Park
+  MIA: { R:  94, HR:  91, K: 102 }, // loanDepot park
+  SD:  { R:  93, HR:  90, K: 103 }, // Petco Park - most pitcher-friendly
+};
+
+// Return which park factor category applies to a given MLB market key.
+const mlbParkCategory = (marketKey) => {
+  if (marketKey === 'hr') return 'HR';
+  if (marketKey === 'ks' || marketKey === 'outs') return 'K';
+  return 'R'; // hits, tb, rbi, runs, hrr
+};
+
+// Get park factor (0-100 score) for a given game context.
+// parkTeam = team whose park it is (home team abbr).
+// Returns { factor: number, score: 0-100, label, color }
+const getMlbParkInfo = (parkTeam, marketKey) => {
+  const pf = MLB_PARK_FACTORS[parkTeam];
+  if (!pf) return null;
+  const cat = mlbParkCategory(marketKey);
+  const factor = pf[cat];
+  // Convert raw factor to trust modifier: each 5pts from neutral = ~2 trust pts, cap ±8
+  const modifier = Math.max(-8, Math.min(8, ((factor - 100) / 5) * 2));
+  // Label for display
+  const pct = factor - 100;
+  const sign = pct >= 0 ? '+' : '';
+  const label = `${sign}${pct}%`;
+  const color = factor >= 108 ? 'text-red-400' : factor >= 103 ? 'text-amber-400' : factor <= 92 ? 'text-blue-400' : factor <= 97 ? 'text-blue-300' : 'text-gray-400';
+  return { factor, modifier, label, color };
+};
+
 const MLB_TEAM_ABBR = {
   'Arizona Diamondbacks': 'ARI', 'Atlanta Braves': 'ATL', 'Baltimore Orioles': 'BAL',
   'Boston Red Sox': 'BOS', 'Chicago Cubs': 'CHC', 'Chicago White Sox': 'CWS',
@@ -1906,9 +1968,15 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
 
   const getRateColor = r => r == null ? 'text-gray-400' : r >= 70 ? 'text-green-500' : r >= 55 ? 'text-blue-500' : 'text-red-400';
 
+  // Park factor: always the home team's park, pre-computed during tagging
+  const parkInfo = React.useMemo(
+    () => getMlbParkInfo(player.parkTeamAbbr || mlbAbbr(player.team), market),
+    [player.parkTeamAbbr, player.team, market]
+  );
+
   const trust = React.useMemo(
-    () => computePlayerTrust(displayArr, v => v > line),
-    [displayArr, line]
+    () => computeMLBPlayerTrust(displayArr, v => v > line, parkInfo),
+    [displayArr, line, parkInfo]
   );
 
   const steps = [];
@@ -1981,7 +2049,14 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
 
       <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between mt-auto">
         {avgVal && <span className="text-[10px] text-gray-400">Avg {avgVal} / game</span>}
-        <span className="text-[10px] text-gray-400 capitalize ml-auto">{player.teamSide} team</span>
+        <div className="flex items-center gap-1.5 ml-auto">
+          {parkInfo && (
+            <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average)`}>
+              Park {parkInfo.label}
+            </span>
+          )}
+          <span className="text-[10px] text-gray-400 capitalize">{player.teamSide} team</span>
+        </div>
       </div>
     </div>
   );
@@ -2662,6 +2737,14 @@ const computeSoccerPlayerTrust = (arr, hitFn, avgMinutes, xSignalArr, line) => {
   // Positive when model predicts over the line, negative when under
   const modifier = Math.max(-10, Math.min(10, (avgX - line) / Math.max(line, 0.3) * 12));
   return Math.round(Math.min(Math.max(base + modifier, 0), 100));
+};
+
+// MLB-specific trust: wraps computePlayerTrust and adds ballpark factor modifier.
+const computeMLBPlayerTrust = (arr, hitFn, parkInfo) => {
+  const base = computePlayerTrust(arr, hitFn);
+  if (base === null) return null;
+  if (!parkInfo) return base;
+  return Math.round(Math.min(Math.max(base + parkInfo.modifier, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
@@ -3878,25 +3961,23 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
             awayTeam: g.awayTeam,
           }));
           const playingTeams = new Set(todayGames.flatMap(g => [g.homeTeam, g.awayTeam]));
-          const tagged = playersData.players.map(p => ({
-            ...p,
-            matchupKey: (() => {
-              const game = todayGames.find(g => g.homeTeam === p.team || g.awayTeam === p.team);
-              return game ? `${game.homeTeam}__${game.awayTeam}` : null;
-            })(),
-            matchupLabel: (() => {
-              const game = todayGames.find(g => g.homeTeam === p.team || g.awayTeam === p.team);
-              return game ? `${game.awayTeam} @ ${game.homeTeam}` : null;
-            })(),
-            teamSide: (() => {
-              const game = todayGames.find(g => g.homeTeam === p.team);
-              if (game) return 'home';
-              const game2 = todayGames.find(g => g.awayTeam === p.team);
-              if (game2) return 'away';
-              return null;
-            })(),
-            playingToday: playingTeams.has(p.team),
-          }));
+          const tagged = playersData.players.map(p => {
+            const homeGame = todayGames.find(g => g.homeTeam === p.team);
+            const awayGame = todayGames.find(g => g.awayTeam === p.team);
+            const game = homeGame || awayGame;
+            const isHome = !!homeGame;
+            return {
+              ...p,
+              matchupKey: game ? `${game.homeTeam}__${game.awayTeam}` : null,
+              matchupLabel: game ? `${game.awayTeam} @ ${game.homeTeam}` : null,
+              teamSide: homeGame ? 'home' : awayGame ? 'away' : null,
+              isHome,
+              opponent: game ? (isHome ? game.awayTeam : game.homeTeam) : null,
+              // Park: home team's ballpark regardless of who we're analyzing
+              parkTeamAbbr: game ? mlbAbbr(game.homeTeam) : null,
+              playingToday: playingTeams.has(p.team),
+            };
+          });
           setMlbTodayPlayers(tagged);
           setMlbTodayMatchups(matchups);
         } else {

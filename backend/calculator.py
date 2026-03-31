@@ -168,6 +168,67 @@ class StatScoutCalculator:
         threshold = thresholds.get(stat_type.lower(), float('inf'))
         return avg_stat >= threshold
 
+    def calculate_costar_presence_modifier(
+        self,
+        player_name: str,
+        team: str,
+        stat_type: str,
+        db_loader=None
+    ) -> float:
+        """
+        Calculate a small trust modifier based on active star teammates.
+
+        Playing alongside a star (20+ PPG) creates easier opportunities:
+        - Gravity opens drives/kick-outs for secondary scorers
+        - Elite playmakers inflate assist chances for cutters/shooters
+        - Drawn defenders create more offensive rebounds near the rim
+
+        This is a modest effect (+5 to +10) compared to an injury boost (+25),
+        and only applies to secondary players (non-stars themselves).
+
+        Returns a modifier delta (-10 to +10), not a 0-100 score.
+        """
+        if not db_loader:
+            return 0.0
+        try:
+            # Get the player's own scoring average to determine if they're a star
+            own_stats = db_loader.get_player_stat_history(player_name, 'points', num_games=15)
+            if own_stats and self.is_star_player(own_stats, 'points'):
+                return 0.0  # Stars don't get a co-star boost — they ARE the star
+
+            # Get all teammates on same team
+            teammates = db_loader.get_team_players(team, exclude=player_name)
+            if not teammates:
+                return 0.0
+
+            star_count = 0
+            playmaker_present = False
+            for tm_name in teammates[:12]:  # Cap at 12 to avoid long loops
+                try:
+                    tm_pts = db_loader.get_player_stat_history(tm_name, 'points', num_games=15)
+                    if tm_pts and self.is_star_player(tm_pts, 'points'):
+                        star_count += 1
+                        # Check if they're also an elite playmaker (7+ APG)
+                        tm_ast = db_loader.get_player_stat_history(tm_name, 'assists', num_games=15)
+                        if tm_ast and len(tm_ast) >= 5 and (sum(tm_ast) / len(tm_ast)) >= 7.0:
+                            playmaker_present = True
+                except Exception:
+                    continue
+
+            if star_count == 0:
+                return 0.0
+
+            # Base modifier: +5 for having a star, +3 more if they're an elite playmaker
+            modifier = min(5.0 * star_count, 8.0)
+            if playmaker_present and stat_type.lower() in ('assists', 'points', 'pts+reb+ast', 'pts+ast'):
+                modifier += 3.0
+
+            return round(min(modifier, 10.0), 1)
+
+        except Exception as e:
+            print(f"  [Warning] Co-star presence check failed: {e}")
+            return 0.0
+
     def calculate_teammate_boost(
         self,
         player_name: str,
@@ -298,6 +359,13 @@ class StatScoutCalculator:
                 player_name, team, stat_type, db_loader
             )
 
+        # Co-star presence modifier: playing alongside a star creates easier opportunities
+        costar_modifier = 0.0
+        if player_name and team and db_loader:
+            costar_modifier = self.calculate_costar_presence_modifier(
+                player_name, team, stat_type, db_loader
+            )
+
         # Calculate rest factor
         rest_score = 50.0  # Default neutral
         if rest_days is not None:
@@ -362,6 +430,9 @@ class StatScoutCalculator:
             (consistency_score * self.consistency_weight) +
             (adjusted_pace * self.pace_weight)
         )
+
+        # Co-star presence boost (applied after weighted average)
+        trust_score = min(100, trust_score + costar_modifier)
 
         # Home court advantage boost — scoring stats benefit more from crowd/familiarity;
         # defensive/secondary stats (steals, blocks, 3pm) have negligible home effect
