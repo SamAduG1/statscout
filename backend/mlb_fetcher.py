@@ -180,41 +180,41 @@ class MLBFetcher:
         return result
 
     def _get_pitcher_season_stats(self, pitcher_id):
-        """Fetch a pitcher's current season ERA/K9/WHIP + throwing hand from MLB Stats API."""
-        result = {}
+        """
+        Fetch a pitcher's current season ERA/K9/WHIP + throwing hand in a single API call.
+        Uses the /people/{id} endpoint with hydrations=stats(group=pitching,type=season,season=YEAR).
+        """
         try:
             r = requests.get(
-                f"{MLB_STATS_BASE}/people/{pitcher_id}/stats",
-                params={"stats": "season", "season": CURRENT_SEASON, "group": "pitching"},
+                f"{MLB_STATS_BASE}/people/{pitcher_id}",
+                params={
+                    "hydrations": f"stats(group=pitching,type=season,season={CURRENT_SEASON})",
+                    "fields": "people,pitchHand,code,stats,splits,stat,era,strikeoutsPer9Inn,whip,gamesStarted",
+                },
                 timeout=10,
             )
             r.raise_for_status()
-            splits = r.json().get("stats", [{}])[0].get("splits", [])
-            if splits:
-                s = splits[0].get("stat", {})
-                result = {
-                    "era":  round(float(s.get("era", 0) or 0), 2),
-                    "k9":   round(float(s.get("strikeoutsPer9Inn", 0) or 0), 1),
-                    "whip": round(float(s.get("whip", 0) or 0), 2),
-                    "gs":   int(s.get("gamesStarted", 0) or 0),
-                }
-        except Exception:
-            pass
+            people = r.json().get("people", [{}])
+            person = people[0] if people else {}
+            pitch_hand = person.get("pitchHand", {}).get("code")  # "R" or "L"
 
-        # Fetch pitcher's throwing hand (lightweight separate call)
-        try:
-            r2 = requests.get(
-                f"{MLB_STATS_BASE}/people/{pitcher_id}",
-                params={"fields": "people,pitchHand,code"},
-                timeout=5,
-            )
-            r2.raise_for_status()
-            people = r2.json().get("people", [{}])
-            result["pitchHand"] = people[0].get("pitchHand", {}).get("code")  # "R" or "L"
+            # Season stats are hydrated inline on the person object
+            stat_groups = person.get("stats", [])
+            result = {"pitchHand": pitch_hand}
+            for sg in stat_groups:
+                splits = sg.get("splits", [])
+                if splits:
+                    s = splits[0].get("stat", {})
+                    result.update({
+                        "era":  round(float(s.get("era", 0) or 0), 2),
+                        "k9":   round(float(s.get("strikeoutsPer9Inn", 0) or 0), 1),
+                        "whip": round(float(s.get("whip", 0) or 0), 2),
+                        "gs":   int(s.get("gamesStarted", 0) or 0),
+                    })
+                    break
+            return result
         except Exception:
-            result.setdefault("pitchHand", None)
-
-        return result
+            return {"pitchHand": None}
 
     def get_upcoming_odds(self):
         """Fetch upcoming MLB games with h2h, totals, and run line from Odds API."""

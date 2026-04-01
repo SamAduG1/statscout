@@ -42,30 +42,42 @@ class TeamQuarterAnalytics:
         if not games:
             return None
 
-        # Calculate averages
-        q1_avg = sum(g.q1_points for g in games if g.q1_points) / len([g for g in games if g.q1_points])
-        q2_avg = sum(g.q2_points for g in games if g.q2_points) / len([g for g in games if g.q2_points])
-        q3_avg = sum(g.q3_points for g in games if g.q3_points) / len([g for g in games if g.q3_points])
-        q4_avg = sum(g.q4_points for g in games if g.q4_points) / len([g for g in games if g.q4_points])
+        # Filter to games that have real quarter data (0 = bad populate data, not actual 0 scored)
+        # NBA teams always score in every quarter; 0-stored rows are from failed box score fetches.
+        real_games = [g for g in games if g.q1_points and g.q1_points > 0]
+
+        if not real_games:
+            return None
+
+        # Calculate averages using only games with valid quarter data
+        q1_vals = [g.q1_points for g in real_games if g.q1_points is not None and g.q1_points > 0]
+        q2_vals = [g.q2_points for g in real_games if g.q2_points is not None and g.q2_points > 0]
+        q3_vals = [g.q3_points for g in real_games if g.q3_points is not None and g.q3_points > 0]
+        q4_vals = [g.q4_points for g in real_games if g.q4_points is not None and g.q4_points > 0]
+
+        q1_avg = sum(q1_vals) / len(q1_vals) if q1_vals else 0
+        q2_avg = sum(q2_vals) / len(q2_vals) if q2_vals else 0
+        q3_avg = sum(q3_vals) / len(q3_vals) if q3_vals else 0
+        q4_avg = sum(q4_vals) / len(q4_vals) if q4_vals else 0
 
         # First and second half averages
-        h1_games = [g.first_half_points for g in games if g.first_half_points is not None]
-        h2_games = [g.second_half_points for g in games if g.second_half_points is not None]
+        h1_games = [g.first_half_points for g in real_games if g.first_half_points is not None and g.first_half_points > 0]
+        h2_games = [g.second_half_points for g in real_games if g.second_half_points is not None and g.second_half_points > 0]
 
         h1_avg = sum(h1_games) / len(h1_games) if h1_games else 0
         h2_avg = sum(h2_games) / len(h2_games) if h2_games else 0
 
         # Three quarter average
-        three_q_games = [g.three_quarter_points for g in games if g.three_quarter_points is not None]
+        three_q_games = [g.three_quarter_points for g in real_games if g.three_quarter_points is not None and g.three_quarter_points > 0]
         three_q_avg = sum(three_q_games) / len(three_q_games) if three_q_games else 0
 
-        # How often they reach 100+ by Q3
-        reached_100_count = sum(1 for g in games if g.reached_100_by_q3)
-        reached_100_pct = (reached_100_count / len(games)) * 100 if games else 0
+        # How often they reach 100+ by Q3 (only count real games)
+        reached_100_count = sum(1 for g in real_games if g.reached_100_by_q3)
+        reached_100_pct = (reached_100_count / len(real_games)) * 100 if real_games else 0
 
         return {
             'team': team_abbr,
-            'total_games': len(games),
+            'total_games': len(real_games),  # reflect games with actual quarter data
             'q1_avg': round(q1_avg, 1),
             'q2_avg': round(q2_avg, 1),
             'q3_avg': round(q3_avg, 1),

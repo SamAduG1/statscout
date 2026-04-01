@@ -880,6 +880,206 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
         session.close()
 
 
+SOCCER_ALL_PLAYERS_CACHE_FILES = {
+    lg: f"/tmp/ssp_all_{lg}_v1.json" for lg in LEAGUE_MAPPINGS
+}
+SOCCER_ALL_PLAYERS_CACHE_DURATION = 12 * 60 * 60  # 12 hours
+
+_soccer_all_players_caches = {lg: None for lg in LEAGUE_MAPPINGS}
+
+
+def _compute_soccer_players_all(league):
+    """
+    Compute player props for ALL players in a league — no fixture required.
+    Like /api/mlb/players/all: returns every player with their season arrays,
+    hit rates, and avg stats. No oppDefense (no opponent context).
+    Cached per league.
+    """
+    from models import get_engine, get_session, SoccerPlayer, SoccerPlayerGame
+
+    engine = get_engine()
+    session = get_session(engine)
+
+    mapping = LEAGUE_MAPPINGS.get(league, UNDERSTAT_TO_ODDS_PL)
+    # understat_name -> odds_name
+    us_to_odds = {k: v for k, v in mapping.items()}
+
+    def hit_rate(values, line):
+        if not values:
+            return None
+        return round(sum(1 for v in values if v > line) / len(values) * 100)
+
+    def safe_avg(arr):
+        return round(sum(arr) / len(arr), 2) if arr else None
+
+    def venue_split(gs, venue_val):
+        gs_v = [g for g in gs if g.venue == venue_val]
+        if not gs_v:
+            return None
+        return {
+            "goals":   safe_avg([g.goals for g in gs_v]),
+            "shots":   safe_avg([g.shots for g in gs_v]),
+            "assists": safe_avg([g.assists for g in gs_v]),
+            "games":   len(gs_v),
+        }
+
+    try:
+        all_players = session.query(SoccerPlayer).filter_by(league=league).all()
+        players_out = []
+
+        for p in all_players:
+            all_games = (
+                session.query(SoccerPlayerGame)
+                .filter_by(player_id=p.id)
+                .order_by(SoccerPlayerGame.match_date.asc())
+                .all()
+            )
+            games_prev = [g for g in all_games if g.season == '2024' and g.minutes_played > 0]
+            games_curr = [g for g in all_games if g.season == '2025' and g.minutes_played > 0]
+            active = games_curr
+            if len(active) < 3 and len(games_prev) < 3:
+                continue
+            if not active:
+                active = games_prev
+
+            goals   = [g.goals for g in active]
+            shots   = [g.shots for g in active]
+            assists = [g.assists for g in active]
+            ga      = [g.goals + g.assists for g in active]
+            mins    = [g.minutes_played for g in active]
+
+            xg_curr = [g.xG for g in games_curr if g.xG is not None]
+            xa_curr = [g.xA for g in games_curr if g.xA is not None]
+            xg_prev = [g.xG for g in games_prev if g.xG is not None]
+            xa_prev = [g.xA for g in games_prev if g.xA is not None]
+
+            # Odds API team name for display
+            team_odds = us_to_odds.get(p.team_name, p.team_name)
+
+            player_dict = {
+                "id":           p.id,
+                "understatId":  p.understat_id,
+                "name":         p.name,
+                "team":         team_odds,
+                "teamUs":       p.team_name,
+                "position":     p.position,
+                "gamesPlayed":  len(active),
+                "gamesCurr":    len(games_curr),
+                "avgMinutes":   round(sum(mins) / len(mins), 1) if mins else 0,
+                "goals_over05":   hit_rate(goals, 0.5),
+                "goals_over15":   hit_rate(goals, 1.5),
+                "shots_over15":   hit_rate(shots, 1.5),
+                "shots_over25":   hit_rate(shots, 2.5),
+                "assists_over05": hit_rate(assists, 0.5),
+                "ga_over05":      hit_rate(ga, 0.5),
+                "ga_over15":      hit_rate(ga, 1.5),
+                "cleanSheet": None,
+                "gcArr": [],
+                "goalsArr":   goals[-15:],
+                "shotsArr":   shots[-15:],
+                "assistsArr": assists[-15:],
+                "gaArr":      ga[-15:],
+                "xgArr":      xg_curr[-15:],
+                "xaArr":      xa_curr[-15:],
+                "xgArrPrev":  xg_prev,
+                "xaArrPrev":  xa_prev,
+                "goalsPrev":  [g.goals for g in games_prev],
+                "shotsPrev":  [g.shots for g in games_prev],
+                "assistsPrev":[g.assists for g in games_prev],
+                "gameLog":    [
+                    {
+                        "date":          g.match_date.isoformat(),
+                        "opponent":      g.opponent,
+                        "venue":         g.venue,
+                        "goals":         g.goals,
+                        "shots":         g.shots,
+                        "assists":       g.assists,
+                        "minutesPlayed": g.minutes_played,
+                        "xG":            g.xG,
+                        "xA":            g.xA,
+                    }
+                    for g in active[-15:]
+                ],
+                "h2hGames":   [],
+                "homeSplit":  venue_split(active, "home"),
+                "awaySplit":  venue_split(active, "away"),
+                "oppDefense": None,  # requires opponent context; filled in by fixture view
+            }
+
+            if p.position == "GK":
+                gk_conceded = [g.goals_conceded for g in active if g.goals_conceded is not None]
+                if gk_conceded:
+                    player_dict["cleanSheet"] = round(
+                        sum(1 for v in gk_conceded if v == 0) / len(gk_conceded) * 100
+                    )
+                    player_dict["gcArr"] = gk_conceded[-15:]
+
+            players_out.append(player_dict)
+
+        players_out.sort(key=lambda pl: (-pl["gamesPlayed"], pl["name"]))
+        return {
+            "success": True,
+            "league":  league,
+            "count":   len(players_out),
+            "players": players_out,
+        }
+    finally:
+        session.close()
+
+
+def _build_soccer_all_players_cache_background(league):
+    import threading, time as _time
+    def _run():
+        for attempt in range(1, 4):
+            try:
+                data = _compute_soccer_players_all(league)
+                data['ts'] = datetime.now().isoformat()
+                _soccer_all_players_caches[league] = data
+                if data['count'] > 0:
+                    _save_specific_cache(SOCCER_ALL_PLAYERS_CACHE_FILES[league], data)
+                    print(f"[SOCCER PLAYERS ALL] {league}: {data['count']} players cached")
+                break
+            except Exception as e:
+                print(f"[SOCCER PLAYERS ALL] {league} attempt {attempt} failed: {e}")
+                if attempt < 3:
+                    _time.sleep(15)
+    threading.Thread(target=_run, daemon=True).start()
+
+
+@app.route('/api/soccer/players/all', methods=['GET'])
+def get_soccer_players_all():
+    """
+    Return props for ALL players in a league — no fixture required. Cached 12h.
+    Query params: league=pl|laliga|bundesliga|seriea|ligue1
+    """
+    league = request.args.get('league', 'pl')
+    if league not in LEAGUE_MAPPINGS:
+        return jsonify({"error": "Unknown league"}), 400
+
+    # In-memory first
+    cached = _soccer_all_players_caches.get(league)
+    if cached and cached.get('count', 0) > 0:
+        ts = cached.get('ts')
+        if ts:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+            if age < SOCCER_ALL_PLAYERS_CACHE_DURATION:
+                return jsonify(cached)
+
+    # Disk fallback
+    disk = _load_specific_cache(SOCCER_ALL_PLAYERS_CACHE_FILES.get(league, ''))
+    if disk and disk.get('count', 0) > 0:
+        ts = disk.get('ts')
+        if ts:
+            age = (datetime.now() - datetime.fromisoformat(ts)).total_seconds()
+            if age < SOCCER_ALL_PLAYERS_CACHE_DURATION:
+                _soccer_all_players_caches[league] = disk
+                return jsonify(disk)
+
+    # Build in background, return empty for now
+    _build_soccer_all_players_cache_background(league)
+    return jsonify({"success": True, "league": league, "count": 0, "players": []})
+
+
 @app.route('/api/soccer/players', methods=['GET'])
 def get_soccer_players():
     """
@@ -2563,6 +2763,7 @@ except Exception as _db_err:
 _build_players_cache_background()
 _build_soccer_cache_background('pl')  # Other soccer leagues load lazily on first request
 _build_mlb_cache_background()
+_build_soccer_all_players_cache_background('pl')  # Soccer all-players; other leagues load lazily
 
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")

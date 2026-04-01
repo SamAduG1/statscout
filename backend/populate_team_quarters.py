@@ -63,9 +63,12 @@ def fetch_quarter_scores(game_id):
         for col in line_score.columns:
             if col.startswith('PTS_QTR'):
                 q = col.replace('PTS_QTR', '')
-                pts[f'q{q}'] = row[col] if row[col] is not None else 0
+                val = row[col]
+                # Store None if missing; 0 is also treated as invalid (teams always score in NBA)
+                pts[f'q{q}'] = int(val) if (val is not None and val != 0) else None
             elif col == 'PTS_OT1':
-                pts['ot'] = row[col] if row[col] is not None else 0
+                val = row[col]
+                pts['ot'] = int(val) if val is not None else 0
         result[tid] = pts
     return result
 
@@ -73,6 +76,16 @@ def fetch_quarter_scores(game_id):
 def main():
     engine = get_engine()
     session = get_session(engine)
+
+    # Remove rows where q1=0 (stored from failed box score fetches in prior runs)
+    # These will be re-fetched and stored with real data or None.
+    from sqlalchemy import delete
+    bad = session.execute(
+        delete(TeamGame).where(TeamGame.q1_points == 0)
+    )
+    if bad.rowcount:
+        session.commit()
+        print(f"Removed {bad.rowcount} rows with q1_points=0 (bad data from prior run)")
 
     full_ids, existing_pairs = get_existing_pairs(session)
     print(f"{len(full_ids)} games fully in DB, {len(existing_pairs)} total (game,team) pairs")
