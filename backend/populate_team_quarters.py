@@ -1,171 +1,190 @@
 """
-Populate team_games table with quarter-by-quarter scores for all 30 NBA teams.
-Uses LeagueGameLog to get all 2025-26 games, then BoxScoreSummaryV2 for Q scores.
+Populate team_games table with quarter-by-quarter scores using ESPN's
+unofficial scoreboard API (no API key required, complete data for all games).
+
+Iterates each date of the 2025-26 NBA season, fetches linescores from ESPN,
+then updates existing TeamGame rows in-place.
 
 Run locally:
   cd backend
   python populate_team_quarters.py
 
-Takes ~30-45 min due to NBA API rate limits (one box score call per game).
-Already-inserted game_ids are skipped so safe to re-run.
+Takes ~3-5 minutes (~170 date calls at 0.3s each).
+Rows that already have q1_points are skipped unless --force is passed.
+Safe to re-run.
 """
 
 import time
 import sys
 import io
-from datetime import datetime
+import argparse
+import requests
+from datetime import date, timedelta
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from nba_api.stats.endpoints import leaguegamelog, boxscoresummaryv2
 from models import get_engine, get_session, TeamGame
 
-SEASON = '2025-26'
-SLEEP_BETWEEN_CALLS = 0.7  # seconds — stay under NBA API rate limit
+# 2025-26 regular season
+SEASON_START = date(2025, 10, 22)
+SEASON_END   = date(2026, 4, 14)   # approximate end of regular season
+
+SLEEP_BETWEEN_CALLS = 0.35   # seconds — ESPN has no rate limit but be polite
+
+ESPN_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+
+# ESPN team abbreviations that differ from NBA standard
+ESPN_TO_NBA = {
+    "GS":   "GSW",
+    "NY":   "NYK",
+    "SA":   "SAS",
+    "NO":   "NOP",
+    "WSH":  "WAS",
+    "UTAH": "UTA",
+    "PHO":  "PHX",   # ESPN occasionally uses PHO instead of PHX
+}
 
 
-def get_existing_pairs(session):
-    """Return set of (game_id, team) pairs already in DB."""
-    from sqlalchemy import func
-    # Games fully inserted (both team rows present)
-    full = session.query(TeamGame.game_id).group_by(TeamGame.game_id).having(func.count() >= 2).all()
-    full_ids = {r[0] for r in full}
-    # Also track individual pairs to skip single-row partial games
-    pairs = session.query(TeamGame.game_id, TeamGame.team).all()
-    return full_ids, {(r[0], r[1]) for r in pairs}
+def norm(abbr: str) -> str:
+    """Normalize an ESPN abbreviation to the NBA abbreviation we store."""
+    return ESPN_TO_NBA.get(abbr.upper(), abbr.upper())
 
 
-def fetch_league_games():
-    """Fetch all 2025-26 regular season games from NBA API."""
-    print("Fetching league game log...")
-    log = leaguegamelog.LeagueGameLog(season=SEASON, season_type_all_star='Regular Season')
-    df = log.get_data_frames()[0]
-    print(f"  {len(df)} team-game rows ({df['GAME_ID'].nunique()} unique games)")
-    return df
-
-
-def fetch_quarter_scores(game_id):
+def fetch_espn_games(game_date: date) -> list:
     """
-    Return dict keyed by team_id: {q1, q2, q3, q4, ot}
-    BoxScoreSummaryV2 line_score gives per-period pts per team.
+    Returns a list of completed-game dicts for the given date:
+      {home_team, away_team, home_scores, away_scores}
+    home_scores / away_scores are per-period integer lists (4 items normally, 5+ with OT).
+    Returns [] on error or no games.
     """
-    summary = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id)
-    line_score = summary.get_data_frames()[5]  # line_score dataframe
+    date_str = game_date.strftime("%Y%m%d")
+    try:
+        r = requests.get(ESPN_URL, params={"dates": date_str, "limit": 20}, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"  [ESPN ERROR] {game_date}: {e}")
+        return []
 
-    result = {}
-    for _, row in line_score.iterrows():
-        tid = row['TEAM_ID']
-        pts = {}
-        for col in line_score.columns:
-            if col.startswith('PTS_QTR'):
-                q = col.replace('PTS_QTR', '')
-                val = row[col]
-                # Store None if missing; 0 is also treated as invalid (teams always score in NBA)
-                pts[f'q{q}'] = int(val) if (val is not None and val != 0) else None
-            elif col == 'PTS_OT1':
-                val = row[col]
-                pts['ot'] = int(val) if val is not None else 0
-        result[tid] = pts
-    return result
+    results = []
+    for event in data.get("events", []):
+        competition = event.get("competitions", [{}])[0]
+
+        # Only process completed games (skip live / not started)
+        status = competition.get("status", {}).get("type", {})
+        if not status.get("completed", False):
+            continue
+
+        competitors = competition.get("competitors", [])
+        if len(competitors) != 2:
+            continue
+
+        game = {}
+        for comp in competitors:
+            abbr = norm(comp.get("team", {}).get("abbreviation", ""))
+            linescores = comp.get("linescores", [])
+            scores = []
+            for ls in linescores:
+                v = ls.get("value")
+                if v is not None:
+                    scores.append(int(v))
+
+            if comp.get("homeAway") == "home":
+                game["home_team"]   = abbr
+                game["home_scores"] = scores
+            else:
+                game["away_team"]   = abbr
+                game["away_scores"] = scores
+
+        if "home_team" in game and "away_team" in game:
+            results.append(game)
+
+    return results
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Populate quarter scores from ESPN")
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Overwrite rows that already have quarter data"
+    )
+    args = parser.parse_args()
+
     engine = get_engine()
     session = get_session(engine)
 
-    # Remove rows where q1=0 (stored from failed box score fetches in prior runs)
-    # These will be re-fetched and stored with real data or None.
-    from sqlalchemy import delete
-    bad = session.execute(
-        delete(TeamGame).where(TeamGame.q1_points == 0)
-    )
-    if bad.rowcount:
-        session.commit()
-        print(f"Removed {bad.rowcount} rows with q1_points=0 (bad data from prior run)")
+    today    = date.today()
+    end_date = min(SEASON_END, today)
 
-    full_ids, existing_pairs = get_existing_pairs(session)
-    print(f"{len(full_ids)} games fully in DB, {len(existing_pairs)} total (game,team) pairs")
+    total_rows    = session.query(TeamGame).count()
+    already_done  = session.query(TeamGame).filter(TeamGame.q1_points != None).count()
+    print(f"TeamGame rows in DB: {total_rows} total, {already_done} already have quarter data")
+    print(f"Scanning {SEASON_START} to {end_date}...\n")
 
-    df = fetch_league_games()
+    updated         = 0
+    skipped_done    = 0
+    skipped_missing = 0
+    dates_with_games = 0
+    current_date    = SEASON_START
 
-    # Build a map: game_id -> list of team rows
-    from collections import defaultdict
-    games_map = defaultdict(list)
-    for _, row in df.iterrows():
-        games_map[row['GAME_ID']].append(row)
+    while current_date <= end_date:
+        games = fetch_espn_games(current_date)
 
-    game_ids = sorted(games_map.keys())
-    # Process all games not fully inserted
-    new_game_ids = [gid for gid in game_ids if gid not in full_ids]
-    print(f"{len(new_game_ids)} games need processing\n")
+        if games:
+            dates_with_games += 1
+            for game in games:
+                h_scores = game["home_scores"]
+                a_scores = game["away_scores"]
 
-    inserted = 0
-    errors = 0
+                # Need at least 4 quarters of data
+                if len(h_scores) < 4 or len(a_scores) < 4:
+                    continue
 
-    for i, game_id in enumerate(new_game_ids, 1):
-        rows = games_map[game_id]
-        if len(rows) != 2:
-            continue  # skip if not exactly 2 teams (shouldn't happen)
+                h_ot = sum(h_scores[4:]) if len(h_scores) > 4 else 0
+                a_ot = sum(a_scores[4:]) if len(a_scores) > 4 else 0
 
-        teams_needed = [r for r in rows if (game_id, r['TEAM_ABBREVIATION']) not in existing_pairs]
-        if not teams_needed:
-            continue
+                for team, scores, ot in [
+                    (game["home_team"], h_scores, h_ot),
+                    (game["away_team"], a_scores, a_ot),
+                ]:
+                    row = session.query(TeamGame).filter_by(
+                        team=team, date=current_date
+                    ).first()
 
-        try:
-            time.sleep(SLEEP_BETWEEN_CALLS)
-            quarter_scores = fetch_quarter_scores(game_id)
-        except Exception as e:
-            print(f"  [{i}/{len(new_game_ids)}] {game_id} [ERROR] box score: {e}")
-            errors += 1
-            time.sleep(2)
-            continue
+                    if row is None:
+                        skipped_missing += 1
+                        continue
 
-        for row in teams_needed:
-            team = row['TEAM_ABBREVIATION']
-            opp_row = [r for r in rows if r['TEAM_ABBREVIATION'] != team][0]
-            opp = opp_row['TEAM_ABBREVIATION']
+                    if row.q1_points is not None and not args.force:
+                        skipped_done += 1
+                        continue
 
-            matchup = row['MATCHUP']  # e.g. "BOS vs. MIA" or "BOS @ MIA"
-            is_home = 'vs.' in matchup
+                    row.q1_points = scores[0]
+                    row.q2_points = scores[1]
+                    row.q3_points = scores[2]
+                    row.q4_points = scores[3]
+                    row.ot_points = ot
+                    updated += 1
 
-            game_date = datetime.strptime(row['GAME_DATE'], '%Y-%m-%d').date()
-            won = row['WL'] == 'W'
-            total_pts = int(row['PTS'])
-            opp_pts = int(opp_row['PTS'])
+            session.commit()
 
-            tid = row['TEAM_ID']
-            qs = quarter_scores.get(tid, {})
-
-            stmt = pg_insert(TeamGame).values(
-                game_id=game_id,
-                team=team,
-                opponent=opp,
-                date=game_date,
-                is_home=is_home,
-                season=SEASON,
-                q1_points=qs.get('q1'),
-                q2_points=qs.get('q2'),
-                q3_points=qs.get('q3'),
-                q4_points=qs.get('q4'),
-                ot_points=qs.get('ot', 0),
-                total_points=total_pts,
-                opponent_points=opp_pts,
-                won=won,
-            ).on_conflict_do_nothing(constraint='uq_team_game')
-            session.execute(stmt)
-            inserted += 1
-
-        session.commit()
-
-        if i % 20 == 0 or i == len(new_game_ids):
-            print(f"  [{i}/{len(new_game_ids)}] {inserted} rows inserted so far...")
+        time.sleep(SLEEP_BETWEEN_CALLS)
+        current_date += timedelta(days=1)
 
     session.close()
-    print(f"\nDone. {inserted} rows inserted, {errors} errors.")
+
+    print(f"\nDone.")
+    print(f"  Dates with completed NBA games : {dates_with_games}")
+    print(f"  TeamGame rows updated          : {updated}")
+    print(f"  Skipped (already had data)     : {skipped_done}")
+    print(f"  Skipped (no matching DB row)   : {skipped_missing}")
+    print()
+    if skipped_missing > 0:
+        print("NOTE: 'No matching DB row' means those games aren't in the team_games table yet.")
+        print("  Run populate_team_quarters.py --nba-seed first if this is a fresh DB.")
 
 
 if __name__ == '__main__':
