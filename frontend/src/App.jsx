@@ -309,12 +309,19 @@ const TeamQuarterInsights = ({ allTeams }) => {
 
           {!loading && quarterData && t1Data && t2Data && (
             <div className="space-y-4">
+              {(t1Data.total_games < 10 || t2Data.total_games < 10) && (
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-lg text-xs text-amber-700 dark:text-amber-400">
+                  <span className="flex-shrink-0 mt-0.5">⚠</span>
+                  <span>Limited sample - quarter data is only available for {Math.min(t1Data.total_games, t2Data.total_games)}-{Math.max(t1Data.total_games, t2Data.total_games)} games per team this season. These averages may not be reliable.</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Team 1 */}
                 <div className="bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                     {t1Data.team}
+                    <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">({t1Data.total_games}g)</span>
                   </h3>
                   <div className="grid grid-cols-4 gap-2 mb-4">
                     {[['Q1', t1Data.q1_avg], ['Q2', t1Data.q2_avg], ['Q3', t1Data.q3_avg], ['Q4', t1Data.q4_avg]].map(([q, val]) => (
@@ -352,6 +359,7 @@ const TeamQuarterInsights = ({ allTeams }) => {
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
                     {t2Data.team}
+                    <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">({t2Data.total_games}g)</span>
                   </h3>
                   <div className="grid grid-cols-4 gap-2 mb-4">
                     {[['Q1', t2Data.q1_avg], ['Q2', t2Data.q2_avg], ['Q3', t2Data.q3_avg], ['Q4', t2Data.q4_avg]].map(([q, val]) => (
