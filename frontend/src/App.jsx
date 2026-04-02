@@ -3598,6 +3598,7 @@ export default function StatScoutDashboard() {
   const [mlbPropsSearch, setMlbPropsSearch] = useState('');
   const [mlbPropsPlayingToday, setMlbPropsPlayingToday] = useState(false);
   const [mlbPropsTeamSearch, setMlbPropsTeamSearch] = useState('');
+  const [soccerPropsPlayingToday, setSoccerPropsPlayingToday] = useState(false);
   const [soccerLoading, setSoccerLoading] = useState(false);
   const [soccerError, setSoccerError] = useState(null);
   const [selectedSoccerFixture, setSelectedSoccerFixture] = useState(null);
@@ -4794,7 +4795,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               {/* League + View selectors */}
               <div id="tour-soccer-nav" className="flex flex-wrap items-center gap-3 mb-5">
                 {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1']].map(([key, label]) => (
-                  <button key={key} onClick={() => { setSelectedSoccerFixture(null); setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
+                  <button key={key} onClick={() => { setSelectedSoccerFixture(null); setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerLeague === key
                         ? 'bg-blue-600 text-white'
@@ -4882,6 +4883,18 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                 // All unique team names from loaded players
                 const allTeams = [...new Set(allPlayers.map(p => p.team))].filter(Boolean).sort();
 
+                // Teams playing today — derived from match totals data (commenceTime is ISO UTC)
+                const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local tz
+                const teamsPlayingToday = new Set(
+                  (soccerData[soccerLeague] || [])
+                    .filter(m => {
+                      if (!m.commenceTime) return false;
+                      const d = new Date(m.commenceTime);
+                      return d.toLocaleDateString('en-CA') === todayStr;
+                    })
+                    .flatMap(m => [m.homeTeam, m.awayTeam])
+                );
+
                 const visible = allPlayers
                   .filter(p => {
                     if (isGk && p.position !== 'GK') return false;
@@ -4889,6 +4902,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     if (soccerPropsPosition && p.position !== soccerPropsPosition) return false;
                     if (soccerPropsTeamName && p.team !== soccerPropsTeamName) return false;
                     if (soccerPropsSearch && !p.name.toLowerCase().includes(soccerPropsSearch.toLowerCase())) return false;
+                    if (soccerPropsPlayingToday && !teamsPlayingToday.has(p.team)) return false;
                     return true;
                   })
                   .map(p => {
@@ -4944,8 +4958,18 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                           ))}
                         </div>
                       )}
-                      {(soccerPropsSearch || soccerPropsTeamName || soccerPropsPosition) && (
-                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); }}
+                      {teamsPlayingToday.size > 0 && (
+                        <button
+                          onClick={() => setSoccerPropsPlayingToday(v => !v)}
+                          className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+                            soccerPropsPlayingToday
+                              ? 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                              : 'bg-gray-800/60 border-gray-700 text-gray-400 hover:text-gray-200'
+                          }`}
+                        >Playing today</button>
+                      )}
+                      {(soccerPropsSearch || soccerPropsTeamName || soccerPropsPosition || soccerPropsPlayingToday) && (
+                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); }}
                           className="text-xs text-blue-400 hover:underline">Clear</button>
                       )}
                       {!isLoading && !isError && (
@@ -4988,7 +5012,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     {!isLoading && !isError && visible.length === 0 && allPlayers.length > 0 && (
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
                         <p className="text-gray-500 dark:text-gray-400 font-medium">No players match current filters</p>
-                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); }}
+                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); }}
                           className="text-sm text-blue-400 hover:underline">Clear filters</button>
                       </div>
                     )}

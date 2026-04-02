@@ -173,28 +173,28 @@ COMPETITIONS = {
         "fd_code": "PD",
         "name": "La Liga",
         "odds_to_fd": LALIGA_ODDS_TO_FD,
-        "regions": "uk,eu",
+        "regions": "us,uk,eu",
     },
     "bundesliga": {
         "odds_sport": "soccer_germany_bundesliga",
         "fd_code": "BL1",
         "name": "Bundesliga",
         "odds_to_fd": BUNDESLIGA_ODDS_TO_FD,
-        "regions": "uk,eu",
+        "regions": "us,uk,eu",
     },
     "seriea": {
         "odds_sport": "soccer_italy_serie_a",
         "fd_code": "SA",
         "name": "Serie A",
         "odds_to_fd": SERIEA_ODDS_TO_FD,
-        "regions": "uk,eu",
+        "regions": "us,uk,eu",
     },
     "ligue1": {
         "odds_sport": "soccer_france_ligue_1",
         "fd_code": "FL1",
         "name": "Ligue 1",
         "odds_to_fd": LIGUE1_ODDS_TO_FD,
-        "regions": "uk,eu",
+        "regions": "us,uk,eu",
     },
 }
 
