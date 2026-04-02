@@ -2761,8 +2761,30 @@ except Exception as _db_err:
 
 # Start background cache builds after all routes are defined
 _build_players_cache_background()
-_build_soccer_cache_background('pl')  # Other soccer leagues load lazily on first request
 _build_mlb_cache_background()
+
+# Pre-build all soccer match caches sequentially at startup so they are warm before first visit.
+# The _fd_semaphore in soccer_fetcher serializes football-data.org calls anyway, so launching
+# them all at once would just queue behind each other — easier to chain them explicitly.
+def _build_all_soccer_caches():
+    import threading, time as _time
+    def _run():
+        _time.sleep(10)  # let NBA/MLB builds start first
+        for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1']:
+            cache = soccer_caches[league]
+            if cache["data"] is not None and cache["data"].get("count", 0) > 0:
+                print(f"[SOCCER] {league} already cached, skipping startup build")
+                continue
+            if not cache["building"]:
+                _build_soccer_cache_background(league)
+            # Wait for this league to finish before starting the next
+            for _ in range(60):
+                _time.sleep(2)
+                if not cache["building"]:
+                    break
+    threading.Thread(target=_run, daemon=True).start()
+
+_build_all_soccer_caches()
 _build_soccer_all_players_cache_background('pl')  # Soccer all-players; other leagues load lazily
 
 if __name__ == '__main__':
