@@ -63,9 +63,9 @@ def update_player_stats(session, fetcher, player_name, team, position, season="2
             print(f"  [INFO] Team change detected: {player.team} -> {team}")
             player.team = team
 
-    # Games from the last 3 days are re-checked and updated in case they were
+    # Games from the last 7 days are re-checked and updated in case they were
     # captured mid-game on a previous run.
-    refresh_cutoff = date.today() - timedelta(days=3)
+    refresh_cutoff = date.today() - timedelta(days=7)
 
     new_games = []
     updated_games = 0
@@ -228,7 +228,21 @@ def add_espn_recent_games(session, days_back=7):
                     ).first()
 
                     if existing:
-                        # Game already in database
+                        # Re-check games from the last 7 days in case they were captured mid-game
+                        refresh_cutoff = (datetime.now() - timedelta(days=7)).date()
+                        if game_date >= refresh_cutoff:
+                            new_pts = int(stat['points'])
+                            new_reb = int(stat['rebounds'])
+                            new_ast = int(stat['assists'])
+                            if (existing.points != new_pts or existing.rebounds != new_reb or
+                                    existing.assists != new_ast):
+                                existing.points   = new_pts
+                                existing.rebounds = new_reb
+                                existing.assists  = new_ast
+                                existing.steals   = int(stat['steals'])
+                                existing.blocks   = int(stat['blocks'])
+                                existing.three_pm = int(stat['three_pm'])
+                                total_added += 1  # reusing counter as "changed"
                         continue
 
                     # Add new game to batch
