@@ -2824,6 +2824,82 @@ def _schedule_daily_stats_update():
 
 _schedule_daily_stats_update()
 
+
+def _schedule_daily_mlb_update():
+    """
+    Run update_mlb_stats.py once per day at 10:00 UTC (6 AM ET).
+    Staggered 1h after the NBA update to avoid competing for DB connections.
+    """
+    import threading, time as _time
+    from datetime import datetime, timezone, timedelta
+
+    def _run():
+        TARGET_HOUR_UTC = 10
+        while True:
+            now = datetime.now(timezone.utc)
+            next_run = now.replace(hour=TARGET_HOUR_UTC, minute=0, second=0, microsecond=0)
+            if now >= next_run:
+                next_run += timedelta(days=1)
+            sleep_secs = (next_run - now).total_seconds()
+            print(f"[MLB STATS] Daily auto-update scheduled for "
+                  f"{next_run.strftime('%Y-%m-%d %H:%M UTC')} ({sleep_secs/3600:.1f}h from now)")
+            _time.sleep(sleep_secs)
+            try:
+                print("[MLB STATS] Starting scheduled daily MLB stats update...")
+                from update_mlb_stats import main as mlb_update_main
+                mlb_update_main()
+                print("[MLB STATS] Scheduled update complete")
+                # Rebuild MLB caches after update so fresh data is served immediately
+                _build_mlb_cache_background()
+            except Exception as _e:
+                print(f"[MLB STATS] Scheduled update failed: {_e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _schedule_daily_soccer_cache_refresh():
+    """
+    Proactively rebuild all soccer match caches at 11:00 UTC (7 AM ET) daily.
+    Prevents stale data from sitting until a user happens to request an expired league.
+    Uses 5 Odds API calls/day (one per league) — well within free tier limits.
+    """
+    import threading, time as _time
+    from datetime import datetime, timezone, timedelta
+
+    def _run():
+        TARGET_HOUR_UTC = 11
+        while True:
+            now = datetime.now(timezone.utc)
+            next_run = now.replace(hour=TARGET_HOUR_UTC, minute=0, second=0, microsecond=0)
+            if now >= next_run:
+                next_run += timedelta(days=1)
+            sleep_secs = (next_run - now).total_seconds()
+            print(f"[SOCCER] Daily cache refresh scheduled for "
+                  f"{next_run.strftime('%Y-%m-%d %H:%M UTC')} ({sleep_secs/3600:.1f}h from now)")
+            _time.sleep(sleep_secs)
+            print("[SOCCER] Starting scheduled daily cache refresh for all leagues...")
+            for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1']:
+                try:
+                    # Force expire the in-memory cache so _build triggers a fresh fetch
+                    soccer_caches[league]["last_updated"] = None
+                    soccer_caches[league]["data"] = None
+                    if not soccer_caches[league]["building"]:
+                        _build_soccer_cache_background(league)
+                    # Wait up to 120s for each league before moving to next
+                    for _ in range(60):
+                        _time.sleep(2)
+                        if not soccer_caches[league]["building"]:
+                            break
+                except Exception as _e:
+                    print(f"[SOCCER] Refresh failed for {league}: {_e}")
+            print("[SOCCER] Daily cache refresh complete")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+_schedule_daily_mlb_update()
+_schedule_daily_soccer_cache_refresh()
+
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")
     print("[INFO] API available at: http://localhost:5000")

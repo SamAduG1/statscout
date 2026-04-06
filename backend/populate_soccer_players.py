@@ -7,9 +7,12 @@ DATABASE_URL must be set in backend/.env
 
 Usage:
   cd backend
-  python populate_soccer_players.py             # both leagues
+  python populate_soccer_players.py                       # all 5 leagues
   python populate_soccer_players.py --league pl
   python populate_soccer_players.py --league laliga
+  python populate_soccer_players.py --league bundesliga
+  python populate_soccer_players.py --league seriea
+  python populate_soccer_players.py --league ligue1
 
 Understat API (discovered from their JS):
   getLeagueData/{league}/{season}  -> players list + team + position + season totals
@@ -242,7 +245,7 @@ def main():
 
     engine = get_engine()
     session = get_session(engine)
-    leagues = [args.league] if args.league else ["pl", "laliga"]
+    leagues = [args.league] if args.league else list(LEAGUES.keys())
 
     try:
         for league in leagues:

@@ -8,10 +8,13 @@ DATABASE_URL must be set in backend/.env
 
 Usage:
   cd backend
-  python update_soccer_stats.py             # both leagues
+  python update_soccer_stats.py                       # all 5 leagues
   python update_soccer_stats.py --league pl
   python update_soccer_stats.py --league laliga
-  python update_soccer_stats.py --player 8260  # single player by understat_id
+  python update_soccer_stats.py --league bundesliga
+  python update_soccer_stats.py --league seriea
+  python update_soccer_stats.py --league ligue1
+  python update_soccer_stats.py --player 8260          # single player by understat_id
 """
 
 import time
