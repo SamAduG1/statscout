@@ -2787,6 +2787,43 @@ def _build_all_soccer_caches():
 _build_all_soccer_caches()
 _build_soccer_all_players_cache_background('pl')  # Soccer all-players; other leagues load lazily
 
+
+def _schedule_daily_stats_update():
+    """
+    Run update_stats.py once per day at 09:00 UTC (5 AM ET) in a background thread.
+    This ensures mid-game captures (halftime stats locked in) get corrected within 24h
+    thanks to the 7-day refresh window in update_stats.py.
+    UptimeRobot keeps this process alive 24/7 so the thread reliably fires each day.
+    """
+    import threading, time as _time
+    from datetime import datetime, timezone, timedelta
+
+    def _run():
+        TARGET_HOUR_UTC = 9   # 5 AM ET — all overnight games are fully finalized by then
+        while True:
+            now = datetime.now(timezone.utc)
+            next_run = now.replace(hour=TARGET_HOUR_UTC, minute=0, second=0, microsecond=0)
+            if now >= next_run:
+                next_run += timedelta(days=1)
+            sleep_secs = (next_run - now).total_seconds()
+            print(f"[STATS] Daily auto-update scheduled for {next_run.strftime('%Y-%m-%d %H:%M UTC')} "
+                  f"({sleep_secs / 3600:.1f}h from now)")
+            _time.sleep(sleep_secs)
+            try:
+                print("[STATS] Starting scheduled daily stats update...")
+                from update_stats import update_all_players
+                result = update_all_players()
+                print(f"[STATS] Scheduled update complete — "
+                      f"{result.get('new_games', 0)} new games, "
+                      f"{result.get('players_updated', 0)} players updated")
+            except Exception as _e:
+                print(f"[STATS] Scheduled update failed: {_e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+_schedule_daily_stats_update()
+
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")
     print("[INFO] API available at: http://localhost:5000")
