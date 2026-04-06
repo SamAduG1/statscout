@@ -1671,7 +1671,9 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
             lineMax: mdef.max,
             lineStep: mdef.step,
           })}
-          className="w-full mt-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          disabled={hitRate == null || arr.length < 5}
+          title={hitRate == null || arr.length < 5 ? 'Not enough games to add to parlay (minimum 5 required)' : undefined}
+          className="w-full mt-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           + Add to Parlay
         </button>
@@ -3087,7 +3089,9 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
             e.stopPropagation();
             onAddToParlay(player);
           }}
-          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+          disabled={player.hitRate == null}
+          title={player.hitRate == null ? 'Not enough games to add to parlay (minimum 5 required)' : undefined}
+          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:hover:from-blue-500 disabled:hover:to-blue-600"
         >
           <Plus className="w-4 h-4" />
           Add to Custom Parlay
@@ -3716,6 +3720,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
   // Custom Parlay Helper Functions
   const addToCustomParlay = (player) => {
+    if (player.hitRate == null) return; // guard: not enough games
     const legId = `${player.name}-${player.statType}-${Date.now()}`;
     const newLeg = {
       id: legId,

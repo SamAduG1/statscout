@@ -397,9 +397,12 @@ class SoccerFetcher:
         return abs(american_odds) / (abs(american_odds) + 100)
 
     def _compute_trust_score(self, over_rate, expected, line, over_o,
-                              home_games, away_games, relevant):
+                              home_games, away_games, relevant,
+                              referee_avg_goals=None, league_avg_goals=None,
+                              referee_game_count=0):
         """
-        5-factor trust score (0–100). Returns None if < 5 venue games either side.
+        5-factor trust score (0–100) + referee tendency modifier.
+        Returns None if < 5 venue games either side.
 
         Weights:
           30% — Over hit rate (historical tendency)
@@ -407,6 +410,7 @@ class SoccerFetcher:
           20% — Odds market lean (bookmaker's own pricing)
           15% — Consistency (std dev of goal totals; lower = more predictable)
           10% — Sample size confidence
+          +modifier — Referee tendency: ±5 pts vs league avg (min 5 ref games)
         """
         min_games = min(home_games, away_games)
         if min_games < 5:
@@ -444,6 +448,15 @@ class SoccerFetcher:
             f_consistency * 0.15 +
             f_sample     * 0.10
         )
+
+        # Referee tendency modifier: ±5 pts vs league avg (requires 5+ ref games)
+        if (referee_avg_goals is not None and league_avg_goals is not None
+                and referee_game_count >= 5):
+            ref_dev = referee_avg_goals - league_avg_goals
+            # Each 0.5-goal deviation from league avg shifts score by ~5 pts
+            ref_mod = max(-5.0, min(5.0, (ref_dev / 0.5) * 5.0))
+            score = max(0.0, min(100.0, score + ref_mod))
+
         return round(score, 1)
 
     def _parse_odds_event(self, event):
@@ -529,10 +542,6 @@ class SoccerFetcher:
         h1_home_avg = self._avg(home_h_h1, "h1_scored") if home_h_h1 else None
         h1_away_avg = self._avg(away_a_h1, "h1_scored") if away_a_h1 else None
 
-        trust_score = self._compute_trust_score(
-            over_rate, expected, line, over_o, home_games, away_games, relevant
-        )
-
         # Referee lookup (only populated when referee has been appointed, usually 24-48h out)
         referee_name = None
         referee_avg_goals = None
@@ -543,6 +552,13 @@ class SoccerFetcher:
                 rs = referee_stats[referee_name]
                 referee_avg_goals = rs["avg_goals"]
                 referee_game_count = rs["game_count"]
+
+        trust_score = self._compute_trust_score(
+            over_rate, expected, line, over_o, home_games, away_games, relevant,
+            referee_avg_goals=referee_avg_goals,
+            league_avg_goals=league_avg_goals,
+            referee_game_count=referee_game_count or 0,
+        )
 
         commence = event.get("commence_time", "")
 
