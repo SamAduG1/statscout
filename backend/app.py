@@ -2849,6 +2849,14 @@ def _schedule_daily_mlb_update():
                 from update_mlb_stats import main as mlb_update_main
                 mlb_update_main()
                 print("[MLB STATS] Scheduled update complete")
+                # Clear per-matchup caches so h2h data reflects new game rows
+                import os, glob as _glob
+                for path in _glob.glob('/tmp/mlbp_*.json'):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                print("[MLB STATS] Per-matchup caches cleared")
                 # Rebuild MLB caches after update so fresh data is served immediately
                 _build_mlb_cache_background()
             except Exception as _e:
