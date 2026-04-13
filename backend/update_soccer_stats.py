@@ -134,7 +134,41 @@ def update_all(session, s, league_key=None):
     print(f"Done. {total_new} new game rows added.")
 
 
-def main():
+def main(league=None, player_id=None, no_team_refresh=False):
+    """Update soccer player stats for one or all leagues.
+
+    Args:
+        league: League key (pl/laliga/bundesliga/seriea/ligue1), or None for all.
+        player_id: Single player understat_id to update, or None for all.
+        no_team_refresh: Skip team assignment refresh (faster).
+        When called from CLI, these are parsed from command-line arguments.
+    """
+    engine = get_engine()
+    session = get_session(engine)
+    s = _make_session()
+
+    try:
+        leagues = [league] if league else list(LEAGUES.keys())
+
+        if player_id:
+            player = session.query(SoccerPlayer).filter_by(understat_id=player_id).first()
+            if not player:
+                print(f"Player {player_id} not found in DB")
+                return
+            update_player(session, s, player, verbose=True)
+            return
+
+        for league_key in leagues:
+            print(f"\n=== {LEAGUES[league_key]} ===")
+            if not no_team_refresh:
+                print("Refreshing team assignments...")
+                refresh_league_teams(session, s, league_key)
+            update_all(session, s, league_key)
+    finally:
+        session.close()
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--league", choices=list(LEAGUES.keys()), default=None)
     parser.add_argument("--player", type=int, default=None,
@@ -142,30 +176,7 @@ def main():
     parser.add_argument("--no-team-refresh", action="store_true",
                         help="Skip team assignment refresh (faster)")
     args = parser.parse_args()
-
-    engine = get_engine()
-    session = get_session(engine)
-    s = _make_session()
-
-    try:
-        leagues = [args.league] if args.league else list(LEAGUES.keys())
-
-        if args.player:
-            player = session.query(SoccerPlayer).filter_by(understat_id=args.player).first()
-            if not player:
-                print(f"Player {args.player} not found in DB")
-                return
-            update_player(session, s, player, verbose=True)
-            return
-
-        for league_key in leagues:
-            print(f"\n=== {LEAGUES[league_key]} ===")
-            if not args.no_team_refresh:
-                print("Refreshing team assignments...")
-                refresh_league_teams(session, s, league_key)
-            update_all(session, s, league_key)
-    finally:
-        session.close()
+    main(league=args.league, player_id=args.player, no_team_refresh=args.no_team_refresh)
 
 
 if __name__ == "__main__":

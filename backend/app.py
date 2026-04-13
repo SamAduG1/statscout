@@ -2905,8 +2905,55 @@ def _schedule_daily_soccer_cache_refresh():
     threading.Thread(target=_run, daemon=True).start()
 
 
+def _schedule_weekly_soccer_stats_update():
+    """
+    Run update_soccer_stats.py once per week, every Monday at 07:00 UTC.
+    This catches all weekend gameweek results across all 5 leagues.
+    Runs in a daemon background thread so it never blocks requests.
+    """
+    import threading, time as _time
+    from datetime import datetime, timezone, timedelta
+
+    def _run():
+        TARGET_WEEKDAY = 0   # Monday
+        TARGET_HOUR_UTC = 7
+        while True:
+            now = datetime.now(timezone.utc)
+            # Next Monday at 07:00 UTC
+            days_until_monday = (TARGET_WEEKDAY - now.weekday()) % 7
+            if days_until_monday == 0 and now.hour >= TARGET_HOUR_UTC:
+                days_until_monday = 7  # already past this Monday, wait for next
+            next_run = (now + timedelta(days=days_until_monday)).replace(
+                hour=TARGET_HOUR_UTC, minute=0, second=0, microsecond=0
+            )
+            sleep_secs = (next_run - now).total_seconds()
+            print(f"[SOCCER STATS] Weekly update scheduled for "
+                  f"{next_run.strftime('%Y-%m-%d %H:%M UTC')} ({sleep_secs/3600:.1f}h from now)")
+            _time.sleep(sleep_secs)
+            try:
+                print("[SOCCER STATS] Starting weekly soccer stats update (all leagues)...")
+                from update_soccer_stats import main as soccer_update_main
+                soccer_update_main()
+                print("[SOCCER STATS] Weekly update complete - invalidating player caches")
+                # Clear soccer all-players caches so fresh stats are served
+                import os as _os
+                for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1']:
+                    _soccer_all_players_caches[league] = None
+                    cache_file = SOCCER_ALL_PLAYERS_CACHE_FILES.get(league, '')
+                    if cache_file and _os.path.exists(cache_file):
+                        try:
+                            _os.remove(cache_file)
+                        except Exception:
+                            pass
+            except Exception as _e:
+                print(f"[SOCCER STATS] Weekly update failed: {_e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 _schedule_daily_mlb_update()
 _schedule_daily_soccer_cache_refresh()
+_schedule_weekly_soccer_stats_update()
 
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")

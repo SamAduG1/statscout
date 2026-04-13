@@ -57,19 +57,29 @@ def update_player(session, player, season):
         return 0
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--days", type=int, default=None,
-                        help="Only update players not updated in last N days")
-    args = parser.parse_args()
+def main(days=None):
+    """Update MLB player stats.
+
+    Args:
+        days: Only update players not updated in last N days.
+              Pass None to update all players.
+              When called from CLI, parsed from --days argument.
+    """
+    # Only parse CLI args when run as a script, not when called programmatically
+    if __name__ == "__main__":
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--days", type=int, default=None,
+                            help="Only update players not updated in last N days")
+        args = parser.parse_args()
+        days = args.days
 
     engine = get_engine()
     session = get_session(engine)
 
     try:
         query = session.query(MLBPlayer)
-        if args.days:
-            cutoff = date.today() - timedelta(days=args.days)
+        if days:
+            cutoff = date.today() - timedelta(days=days)
             query = query.filter(MLBPlayer.last_updated < cutoff)
 
         players = query.all()
@@ -88,9 +98,14 @@ def main():
             time.sleep(0.2)
 
         print(f"\nDone. {total_new} new game rows added.")
+        return total_new
     finally:
         session.close()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--days", type=int, default=None,
+                        help="Only update players not updated in last N days")
+    args = parser.parse_args()
+    main(days=args.days)
