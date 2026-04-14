@@ -3611,7 +3611,9 @@ export default function StatScoutDashboard() {
   const [soccerPropsTeamFilter, setSoccerPropsTeamFilter] = useState(null); // null | 'home' | 'away'
   const [soccerPropsSearch, setSoccerPropsSearch] = useState('');
   const [soccerPropsPosition, setSoccerPropsPosition] = useState(null); // null | 'GK' | 'DF' | 'MF' | 'FW'
-  const [soccerPropsTeamName, setSoccerPropsTeamName] = useState(null); // null | team name string
+  const [soccerPropsTeamFilters, setSoccerPropsTeamFilters] = useState([]); // array of team names
+  const [soccerPropsTeamSearch, setSoccerPropsTeamSearch] = useState('');
+  const [mlbSortBy, setMlbSortBy] = useState('hitRate'); // 'hitRate' | 'trust'
   const [selectedMlbPlayer, setSelectedMlbPlayer] = useState(null);
   const [selectedSoccerPlayer, setSelectedSoccerPlayer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -4800,7 +4802,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               {/* League + View selectors */}
               <div id="tour-soccer-nav" className="flex flex-wrap items-center gap-3 mb-5">
                 {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1']].map(([key, label]) => (
-                  <button key={key} onClick={() => { setSelectedSoccerFixture(null); setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
+                  <button key={key} onClick={() => { setSelectedSoccerFixture(null); setSoccerPropsSearch(''); setSoccerPropsTeamFilters([]); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerLeague === key
                         ? 'bg-blue-600 text-white'
@@ -4905,7 +4907,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     if (isGk && p.position !== 'GK') return false;
                     if (!isGk && p.position === 'GK') return false;
                     if (soccerPropsPosition && p.position !== soccerPropsPosition) return false;
-                    if (soccerPropsTeamName && p.team !== soccerPropsTeamName) return false;
+                    if (soccerPropsTeamFilters.length > 0 && !soccerPropsTeamFilters.includes(p.team)) return false;
                     if (soccerPropsSearch && !p.name.toLowerCase().includes(soccerPropsSearch.toLowerCase())) return false;
                     if (soccerPropsPlayingToday && !teamsPlayingToday.has(p.team)) return false;
                     return true;
@@ -4918,6 +4920,8 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     return { ...p, _sortRate: hr ?? -1 };
                   })
                   .sort((a, b) => b._sortRate - a._sortRate);
+
+                const soccerTeamSearch = soccerPropsTeamSearch || '';
 
                 return (
                   <>
@@ -4934,22 +4938,59 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     </div>
 
                     {/* Filters row */}
-                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
                       <input
                         type="text" placeholder="Search player..."
                         value={soccerPropsSearch}
                         onChange={e => setSoccerPropsSearch(e.target.value)}
                         className="bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
-                      {/* Team filter */}
-                      <select
-                        value={soccerPropsTeamName || ''}
-                        onChange={e => setSoccerPropsTeamName(e.target.value || null)}
-                        className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">All Teams</option>
-                        {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
+                      {/* Multi-team filter dropdown */}
+                      <div className="relative group">
+                        <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 cursor-pointer min-w-[130px]">
+                          <span className="text-sm text-gray-300 flex-1">
+                            {soccerPropsTeamFilters.length === 0 ? 'All Teams' : `${soccerPropsTeamFilters.length} team${soccerPropsTeamFilters.length > 1 ? 's' : ''}`}
+                          </span>
+                          <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                        <div className="absolute top-full left-0 mt-1 w-60 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-20 hidden group-focus-within:block group-hover:block">
+                          <div className="p-2 border-b border-gray-800">
+                            <input
+                              type="text"
+                              placeholder="Filter teams..."
+                              value={soccerPropsTeamSearch}
+                              onChange={e => setSoccerPropsTeamSearch(e.target.value)}
+                              className="w-full bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="max-h-56 overflow-y-auto py-1">
+                            {allTeams.filter(t => !soccerTeamSearch || t.toLowerCase().includes(soccerTeamSearch.toLowerCase())).map(t => (
+                              <label key={t} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={soccerPropsTeamFilters.includes(t)}
+                                  onChange={() => {
+                                    setSoccerPropsTeamFilters(prev =>
+                                      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                                    );
+                                    setSoccerPropsPlayingToday(false);
+                                  }}
+                                  className="accent-blue-500 w-3.5 h-3.5"
+                                />
+                                <span className="text-sm text-gray-300">{t}</span>
+                                {teamsPlayingToday.has(t) && (
+                                  <span className="ml-auto text-[10px] text-blue-400 font-medium">today</span>
+                                )}
+                              </label>
+                            ))}
+                          </div>
+                          {soccerPropsTeamFilters.length > 0 && (
+                            <div className="p-2 border-t border-gray-800">
+                              <button onClick={() => setSoccerPropsTeamFilters([])} className="text-xs text-gray-500 hover:text-gray-300">Clear selection</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       {/* Position filter (not shown for GK market) */}
                       {!isGk && (
                         <div className="flex gap-1">
@@ -4973,14 +5014,25 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                           }`}
                         >Playing today</button>
                       )}
-                      {(soccerPropsSearch || soccerPropsTeamName || soccerPropsPosition || soccerPropsPlayingToday) && (
-                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); }}
+                      {(soccerPropsSearch || soccerPropsTeamFilters.length > 0 || soccerPropsPosition || soccerPropsPlayingToday) && (
+                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamFilters([]); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); }}
                           className="text-xs text-blue-400 hover:underline">Clear</button>
                       )}
                       {!isLoading && !isError && (
                         <span className="ml-auto text-xs text-gray-500">{visible.length} players</span>
                       )}
                     </div>
+                    {/* Selected team chips */}
+                    {soccerPropsTeamFilters.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {soccerPropsTeamFilters.map(t => (
+                          <span key={t} className="flex items-center gap-1 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                            {t}
+                            <button onClick={() => setSoccerPropsTeamFilters(prev => prev.filter(x => x !== t))} className="hover:text-white ml-0.5">x</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Loading skeleton */}
                     {isLoading && (
@@ -5017,7 +5069,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     {!isLoading && !isError && visible.length === 0 && allPlayers.length > 0 && (
                       <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
                         <p className="text-gray-500 dark:text-gray-400 font-medium">No players match current filters</p>
-                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamName(null); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); }}
+                        <button onClick={() => { setSoccerPropsSearch(''); setSoccerPropsTeamFilters([]); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); }}
                           className="text-sm text-blue-400 hover:underline">Clear filters</button>
                       </div>
                     )}
@@ -5216,6 +5268,18 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       }`}
                     >Playing today</button>
                   )}
+                  {/* Sort control */}
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Sort:</span>
+                    <select
+                      value={mlbSortBy}
+                      onChange={e => setMlbSortBy(e.target.value)}
+                      className="bg-gray-800 border border-gray-700 text-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="hitRate">Hit Rate</option>
+                      <option value="trust">Trust Score</option>
+                    </select>
+                  </div>
                 </div>
                 {/* Selected team chips */}
                 {mlbPropsTeamFilters.length > 0 && (
@@ -5267,10 +5331,16 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                     })
                     .map(p => {
                       const arr = p[activeMdef.arr] || [];
-                      const hr = arr.length ? Math.round(arr.filter(v => v > activeMdef.defaultLine).length / arr.length * 100) : -1;
-                      return { ...p, _sortRate: hr };
+                      const arr2025 = p[activeMdef.arr + '2025'] || [];
+                      const arr2026 = p[activeMdef.arr + '2026'] || [];
+                      const blended = blendMlbArrays(arr2025, arr2026);
+                      const displayArr = blended.length >= 5 ? blended : arr;
+                      const hr = displayArr.length ? Math.round(displayArr.filter(v => v > activeMdef.defaultLine).length / displayArr.length * 100) : -1;
+                      const parkInfo = getMlbParkInfo(p.parkTeamAbbr || mlbAbbr(p.team), mlbPropsMarket);
+                      const trust = computeMLBPlayerTrust(displayArr, v => v > activeMdef.defaultLine, parkInfo, p.isPitcher ? null : p.oppStarterEra) ?? -1;
+                      return { ...p, _sortRate: hr, _sortTrust: trust };
                     })
-                    .sort((a, b) => b._sortRate - a._sortRate);
+                    .sort((a, b) => mlbSortBy === 'trust' ? b._sortTrust - a._sortTrust : b._sortRate - a._sortRate);
 
                   return visible.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
