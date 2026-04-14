@@ -98,6 +98,25 @@ players_cache = {
 }
 PLAYERS_CACHE_DURATION = 30 * 60  # 30 minutes
 
+# MLB team season stats cache (pitching ERA + batting K/game per team)
+# Refreshed every 6h alongside the game card cache.
+_mlb_team_stats = {"data": {}, "last_updated": None}
+
+def _get_mlb_team_stats():
+    """Return cached team stats, refreshing if older than 6 hours."""
+    now = datetime.now()
+    if (_mlb_team_stats["last_updated"] is None or
+            (now - _mlb_team_stats["last_updated"]).total_seconds() > 6 * 3600):
+        try:
+            data = mlb_fetcher_instance.get_team_season_stats()
+            if data:
+                _mlb_team_stats["data"] = data
+                _mlb_team_stats["last_updated"] = now
+                print(f"[MLB] Team season stats refreshed ({len(data)} teams)")
+        except Exception as e:
+            print(f"[MLB] Team stats refresh failed: {e}")
+    return _mlb_team_stats["data"]
+
 # MLB match cache
 MLB_CACHE_FILE = "/tmp/statscout_mlb_cache.json"
 MLB_CACHE_DURATION = 6 * 60 * 60  # 6 hours
@@ -1147,6 +1166,9 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
             "games":      len(gs),
         }
 
+    # Fetch team season stats for defense modifiers (cached, refreshes every 6h)
+    team_season_stats = _get_mlb_team_stats()
+
     try:
         players_out = []
         for team_odds, team_mlb, side in [
@@ -1155,6 +1177,11 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
         ]:
             opp_mlb  = away_mlb  if side == "home" else home_mlb
             opp_odds = away_team_odds if side == "home" else home_team_odds
+
+            # Opposing team defense stats for trust modifiers
+            opp_stats    = team_season_stats.get(opp_mlb, {})
+            opp_team_era = opp_stats.get("era")       # for batters: opp pitching ERA
+            opp_lineup_kpg = opp_stats.get("kPerGame") # for pitchers: how often opp lineup Ks
 
             players = session.query(MLBPlayer).filter(MLBPlayer.team == team_mlb).all()
             if not players:
@@ -1214,7 +1241,7 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "position":    p.position,
                         "isPitcher":   True,
                         "gamesPlayed": len(all_games),
-                        "opponent":    opp_odds,
+                        "opponent":      opp_odds,
                         "strikeoutsArr": ks,
                         "outsArr":       outs,
                         "avgKs":         safe_avg(ks),
@@ -1224,6 +1251,8 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "awayGames":     len(away_g),
                         "gameLog":       game_log,
                         "h2hGames":      h2h_log,
+                        # Opposing lineup K/game — pitchers want lineups that strike out a lot
+                        "oppLineupKPG":  opp_lineup_kpg,
                     }
 
                 else:
@@ -1294,6 +1323,8 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "awayGames":     len(away_g),
                         "gameLog":       game_log,
                         "h2hGames":      h2h_log,
+                        # Opposing team pitching ERA — batters face easier matchup vs high ERA staff
+                        "oppTeamEra":    opp_team_era,
                     }
 
                 players_out.append(player_dict)

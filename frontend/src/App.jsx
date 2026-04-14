@@ -2006,7 +2006,13 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
   );
 
   const trust = React.useMemo(
-    () => computeMLBPlayerTrust(displayArr, v => v > line, parkInfo, player.isPitcher ? null : player.oppStarterEra),
+    () => computeMLBPlayerTrust(
+      displayArr, v => v > line, parkInfo,
+      player.isPitcher ? null : player.oppStarterEra,
+      player.isPitcher,
+      player.isPitcher ? null : player.oppTeamEra,
+      player.isPitcher ? player.oppLineupKPG : null,
+    ),
     [displayArr, line, parkInfo, player.isPitcher, player.oppStarterEra]
   );
 
@@ -2727,10 +2733,8 @@ const blendMlbArrays = (arr2025, arr2026) => {
   const n25 = (arr2025 || []).length;
   if (n26 === 0 && n25 === 0) return [];
   if (n25 === 0) return arr2026 || [];
-  // Weight schedule: <20 games this season = 30% current / 70% prior
-  //                  20-49 games = 50/50
-  //                  50+ games = 75% current / 25% prior
-  const w26 = n26 < 20 ? 0.30 : n26 < 50 ? 0.50 : 0.75;
+  // Weight schedule: <10 games = 30/70, 10-19 = 45/55, 20-40 = 60/40, 40+ = 80/20
+  const w26 = n26 < 10 ? 0.30 : n26 < 20 ? 0.45 : n26 < 40 ? 0.60 : 0.80;
   const w25 = 1 - w26;
   // Build blended array by sampling proportionally
   const take25 = Math.round(w25 * 60); // up to 60 total games
@@ -2803,19 +2807,34 @@ const computeSoccerPlayerTrust = (arr, hitFn, avgMinutes, xSignalArr, line) => {
 };
 
 // MLB-specific trust: wraps computePlayerTrust and adds ballpark + starter ERA modifiers.
-// eraModifier: positive for weak starters (high ERA), negative for elite starters (low ERA).
-// NBA average SP ERA is ~4.20; each 1-run deviation from 4.20 = ~2.5 trust pts, capped +-6.
+// League average SP ERA ~4.20; each 1-run deviation = ~2.5 trust pts, capped +-6.
 const getEraModifier = (era) => {
   if (era == null) return 0;
   return Math.max(-6, Math.min(6, (era - 4.20) * 2.5));
 };
 
-const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era) => {
+// Opposing team ERA modifier for batters (league avg ~4.15).
+// High opp ERA (bad staff) = easier = positive modifier. Capped +-7.
+const getOppTeamEraMod = (oppTeamEra) => {
+  if (oppTeamEra == null) return 0;
+  return Math.max(-7, Math.min(7, (oppTeamEra - 4.15) * 3.5));
+};
+
+// Opposing lineup K/game modifier for pitchers (league avg ~8.5 K/game).
+// Lineup that Ks a lot = easier for pitcher = positive modifier. Capped +-6.
+const getLineupKMod = (oppLineupKPG) => {
+  if (oppLineupKPG == null) return 0;
+  return Math.max(-6, Math.min(6, (oppLineupKPG - 8.5) * 1.5));
+};
+
+const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era, isPitcher = false, oppTeamEra = null, oppLineupKPG = null) => {
   const base = computePlayerTrust(arr, hitFn);
   if (base === null) return null;
-  const parkMod = parkInfo ? parkInfo.modifier : 0;
-  const eraMod  = getEraModifier(era);
-  return Math.round(Math.min(Math.max(base + parkMod + eraMod, 0), 100));
+  const parkMod      = parkInfo ? parkInfo.modifier : 0;
+  const eraMod       = getEraModifier(era);
+  // Opponent defense: team ERA for batters, lineup K/game for pitchers
+  const oppDefMod    = isPitcher ? getLineupKMod(oppLineupKPG) : getOppTeamEraMod(oppTeamEra);
+  return Math.round(Math.min(Math.max(base + parkMod + eraMod + oppDefMod, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
@@ -5337,7 +5356,13 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                       const displayArr = blended.length >= 5 ? blended : arr;
                       const hr = displayArr.length ? Math.round(displayArr.filter(v => v > activeMdef.defaultLine).length / displayArr.length * 100) : -1;
                       const parkInfo = getMlbParkInfo(p.parkTeamAbbr || mlbAbbr(p.team), mlbPropsMarket);
-                      const trust = computeMLBPlayerTrust(displayArr, v => v > activeMdef.defaultLine, parkInfo, p.isPitcher ? null : p.oppStarterEra) ?? -1;
+                      const trust = computeMLBPlayerTrust(
+                        displayArr, v => v > activeMdef.defaultLine, parkInfo,
+                        p.isPitcher ? null : p.oppStarterEra,
+                        p.isPitcher,
+                        p.isPitcher ? null : p.oppTeamEra,
+                        p.isPitcher ? p.oppLineupKPG : null,
+                      ) ?? -1;
                       return { ...p, _sortRate: hr, _sortTrust: trust };
                     })
                     .sort((a, b) => mlbSortBy === 'trust' ? b._sortTrust - a._sortTrust : b._sortRate - a._sortRate);
