@@ -402,16 +402,17 @@ class MLBFetcher:
         return cards
 
     def get_team_season_stats(self):
-        """Fetch current-season team pitching ERA and batting K/game.
+        """Fetch current-season team pitching ERA, batting K/game, and runs/game.
 
         Returns dict keyed by full team name (MLB Stats API format):
             {
-                "Houston Astros": {"era": 3.82, "kPerGame": 9.1},
+                "Houston Astros": {"era": 3.82, "kPerGame": 9.1, "runsPerGame": 5.1},
                 ...
             }
         Used to compute opposing-team defense modifiers in trust score:
-          - For batters:  higher opp ERA  = weaker pitching  = easier matchup
-          - For pitchers: higher opp K/G  = lineup strikes out more = easier
+          - For batters:  higher opp ERA        = weaker pitching  = easier matchup
+          - For pitchers: higher opp K/G        = lineup strikes out more = easier
+          - For RBI/Runs: higher own team RPG   = more run-scoring context = easier
         """
         result = {}
         try:
@@ -436,12 +437,19 @@ class MLBFetcher:
             r2.raise_for_status()
             for split in r2.json().get("stats", [{}])[0].get("splits", []):
                 name       = split.get("team", {}).get("name")
-                strikeouts = split.get("stat", {}).get("strikeOuts")
-                games      = split.get("stat", {}).get("gamesPlayed")
-                if name and strikeouts and games:
-                    result.setdefault(name, {})["kPerGame"] = round(
-                        float(strikeouts) / float(games), 2
-                    )
+                stat       = split.get("stat", {})
+                strikeouts = stat.get("strikeOuts")
+                runs       = stat.get("runs")
+                games      = stat.get("gamesPlayed")
+                if name and games:
+                    if strikeouts:
+                        result.setdefault(name, {})["kPerGame"] = round(
+                            float(strikeouts) / float(games), 2
+                        )
+                    if runs:
+                        result.setdefault(name, {})["runsPerGame"] = round(
+                            float(runs) / float(games), 2
+                        )
         except Exception as e:
             print(f"[MLB] Team batting stats unavailable: {e}")
 

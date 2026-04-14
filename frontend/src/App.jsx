@@ -2012,8 +2012,12 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
       player.isPitcher,
       player.isPitcher ? null : player.oppTeamEra,
       player.isPitcher ? player.oppLineupKPG : null,
+      player.isPitcher ? null : player.teamRunsPerGame,
+      market,
+      player.isPitcher ? null : player.bats,
+      player.isPitcher ? null : player.oppStarterHand,
     ),
-    [displayArr, line, parkInfo, player.isPitcher, player.oppStarterEra]
+    [displayArr, line, parkInfo, player.isPitcher, player.oppStarterEra, player.teamRunsPerGame, market, player.bats, player.oppStarterHand]
   );
 
   const steps = [];
@@ -2058,6 +2062,14 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
             <span className="text-lg font-bold tabular-nums">{trust}</span>
             <span className="text-[10px] font-medium opacity-80">{getTrustLabel(trust)}</span>
           </div>
+        </div>
+      )}
+
+      {/* Low-reliability market warning for RBI and Runs */}
+      {(market === 'rbi' || market === 'runs') && (
+        <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1.5">
+          <span className="text-amber-400 text-[11px]">&#9888;</span>
+          <span className="text-amber-400 text-[10px] font-medium">Low-signal market - trust score less reliable</span>
         </div>
       )}
 
@@ -2770,16 +2782,16 @@ const computePlayerTrust = (arr, hitFn, avgMinutes) => {
   // Monotonically increases with hr — raising the line always lowers trust.
   let score = Math.pow(hr, 1.5) * 100;
 
-  // Modifier 1: Consistency — low variance adds up to +10 pts.
+  // Modifier 1: Consistency — low variance adds up to +5 pts.
   const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
   const std = Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
   const cv = mean > 0 ? std / mean : 2;
-  score += Math.max(0, 1 - Math.min(cv, 2) / 2) * 10;
+  score += Math.max(0, 1 - Math.min(cv, 2) / 2) * 5;
 
-  // Modifier 2: Recent form — trending up adds up to +8, trending down subtracts up to -8.
+  // Modifier 2: Recent form — trending up adds up to +5, trending down subtracts up to -5.
   const last5 = arr.slice(-5);
   const recentHr = last5.filter(hitFn).length / last5.length;
-  score += Math.max(-8, Math.min(8, (recentHr - hr) * 20));
+  score += Math.max(-5, Math.min(5, (recentHr - hr) * 20));
 
   // Modifier 3: Minutes reliability (soccer only) — up to +5 pts.
   if (avgMinutes !== undefined) {
@@ -2827,14 +2839,36 @@ const getLineupKMod = (oppLineupKPG) => {
   return Math.max(-6, Math.min(6, (oppLineupKPG - 8.5) * 1.5));
 };
 
-const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era, isPitcher = false, oppTeamEra = null, oppLineupKPG = null) => {
+// Own team run environment modifier for RBI/Runs markets (league avg ~4.5 R/G).
+// High-scoring team = more opportunities to drive in/score runs = positive modifier. Capped +-5.
+const getTeamRunsMod = (teamRunsPerGame) => {
+  if (teamRunsPerGame == null) return 0;
+  return Math.max(-5, Math.min(5, (teamRunsPerGame - 4.5) * 2.5));
+};
+
+// Platoon modifier: batters hit better vs opposite-handed pitchers (standard MLB effect).
+// Opposite hand = platoon advantage (+4), same hand = disadvantage (-4), switch = 0.
+// Returns 0 if either value is unknown.
+const getPlatoonMod = (bats, oppStarterHand) => {
+  if (!bats || !oppStarterHand) return 0;
+  if (bats === 'S') return 0; // switch hitter neutralizes platoon
+  const advantage = bats !== oppStarterHand; // L vs R or R vs L = advantage
+  return advantage ? 4 : -4;
+};
+
+const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era, isPitcher = false, oppTeamEra = null, oppLineupKPG = null, teamRunsPerGame = null, market = null, bats = null, oppStarterHand = null) => {
   const base = computePlayerTrust(arr, hitFn);
   if (base === null) return null;
-  const parkMod      = parkInfo ? parkInfo.modifier : 0;
+  // Park factor removed from base formula (backtest showed it adds noise, not signal)
   const eraMod       = getEraModifier(era);
   // Opponent defense: team ERA for batters, lineup K/game for pitchers
   const oppDefMod    = isPitcher ? getLineupKMod(oppLineupKPG) : getOppTeamEraMod(oppTeamEra);
-  return Math.round(Math.min(Math.max(base + parkMod + eraMod + oppDefMod, 0), 100));
+  // Team run environment: only applied to RBI and Runs markets
+  const runEnvMod    = (!isPitcher && (market === 'rbi' || market === 'runs'))
+    ? getTeamRunsMod(teamRunsPerGame) : 0;
+  // Platoon: batters hit better vs opposite-handed pitchers; only applied to batter markets
+  const platoonMod   = !isPitcher ? getPlatoonMod(bats, oppStarterHand) : 0;
+  return Math.round(Math.min(Math.max(base + eraMod + oppDefMod + runEnvMod + platoonMod, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
@@ -5362,6 +5396,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                         p.isPitcher,
                         p.isPitcher ? null : p.oppTeamEra,
                         p.isPitcher ? p.oppLineupKPG : null,
+                        p.isPitcher ? null : p.teamRunsPerGame,
+                        mlbPropsMarket,
+                        p.isPitcher ? null : p.bats,
+                        p.isPitcher ? null : p.oppStarterHand,
                       ) ?? -1;
                       return { ...p, _sortRate: hr, _sortTrust: trust };
                     })

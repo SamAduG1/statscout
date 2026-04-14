@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(./venv/Scripts/python.exe:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.sofascore.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:sofascore.com)",
+      "WebFetch(domain:scraperfc.readthedocs.io)"
     ]
   }
 }

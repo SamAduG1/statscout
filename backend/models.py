@@ -210,6 +210,7 @@ class MLBPlayer(Base):
     team         = Column(String, nullable=False, index=True)
     position     = Column(String, nullable=False)  # SP, RP, C, 1B, 2B, 3B, SS, LF, CF, RF, DH, OF
     is_pitcher   = Column(Boolean, nullable=False)
+    bats         = Column(String, nullable=True)   # 'L', 'R', or 'S' (switch); None if unknown
     last_updated = Column(Date, nullable=False)
 
     games = relationship("MLBPlayerGame", back_populates="player", cascade="all, delete-orphan")

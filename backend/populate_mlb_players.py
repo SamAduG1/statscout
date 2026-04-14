@@ -87,13 +87,15 @@ def get_game_log(player_id, group, include_postseason=True):
     return splits
 
 
-def upsert_player(session, player_id, name, team, position, is_pitcher):
+def upsert_player(session, player_id, name, team, position, is_pitcher, bats=None):
     existing = session.query(MLBPlayer).filter_by(id=player_id).first()
     if existing:
         existing.name = name
         existing.team = team
         existing.position = position
         existing.is_pitcher = is_pitcher
+        if bats is not None:
+            existing.bats = bats
         existing.last_updated = date.today()
         return existing, False
     player = MLBPlayer(
@@ -102,6 +104,7 @@ def upsert_player(session, player_id, name, team, position, is_pitcher):
         team=team,
         position=position,
         is_pitcher=is_pitcher,
+        bats=bats,
         last_updated=date.today(),
     )
     session.add(player)
@@ -202,9 +205,10 @@ def process_team(session, team_id, team_name):
 
         is_pitcher = pos_abbr in PITCHER_POSITIONS
         group = "pitching" if is_pitcher else "hitting"
+        bats = person.get("batSide", {}).get("code")  # 'L', 'R', or 'S'
 
         try:
-            player, is_new = upsert_player(session, player_id, name, team_name, pos_abbr, is_pitcher)
+            player, is_new = upsert_player(session, player_id, name, team_name, pos_abbr, is_pitcher, bats=bats)
             splits = get_game_log(player_id, group)
             n = insert_games(session, player, splits)
             total_games += n

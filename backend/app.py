@@ -1179,9 +1179,12 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
             opp_odds = away_team_odds if side == "home" else home_team_odds
 
             # Opposing team defense stats for trust modifiers
-            opp_stats    = team_season_stats.get(opp_mlb, {})
-            opp_team_era = opp_stats.get("era")       # for batters: opp pitching ERA
-            opp_lineup_kpg = opp_stats.get("kPerGame") # for pitchers: how often opp lineup Ks
+            opp_stats      = team_season_stats.get(opp_mlb, {})
+            opp_team_era   = opp_stats.get("era")        # for batters: opp pitching ERA
+            opp_lineup_kpg = opp_stats.get("kPerGame")   # for pitchers: how often opp lineup Ks
+            # Own team run environment — for RBI/Runs market reliability
+            own_stats         = team_season_stats.get(team_mlb, {})
+            team_runs_per_game = own_stats.get("runsPerGame")
 
             players = session.query(MLBPlayer).filter(MLBPlayer.team == team_mlb).all()
             if not players:
@@ -1324,7 +1327,11 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "gameLog":       game_log,
                         "h2hGames":      h2h_log,
                         # Opposing team pitching ERA — batters face easier matchup vs high ERA staff
-                        "oppTeamEra":    opp_team_era,
+                        "oppTeamEra":      opp_team_era,
+                        # Own team run environment — higher = more RBI/Runs opportunities
+                        "teamRunsPerGame": team_runs_per_game,
+                        # Batter handedness for platoon splits (L/R/S)
+                        "bats":            p.bats,
                     }
 
                 players_out.append(player_dict)
@@ -1539,6 +1546,8 @@ def _compute_all_mlb_players():
                     "awayGames":         len(away_g),
                     "gameLog":           game_log,
                     "h2hGames":          [],
+                    # Batter handedness for platoon splits (L/R/S)
+                    "bats":              p.bats,
                 })
 
         players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))
