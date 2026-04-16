@@ -187,6 +187,40 @@ def insert_games(session, player, splits):
     return new_count
 
 
+def refresh_all_rosters(session):
+    """
+    Lightweight weekly roster refresh: updates team assignments for traded players.
+    Does NOT re-fetch game logs - only updates name/team/position/bats on existing players.
+    New players found on a roster are added but without game history (update_mlb_stats fills that).
+    """
+    teams = get_all_teams()
+    updated = added = 0
+    for team in teams:
+        try:
+            roster = get_roster(team["id"])
+            for entry in roster:
+                person    = entry.get("person", {})
+                player_id = person.get("id")
+                name      = person.get("fullName", "")
+                pos_abbr  = entry.get("position", {}).get("abbreviation", "")
+                bats      = person.get("batSide", {}).get("code")
+                if not player_id or not name:
+                    continue
+                is_pitcher = pos_abbr in PITCHER_POSITIONS
+                _, is_new = upsert_player(session, player_id, name, team["name"], pos_abbr, is_pitcher, bats=bats)
+                if is_new:
+                    added += 1
+                else:
+                    updated += 1
+            session.commit()
+            time.sleep(0.2)
+        except Exception as e:
+            session.rollback()
+            print(f"  [Roster refresh] {team['name']}: {e}")
+    print(f"[Roster refresh] Done - {updated} updated, {added} new players added")
+    return updated, added
+
+
 def process_team(session, team_id, team_name):
     print(f"\n  [{team_name}] fetching 40-man roster...")
     roster = get_roster(team_id)

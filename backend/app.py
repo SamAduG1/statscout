@@ -1169,6 +1169,12 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
     # Fetch team season stats for defense modifiers (cached, refreshes every 6h)
     team_season_stats = _get_mlb_team_stats()
 
+    # Fetch MLB injury data (2h cache via ESPN tracker)
+    try:
+        mlb_injuries = injury_tracker.get_mlb_injuries()
+    except Exception:
+        mlb_injuries = {}
+
     try:
         players_out = []
         for team_odds, team_mlb, side in [
@@ -1256,6 +1262,8 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "h2hGames":      h2h_log,
                         # Opposing lineup K/game — pitchers want lineups that strike out a lot
                         "oppLineupKPG":  opp_lineup_kpg,
+                        "injuryStatus":  mlb_injuries.get(p.name, {}).get("status", "ACTIVE"),
+                        "injuryDetail":  mlb_injuries.get(p.name, {}).get("injury"),
                     }
 
                 else:
@@ -1332,6 +1340,8 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "teamRunsPerGame": team_runs_per_game,
                         # Batter handedness for platoon splits (L/R/S)
                         "bats":            p.bats,
+                        "injuryStatus":    mlb_injuries.get(p.name, {}).get("status", "ACTIVE"),
+                        "injuryDetail":    mlb_injuries.get(p.name, {}).get("injury"),
                     }
 
                 players_out.append(player_dict)
@@ -1375,6 +1385,12 @@ def _compute_all_mlb_players():
             "totalBases": safe_avg([g.total_bases for g in gs if g.total_bases is not None]),
             "games":      len(gs),
         }
+
+    # Fetch MLB injury data (2h cache)
+    try:
+        mlb_injuries_all = injury_tracker.get_mlb_injuries()
+    except Exception:
+        mlb_injuries_all = {}
 
     # Fetch today's probable pitchers once for all players
     try:
@@ -1455,6 +1471,8 @@ def _compute_all_mlb_players():
                     "awayGames":       len(away_g),
                     "gameLog":         game_log,
                     "h2hGames":        [],
+                    "injuryStatus":    mlb_injuries_all.get(p.name, {}).get("status", "ACTIVE"),
+                    "injuryDetail":    mlb_injuries_all.get(p.name, {}).get("injury"),
                 })
 
             else:
@@ -1548,6 +1566,8 @@ def _compute_all_mlb_players():
                     "h2hGames":          [],
                     # Batter handedness for platoon splits (L/R/S)
                     "bats":              p.bats,
+                    "injuryStatus":      mlb_injuries_all.get(p.name, {}).get("status", "ACTIVE"),
+                    "injuryDetail":      mlb_injuries_all.get(p.name, {}).get("injury"),
                 })
 
         players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))
@@ -2991,9 +3011,50 @@ def _schedule_weekly_soccer_stats_update():
     threading.Thread(target=_run, daemon=True).start()
 
 
+def _schedule_weekly_mlb_roster_refresh():
+    """
+    Refresh all 30 MLB team rosters every Sunday at 08:00 UTC.
+    Updates player team assignments for trades, adds new call-ups.
+    Lightweight - no game log re-fetch, just roster sync.
+    """
+    import threading, time as _time
+    from datetime import datetime, timezone, timedelta
+
+    def _run():
+        TARGET_WEEKDAY = 6   # Sunday
+        TARGET_HOUR_UTC = 8
+        while True:
+            now = datetime.now(timezone.utc)
+            days_ahead = (TARGET_WEEKDAY - now.weekday()) % 7
+            next_run = now.replace(hour=TARGET_HOUR_UTC, minute=0, second=0, microsecond=0)
+            next_run += timedelta(days=days_ahead)
+            if next_run <= now:
+                next_run += timedelta(days=7)
+            sleep_secs = (next_run - now).total_seconds()
+            print(f"[MLB ROSTERS] Weekly refresh scheduled for "
+                  f"{next_run.strftime('%Y-%m-%d %H:%M UTC')} ({sleep_secs/3600:.1f}h from now)")
+            _time.sleep(sleep_secs)
+            try:
+                print("[MLB ROSTERS] Starting weekly roster refresh...")
+                from models import get_engine, get_session
+                from populate_mlb_players import refresh_all_rosters
+                engine  = get_engine()
+                session = get_session(engine)
+                try:
+                    refresh_all_rosters(session)
+                finally:
+                    session.close()
+                print("[MLB ROSTERS] Roster refresh complete")
+            except Exception as _e:
+                print(f"[MLB ROSTERS] Roster refresh failed: {_e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 _schedule_daily_mlb_update()
 _schedule_daily_soccer_cache_refresh()
 _schedule_weekly_soccer_stats_update()
+_schedule_weekly_mlb_roster_refresh()
 
 if __name__ == '__main__':
     print("[INFO] Starting StatScout API Server...")

@@ -1608,15 +1608,18 @@ const SoccerPlayerCard = ({ player, market, onAddToParlay, onClick }) => {
 
       {/* Bar graph: last N games */}
       {arr.length > 0 && (
-        <div className="flex gap-0.5 items-end h-6">
-          {arr.map((v, i) => {
-            const hit = isGkMarket ? v < line : v > line;
-            return (
-              <div key={i} title={`${v}`}
-                className={`flex-1 rounded-sm ${hit ? 'bg-green-500' : 'bg-red-400'}`}
-                style={{ height: `${Math.max(20, Math.min(100, (v / (mdef.max + 0.5)) * 100))}%` }} />
-            );
-          })}
+        <div className="flex items-end gap-1 h-12">
+          {(() => {
+            const maxVal = Math.max(...arr, 0.1);
+            return arr.map((v, i) => {
+              const hit = isGkMarket ? v < line : v > line;
+              return (
+                <div key={i} title={`${v}`}
+                  className={`flex-1 rounded-t transition-all ${hit ? 'bg-green-400 hover:bg-green-500' : 'bg-red-400 hover:bg-red-500'}`}
+                  style={{ height: `${(v / maxVal) * 100}%` }} />
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -2032,6 +2035,16 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{player.team}</p>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+              player.injuryStatus === 'OUT' ? 'bg-red-500/20 text-red-400' :
+              player.injuryStatus === 'DOUBTFUL' ? 'bg-red-400/20 text-red-400' :
+              player.injuryStatus === 'QUESTIONABLE' ? 'bg-amber-500/20 text-amber-400' :
+              'bg-yellow-500/20 text-yellow-400'
+            }`} title={player.injuryDetail || player.injuryStatus}>
+              {player.injuryStatus === 'DAY-TO-DAY' ? 'DTD' : player.injuryStatus}
+            </span>
+          )}
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${MLB_POS_BADGE[player.position] || 'bg-gray-500/20 text-gray-400'}`}>
             {player.position}
           </span>
@@ -2087,12 +2100,15 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
       )}
 
       {arr.length > 0 && (
-        <div className="flex gap-0.5 items-end h-6">
-          {arr.map((v, i) => (
-            <div key={i} title={`${v}`}
-              className={`flex-1 rounded-sm ${v > line ? 'bg-green-500' : 'bg-red-400'}`}
-              style={{ height: `${Math.max(15, Math.min(100, (v / (mdef.max + 0.5)) * 100))}%` }} />
-          ))}
+        <div className="flex items-end gap-1 h-12">
+          {(() => {
+            const maxVal = Math.max(...arr, 0.1);
+            return arr.map((v, i) => (
+              <div key={i} title={`${v}`}
+                className={`flex-1 rounded-t transition-all ${v > line ? 'bg-green-400 hover:bg-green-500' : 'bg-red-400 hover:bg-red-500'}`}
+                style={{ height: `${(v / maxVal) * 100}%` }} />
+            ));
+          })()}
         </div>
       )}
 
