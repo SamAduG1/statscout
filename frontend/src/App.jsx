@@ -2019,8 +2019,12 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
       market,
       player.isPitcher ? null : player.bats,
       player.isPitcher ? null : player.oppStarterHand,
+      player.isPitcher ? null : player.kPct,
+      player.isPitcher ? null : player.babip,
+      player.isPitcher ? null : player.barrelPct,
+      player.isPitcher ? null : player.hardHitPct,
     ),
-    [displayArr, line, parkInfo, player.isPitcher, player.oppStarterEra, player.teamRunsPerGame, market, player.bats, player.oppStarterHand]
+    [displayArr, line, parkInfo, player.isPitcher, player.oppStarterEra, player.teamRunsPerGame, market, player.bats, player.oppStarterHand, player.kPct, player.babip, player.barrelPct, player.hardHitPct]
   );
 
   const steps = [];
@@ -2124,6 +2128,36 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
           {parkInfo && (
             <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average)`}>
               Park {parkInfo.label}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Statcast metrics row — batters only, shows when data available */}
+      {!player.isPitcher && (player.barrelPct != null || player.hardHitPct != null || player.kPct != null || player.babip != null) && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {player.barrelPct != null && (
+            <span className={`text-[10px] ${player.barrelPct >= 10 ? 'text-green-400' : player.barrelPct <= 4 ? 'text-red-400' : 'text-gray-400'}`}
+              title="Barrel rate: % of batted balls with optimal exit velocity + launch angle">
+              Barrel {player.barrelPct}%
+            </span>
+          )}
+          {player.hardHitPct != null && (
+            <span className={`text-[10px] ${player.hardHitPct >= 45 ? 'text-green-400' : player.hardHitPct <= 30 ? 'text-red-400' : 'text-gray-400'}`}
+              title="Hard-hit rate: % of batted balls >= 95 mph exit velocity">
+              HardHit {player.hardHitPct}%
+            </span>
+          )}
+          {player.kPct != null && (
+            <span className={`text-[10px] ${player.kPct <= 16 ? 'text-green-400' : player.kPct >= 28 ? 'text-red-400' : 'text-gray-400'}`}
+              title="Strikeout rate this season">
+              K% {player.kPct}%
+            </span>
+          )}
+          {player.babip != null && (
+            <span className={`text-[10px] ${player.babip >= 0.340 ? 'text-amber-400' : player.babip <= 0.260 ? 'text-blue-400' : 'text-gray-400'}`}
+              title="BABIP: batting avg on balls in play. Amber = may regress, blue = may improve">
+              BABIP .{Math.round(player.babip * 1000)}
             </span>
           )}
         </div>
@@ -2872,7 +2906,38 @@ const getPlatoonMod = (bats, oppStarterHand) => {
   return advantage ? 4 : -4;
 };
 
-const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era, isPitcher = false, oppTeamEra = null, oppLineupKPG = null, teamRunsPerGame = null, market = null, bats = null, oppStarterHand = null) => {
+// K% modifier for batter hits markets (league avg ~22%).
+// High K% batters are less consistent hitters. Capped +-5.
+const getBatterKPctMod = (kPct, market) => {
+  if (kPct == null || market === 'hr') return 0; // K% less relevant for HR power
+  return Math.max(-5, Math.min(5, (22 - kPct) * 0.25));
+};
+
+// BABIP regression modifier for hits markets.
+// If current BABIP is well above league avg (.300), hits may regress.
+// If well below, hits may improve. Capped +-4.
+const getBabipMod = (babip, market) => {
+  if (babip == null || market !== 'hits') return 0;
+  return Math.max(-4, Math.min(4, (babip - 0.300) * -20));
+};
+
+// Barrel rate modifier for HR and TB markets (league avg ~7%).
+// High barrel rate = real power, not luck. Capped +-6.
+const getBarrelMod = (barrelPct, market) => {
+  if (barrelPct == null) return 0;
+  if (market !== 'hr' && market !== 'tb') return 0;
+  return Math.max(-6, Math.min(6, (barrelPct - 7) * 0.6));
+};
+
+// Hard-hit rate modifier for hits/TB markets (league avg ~38%).
+// Consistent hard contact = more reliable production. Capped +-4.
+const getHardHitMod = (hardHitPct, market) => {
+  if (hardHitPct == null) return 0;
+  if (market === 'rbi' || market === 'runs') return 0;
+  return Math.max(-4, Math.min(4, (hardHitPct - 38) * 0.2));
+};
+
+const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era, isPitcher = false, oppTeamEra = null, oppLineupKPG = null, teamRunsPerGame = null, market = null, bats = null, oppStarterHand = null, kPct = null, babip = null, barrelPct = null, hardHitPct = null) => {
   const base = computePlayerTrust(arr, hitFn);
   if (base === null) return null;
   // Park factor removed from base formula (backtest showed it adds noise, not signal)
@@ -2882,9 +2947,14 @@ const computeMLBPlayerTrust = (arr, hitFn, parkInfo, era, isPitcher = false, opp
   // Team run environment: only applied to RBI and Runs markets
   const runEnvMod    = (!isPitcher && (market === 'rbi' || market === 'runs'))
     ? getTeamRunsMod(teamRunsPerGame) : 0;
-  // Platoon: batters hit better vs opposite-handed pitchers; only applied to batter markets
+  // Platoon: batters hit better vs opposite-handed pitchers
   const platoonMod   = !isPitcher ? getPlatoonMod(bats, oppStarterHand) : 0;
-  return Math.round(Math.min(Math.max(base + eraMod + oppDefMod + runEnvMod + platoonMod, 0), 100));
+  // Statcast / advanced metrics (batters only)
+  const kMod         = !isPitcher ? getBatterKPctMod(kPct, market) : 0;
+  const babipMod     = !isPitcher ? getBabipMod(babip, market) : 0;
+  const barrelMod    = !isPitcher ? getBarrelMod(barrelPct, market) : 0;
+  const hardHitMod   = !isPitcher ? getHardHitMod(hardHitPct, market) : 0;
+  return Math.round(Math.min(Math.max(base + eraMod + oppDefMod + runEnvMod + platoonMod + kMod + babipMod + barrelMod + hardHitMod, 0), 100));
 };
 
 const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay }) => {
@@ -5416,6 +5486,10 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
                         mlbPropsMarket,
                         p.isPitcher ? null : p.bats,
                         p.isPitcher ? null : p.oppStarterHand,
+                        p.isPitcher ? null : p.kPct,
+                        p.isPitcher ? null : p.babip,
+                        p.isPitcher ? null : p.barrelPct,
+                        p.isPitcher ? null : p.hardHitPct,
                       ) ?? -1;
                       return { ...p, _sortRate: hr, _sortTrust: trust };
                     })

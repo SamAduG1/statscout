@@ -117,6 +117,44 @@ def _get_mlb_team_stats():
             print(f"[MLB] Team stats refresh failed: {e}")
     return _mlb_team_stats["data"]
 
+
+# MLB player advanced stats cache (K%, BABIP from MLB Stats API)
+_mlb_player_adv = {"data": {}, "last_updated": None}
+
+def _get_mlb_player_adv(player_ids):
+    """Return cached per-player K%/BABIP, refreshing if older than 6 hours."""
+    now = datetime.now()
+    if (_mlb_player_adv["last_updated"] is None or
+            (now - _mlb_player_adv["last_updated"]).total_seconds() > 6 * 3600):
+        try:
+            data = mlb_fetcher_instance.get_player_advanced_stats(player_ids)
+            if data:
+                _mlb_player_adv["data"] = data
+                _mlb_player_adv["last_updated"] = now
+                print(f"[MLB] Player advanced stats refreshed ({len(data)} players)")
+        except Exception as e:
+            print(f"[MLB] Player advanced stats failed: {e}")
+    return _mlb_player_adv["data"]
+
+
+# Baseball Savant Statcast cache (barrel%, hard-hit%, xBA per batter)
+_mlb_savant = {"data": {}, "last_updated": None}
+
+def _get_mlb_savant():
+    """Return cached Savant Statcast data, refreshing if older than 12 hours."""
+    now = datetime.now()
+    if (_mlb_savant["last_updated"] is None or
+            (now - _mlb_savant["last_updated"]).total_seconds() > 12 * 3600):
+        try:
+            data = mlb_fetcher_instance.get_savant_statcast()
+            if data:
+                _mlb_savant["data"] = data
+                _mlb_savant["last_updated"] = now
+                print(f"[Savant] Statcast cache refreshed ({len(data)} batters)")
+        except Exception as e:
+            print(f"[Savant] Statcast cache failed: {e}")
+    return _mlb_savant["data"]
+
 # MLB match cache
 MLB_CACHE_FILE = "/tmp/statscout_mlb_cache.json"
 MLB_CACHE_DURATION = 6 * 60 * 60  # 6 hours
@@ -1169,6 +1207,11 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
     # Fetch team season stats for defense modifiers (cached, refreshes every 6h)
     team_season_stats = _get_mlb_team_stats()
 
+    # Fetch Statcast + advanced stats (shared caches with all-players endpoint)
+    savant_data = _get_mlb_savant()
+    # Batter IDs for this matchup - fetched lazily inside loop using shared cache
+    adv_stats = _mlb_player_adv["data"]  # use whatever is cached; refreshed by all-players build
+
     # Fetch MLB injury data (2h cache via ESPN tracker)
     try:
         mlb_injuries = injury_tracker.get_mlb_injuries()
@@ -1342,6 +1385,13 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
                         "bats":            p.bats,
                         "injuryStatus":    mlb_injuries.get(p.name, {}).get("status", "ACTIVE"),
                         "injuryDetail":    mlb_injuries.get(p.name, {}).get("injury"),
+                        # Advanced metrics
+                        "kPct":            adv_stats.get(p.id, {}).get("kPct"),
+                        "babip":           adv_stats.get(p.id, {}).get("babip"),
+                        "barrelPct":       savant_data.get(p.id, {}).get("barrelPct"),
+                        "hardHitPct":      savant_data.get(p.id, {}).get("hardHitPct"),
+                        "xba":             savant_data.get(p.id, {}).get("xba"),
+                        "exitVelo":        savant_data.get(p.id, {}).get("exitVelo"),
                     }
 
                 players_out.append(player_dict)
@@ -1392,6 +1442,9 @@ def _compute_all_mlb_players():
     except Exception:
         mlb_injuries_all = {}
 
+    # Fetch Statcast data from Baseball Savant (12h cache)
+    savant_data = _get_mlb_savant()
+
     # Fetch today's probable pitchers once for all players
     try:
         probable_pitchers = mlb_fetcher_instance.get_probable_pitchers_with_stats()
@@ -1406,6 +1459,10 @@ def _compute_all_mlb_players():
     try:
         all_players = session.query(MLBPlayer).all()
         players_out = []
+
+        # Fetch K%/BABIP for all batter IDs in one bulk call (6h cache)
+        batter_ids = [p.id for p in all_players if not p.is_pitcher]
+        adv_stats = _get_mlb_player_adv(batter_ids)
 
         for p in all_players:
             all_games = (
@@ -1568,6 +1625,15 @@ def _compute_all_mlb_players():
                     "bats":              p.bats,
                     "injuryStatus":      mlb_injuries_all.get(p.name, {}).get("status", "ACTIVE"),
                     "injuryDetail":      mlb_injuries_all.get(p.name, {}).get("injury"),
+                    # MLB Stats API advanced metrics (K%, BABIP)
+                    "kPct":              adv_stats.get(p.id, {}).get("kPct"),
+                    "bbPct":             adv_stats.get(p.id, {}).get("bbPct"),
+                    "babip":             adv_stats.get(p.id, {}).get("babip"),
+                    # Baseball Savant Statcast metrics
+                    "barrelPct":         savant_data.get(p.id, {}).get("barrelPct"),
+                    "hardHitPct":        savant_data.get(p.id, {}).get("hardHitPct"),
+                    "xba":               savant_data.get(p.id, {}).get("xba"),
+                    "exitVelo":          savant_data.get(p.id, {}).get("exitVelo"),
                 })
 
         players_out.sort(key=lambda p: (-p["gamesPlayed"], p["name"]))

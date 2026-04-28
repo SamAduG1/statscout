@@ -2,8 +2,11 @@
 StatScout MLB Fetcher
 - Upcoming games + odds (h2h, totals, spreads): The Odds API
 - Historical 2025 season results + team run averages: MLB Stats API (free, official)
+- Statcast metrics (barrel rate, hard-hit rate, xBA, K%): Baseball Savant (free CSV)
 """
 
+import io
+import csv
 import requests
 import os
 import statistics
@@ -453,6 +456,107 @@ class MLBFetcher:
         except Exception as e:
             print(f"[MLB] Team batting stats unavailable: {e}")
 
+        return result
+
+    def get_player_advanced_stats(self, player_ids):
+        """
+        Fetch per-player K%, BB%, BABIP from MLB Stats API for a list of player IDs.
+        Uses the bulk /people endpoint (one call, up to 100 IDs at a time).
+
+        Returns dict keyed by player_id (int):
+            {
+                630105: {"kPct": 22.4, "bbPct": 8.1, "babip": 0.312},
+                ...
+            }
+        """
+        result = {}
+        # Chunk into batches of 100 (API limit)
+        ids = list(player_ids)
+        for i in range(0, len(ids), 100):
+            batch = ids[i:i+100]
+            try:
+                r = requests.get(
+                    f"{MLB_STATS_BASE}/people",
+                    params={
+                        "personIds": ",".join(str(x) for x in batch),
+                        "hydrations": f"stats(group=hitting,type=season,season={CURRENT_SEASON})",
+                        "fields": "people,id,stats,splits,stat,strikeOutRate,baseOnBallsRate,babip",
+                    },
+                    timeout=20,
+                )
+                r.raise_for_status()
+                for person in r.json().get("people", []):
+                    pid  = person.get("id")
+                    stat = {}
+                    for sg in person.get("stats", []):
+                        splits = sg.get("splits", [])
+                        if splits:
+                            stat = splits[0].get("stat", {})
+                            break
+                    if pid and stat:
+                        k_pct   = stat.get("strikeOutRate")   # 0-1 decimal
+                        bb_pct  = stat.get("baseOnBallsRate") # 0-1 decimal
+                        babip   = stat.get("babip")           # 0-1 decimal
+                        entry = {}
+                        if k_pct  is not None: entry["kPct"]  = round(float(k_pct)  * 100, 1)
+                        if bb_pct is not None: entry["bbPct"] = round(float(bb_pct) * 100, 1)
+                        if babip  is not None: entry["babip"] = round(float(babip), 3)
+                        if entry:
+                            result[pid] = entry
+            except Exception as e:
+                print(f"[MLB] Player advanced stats batch failed: {e}")
+        return result
+
+    def get_savant_statcast(self, season=None):
+        """
+        Fetch Statcast leaderboard from Baseball Savant as a bulk CSV.
+        Returns dict keyed by player_id (int):
+            {
+                630105: {
+                    "barrelPct":  8.2,   # % of batted balls with optimal EV+LA
+                    "hardHitPct": 44.1,  # % batted balls >= 95 mph EV
+                    "xba":        0.271, # expected batting average
+                    "exitVelo":   91.3,  # avg exit velocity (mph)
+                },
+                ...
+            }
+        Covers all batters with >= 10 PA. One HTTP call for all 30 teams.
+        """
+        yr = season or CURRENT_SEASON
+        result = {}
+        url = (
+            "https://baseballsavant.mlb.com/leaderboard/statcast"
+            f"?type=batter&year={yr}&position=&team=&min=10&csv=true"
+        )
+        try:
+            r = requests.get(url, timeout=30, headers={"User-Agent": "StatScout/1.0"})
+            r.raise_for_status()
+            reader = csv.DictReader(io.StringIO(r.text))
+            for row in reader:
+                try:
+                    pid = int(row.get("player_id") or row.get("batter") or 0)
+                    if not pid:
+                        continue
+                    entry = {}
+                    for col, key, cast in [
+                        ("barrel_batted_rate", "barrelPct",  float),
+                        ("hard_hit_percent",   "hardHitPct", float),
+                        ("xba",                "xba",        float),
+                        ("launch_speed",       "exitVelo",   float),
+                    ]:
+                        val = row.get(col, "").strip()
+                        if val:
+                            try:
+                                entry[key] = round(cast(val), 3)
+                            except ValueError:
+                                pass
+                    if entry:
+                        result[pid] = entry
+                except Exception:
+                    continue
+            print(f"[Savant] Loaded Statcast data for {len(result)} batters (season {yr})")
+        except Exception as e:
+            print(f"[Savant] Statcast CSV fetch failed: {e}")
         return result
 
     def fetch_all(self):
