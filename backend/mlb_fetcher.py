@@ -479,8 +479,7 @@ class MLBFetcher:
                     f"{MLB_STATS_BASE}/people",
                     params={
                         "personIds": ",".join(str(x) for x in batch),
-                        "hydrations": f"stats(group=hitting,type=season,season={CURRENT_SEASON})",
-                        "fields": "people,id,stats,splits,stat,strikeOutRate,baseOnBallsRate,babip",
+                        "hydrate": f"stats(group=hitting,type=season,season={CURRENT_SEASON})",
                     },
                     timeout=20,
                 )
@@ -494,13 +493,16 @@ class MLBFetcher:
                             stat = splits[0].get("stat", {})
                             break
                     if pid and stat:
-                        k_pct   = stat.get("strikeOutRate")   # 0-1 decimal
-                        bb_pct  = stat.get("baseOnBallsRate") # 0-1 decimal
-                        babip   = stat.get("babip")           # 0-1 decimal
+                        pas   = float(stat.get("plateAppearances") or 0)
+                        ks    = float(stat.get("strikeOuts") or 0)
+                        bbs   = float(stat.get("baseOnBalls") or 0)
+                        babip = stat.get("babip")
                         entry = {}
-                        if k_pct  is not None: entry["kPct"]  = round(float(k_pct)  * 100, 1)
-                        if bb_pct is not None: entry["bbPct"] = round(float(bb_pct) * 100, 1)
-                        if babip  is not None: entry["babip"] = round(float(babip), 3)
+                        if pas > 0:
+                            entry["kPct"]  = round(ks  / pas * 100, 1)
+                            entry["bbPct"] = round(bbs / pas * 100, 1)
+                        if babip is not None:
+                            entry["babip"] = round(float(babip), 3)
                         if entry:
                             result[pid] = entry
             except Exception as e:
