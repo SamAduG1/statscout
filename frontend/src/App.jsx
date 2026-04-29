@@ -583,28 +583,18 @@ const PlayerDetailModal = ({ player, onClose }) => {
   };
 
   const calculateLiveProjection = async () => {
-    console.log('calculateLiveProjection called with liveInput:', liveInput);
-
     if (!liveInput || isNaN(parseFloat(liveInput))) {
-      console.log('Invalid input, returning early');
       return;
     }
 
     setLoadingProjection(true);
     try {
       const url = `${API_BASE_URL}/live-projection/${encodeURIComponent(player.name)}/${encodeURIComponent(player.statType)}/${liveInput}`;
-      console.log('Fetching projection from:', url);
-
       const response = await fetch(url);
       const data = await response.json();
 
-      console.log('Projection response:', data);
-
       if (data.success) {
         setLiveProjection(data.projection);
-        console.log('Projection set successfully');
-      } else {
-        console.error('Projection API returned success=false:', data);
       }
     } catch (error) {
       console.error('Error loading projection:', error);
@@ -1049,10 +1039,7 @@ const PlayerDetailModal = ({ player, onClose }) => {
                       className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                     />
                     <button
-                      onClick={() => {
-                        console.log('Project button clicked, liveInput:', liveInput);
-                        calculateLiveProjection();
-                      }}
+                      onClick={calculateLiveProjection}
                       disabled={loadingProjection || !liveInput}
                       className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
                     >
@@ -2969,8 +2956,6 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
   const handleLineChange = async () => {
   if (parseFloat(customLine) === player.line) return;
   
-  console.log('Adjusting line for:', player.name, player.statType, 'from', player.line, 'to', customLine);
-  
   setIsAdjusting(true);
   try {
     const response = await fetch(`${API_BASE_URL}/calculate`, {
@@ -2987,14 +2972,8 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
     });
     
     const data = await response.json();
-    console.log('Response from API:', data);
-    
     if (data.success && onLineAdjust) {
-      console.log('Calling onLineAdjust - ID:', player.id, 'Name:', player.name, 'Stat:', player.statType);
-      console.log('Analysis data:', data.analysis);
       onLineAdjust(player.id, player.name, player.statType, data.analysis);
-    } else {
-      console.error('API call failed:', data);
     }
   } catch (error) {
     console.error('Error adjusting line:', error);
@@ -3836,27 +3815,19 @@ const handleRefreshStats = async () => {
 
 // Handle line adjustment
 const handleLineAdjust = (playerId, playerName, statType, newData) => {
-  console.log('handleLineAdjust called with:', {playerId, playerName, statType, newData});
-
   // Reset ALL filters that might hide the adjusted player
   setMinTrustScore(0);
   setShowHighConfidenceOnly(false);
   setShowGamesTodayOnly(false);
   setShowLiveOddsOnly(false);
 
-  setPlayers(prevPlayers => {
-    const updated = prevPlayers.map(p => {
-      const matches = p.id === playerId && p.name === playerName && p.statType === statType;
-      console.log('Checking player:', p.name, p.statType, 'matches:', matches);
-
-      if (matches) {
-        console.log('Updating player from:', p, 'to:', { ...p, ...newData, line: newData.line });
-        return { ...p, ...newData, line: newData.line };
-      }
-      return p;
-    });
-    return updated;
-  });
+  setPlayers(prevPlayers =>
+    prevPlayers.map(p =>
+      p.id === playerId && p.name === playerName && p.statType === statType
+        ? { ...p, ...newData, line: newData.line }
+        : p
+    )
+  );
 };
 
   // Custom Parlay Helper Functions
