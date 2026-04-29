@@ -272,6 +272,7 @@ class DatabaseLoader:
         Returns:
             Dictionary mapping stat names to value lists
         """
+        self._ensure_session()
         player = self.session.query(Player).filter(Player.name == player_name).first()
 
         if not player:

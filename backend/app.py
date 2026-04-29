@@ -2208,6 +2208,10 @@ def calculate_custom():
                     all_stats = loader.get_all_available_stats(player_name)
                 except Exception as db_err:
                     print(f"[CALCULATE] DB fallback failed: {db_err}, using players_cache")
+                    try:
+                        loader._ensure_session()
+                    except Exception:
+                        pass
                     # Last resort: extract from players_cache (last 15 games only)
                     player_info = None
                     all_stats = {}
@@ -2301,11 +2305,15 @@ def calculate_custom():
             })
             
         except Exception as e:
+            try:
+                loader._ensure_session()
+            except Exception:
+                pass
             return jsonify({
                 "success": False,
                 "error": str(e)
             }), 500
-    
+
     # Original functionality for completely custom input
     required_fields = ['player_stats', 'line', 'opponent_rank']
     if not all(field in data for field in required_fields):
