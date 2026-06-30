@@ -2127,7 +2127,7 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
             </span>
           )}
           {parkInfo && (
-            <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average). Red = hitter-friendly park (stats may be inflated), blue = pitcher-friendly park (stats may be suppressed)`}>
+            <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average). Amber = hitter-friendly (stats may be inflated), red = extreme hitter park like Coors, blue = pitcher-friendly (stats may be suppressed), gray = neutral`}>
               Park {parkInfo.label}
             </span>
           )}
