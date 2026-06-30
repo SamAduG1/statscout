@@ -1966,7 +1966,7 @@ const MLB_TEAM_ABBR = {
 const mlbAbbr = name => MLB_TEAM_ABBR[name] || name.split(' ').pop().slice(0, 3).toUpperCase();
 
 const MLB_MARKETS = [
-  { key: 'hits',  label: 'Hits',        arr: 'hitsArr',       min: 0.5, max: 2.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
+  { key: 'hits',  label: 'Hits',        arr: 'hitsArr',       min: 0.5, max: 2.5,  step: 0.5, defaultLine: 1.5,  playerType: 'batter' },
   { key: 'tb',    label: 'Total Bases', arr: 'totalBasesArr', min: 0.5, max: 3.5,  step: 0.5, defaultLine: 1.5,  playerType: 'batter' },
   { key: 'hr',    label: 'Home Runs',   arr: 'homeRunsArr',   min: 0.5, max: 1.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
   { key: 'rbi',   label: 'RBI',         arr: 'rbiArr',        min: 0.5, max: 2.5,  step: 0.5, defaultLine: 0.5,  playerType: 'batter' },
@@ -2122,11 +2122,11 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
         </div>
       )}
 
-      {arr.length > 0 && (
+      {displayArr.length > 0 && (
         <div className="flex items-end gap-1 h-12">
           {(() => {
-            const maxVal = Math.max(...arr, 0.1);
-            return arr.map((v, i) => (
+            const maxVal = Math.max(...displayArr, 0.1);
+            return displayArr.map((v, i) => (
               <div key={i} title={`${v}`}
                 className={`flex-1 rounded-t transition-all ${v > line ? 'bg-green-400 hover:bg-green-500' : 'bg-red-400 hover:bg-red-500'}`}
                 style={{ height: `${(v / maxVal) * 100}%` }} />
@@ -2795,8 +2795,8 @@ const getTrustLabel = (score) => {
   if (score >= 80) return 'Strong lean';
   if (score >= 70) return 'Leaning over';
   if (score >= 50) return 'Slight edge';
-  if (score >= 40) return 'Proceed with caution';
-  return 'Taking a longshot';
+  if (score >= 40) return 'No edge';
+  return 'Book edge';
 };
 
 const getTrustBadgeClass = (score) => {
