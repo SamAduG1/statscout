@@ -520,7 +520,9 @@ class StatScoutCalculator:
         opponent: str,
         opponent_rank: int,
         is_home: bool = True,
-        db_loader=None
+        db_loader=None,
+        american_odds: int = None,
+        park_factor: float = 1.0
     ) -> Dict[str, Any]:
         """
         Complete analysis of a player prop
@@ -535,9 +537,21 @@ class StatScoutCalculator:
             opponent_rank: Opponent's defensive rank
             is_home: Whether playing at home
             db_loader: DatabaseLoader instance for teammate boost calculation
+            american_odds: Optional American odds for the prop (e.g., -150 or +130).
+                Used to calculate implied break-even probability and edge.
+            park_factor: Ballpark factor for baseball props (default 1.0 = neutral).
+                Scales the final trust score multiplicatively before returning.
+                Reference values:
+                  1.15 = Coors Field (COL) — extreme hitter park, mile-high altitude
+                  1.08 = Great American Ball Park (CIN) — hitter-friendly, short fences
+                  1.00 = neutral / average park
+                  0.95 = Yankee Stadium (NYY) — slight pitcher lean, deep center
+                  0.92 = Petco Park (SD) — pitcher-friendly, marine layer suppresses fly balls
+                  0.88 = Oracle Park (SF) — strong pitcher park, cold and deep
 
         Returns:
-            Complete analysis dictionary
+            Complete analysis dictionary including edge and implied_prob when
+            american_odds is provided.
         """
         hit_rate = self.calculate_hit_rate(player_stats, line)
         recent_hit_rate_info = self.calculate_recent_hit_rate(player_stats, line, recent_n=10)
@@ -547,6 +561,25 @@ class StatScoutCalculator:
             opponent=opponent
         )
         streak_info = self.detect_streak(player_stats, line)
+
+        # Apply park factor (baseball only; defaults to 1.0 for neutral/no adjustment).
+        # Multiplies the trust score before edge calculation so environment is baked in.
+        if park_factor != 1.0:
+            trust_score = round(min(100.0, trust_score * park_factor), 1)
+
+        # Calculate implied break-even probability and edge from American odds.
+        # For negative odds (e.g., -150): implied = 150 / (150 + 100)
+        # For positive odds (e.g., +130): implied = 100 / (130 + 100)
+        # Edge = our estimated probability (trust_score / 100) - implied break-even probability
+        implied_prob = None
+        edge = None
+        if american_odds is not None:
+            if american_odds < 0:
+                implied_prob = abs(american_odds) / (abs(american_odds) + 100)
+            else:
+                implied_prob = 100 / (american_odds + 100)
+            edge = round((trust_score / 100) - implied_prob, 4)
+            implied_prob = round(implied_prob, 4)
 
         # Calculate averages for different time ranges
         avg_last_5 = round(np.mean(player_stats[-5:]), 1) if len(player_stats) >= 5 else None
@@ -577,6 +610,9 @@ class StatScoutCalculator:
             "recent_hits": recent_hit_rate_info["hits"],
             "recent_total": recent_hit_rate_info["total"],
             "trust_score": trust_score,
+            "implied_prob": implied_prob,
+            "edge": edge,
+            "park_factor": park_factor if park_factor != 1.0 else None,
             "recent_form": recent_form,
             "opponent": opponent,
             "opponent_rank": opponent_rank,

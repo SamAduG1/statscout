@@ -305,11 +305,25 @@ class ParlayBuilder:
                 "avg_trust": round(avg_trust, 1)
             }]
 
-        # Sort parlays by average trust score
-        valid_parlays.sort(
-            key=lambda parlay: self.calculate_parlay_trust(parlay, "average"),
-            reverse=True
-        )
+        # Sort parlays by minimum edge across legs when edge data is available.
+        # The weakest edge leg determines parlay quality — a single -EV leg poisons the whole ticket.
+        # Fall back to average trust score when no edge data exists (e.g., no odds provided).
+        def _parlay_has_edge(parlay):
+            return any(leg.get("edge") is not None for leg in parlay)
+
+        if valid_parlays and _parlay_has_edge(valid_parlays[0]):
+            valid_parlays.sort(
+                key=lambda parlay: min(
+                    (leg["edge"] for leg in parlay if leg.get("edge") is not None),
+                    default=float("-inf")
+                ),
+                reverse=True
+            )
+        else:
+            valid_parlays.sort(
+                key=lambda parlay: self.calculate_parlay_trust(parlay, "average"),
+                reverse=True
+            )
 
         # Select diverse parlays (avoid too much overlap)
         selected_parlays = []

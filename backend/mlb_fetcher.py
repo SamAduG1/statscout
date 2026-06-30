@@ -208,10 +208,22 @@ class MLBFetcher:
                 splits = sg.get("splits", [])
                 if splits:
                     s = splits[0].get("stat", {})
+                    # Use None instead of 0.0 for missing/zero stats so callers
+                    # can distinguish "no data" from a genuine value. A 0.00 ERA
+                    # fed into the trust modifier is treated as peak performance
+                    # and applies the maximum negative adjustment to opposing
+                    # batters — wrong for pitchers who simply haven't started yet.
+                    def _stat(val, ndigits):
+                        try:
+                            f = float(val)
+                            return round(f, ndigits) if f > 0 else None
+                        except (TypeError, ValueError):
+                            return None
+
                     result.update({
-                        "era":  round(float(s.get("era", 0) or 0), 2),
-                        "k9":   round(float(s.get("strikeoutsPer9Inn", 0) or 0), 1),
-                        "whip": round(float(s.get("whip", 0) or 0), 2),
+                        "era":  _stat(s.get("era"),                 2),
+                        "k9":   _stat(s.get("strikeoutsPer9Inn"),   1),
+                        "whip": _stat(s.get("whip"),                2),
                         "gs":   int(s.get("gamesStarted", 0) or 0),
                     })
                     break

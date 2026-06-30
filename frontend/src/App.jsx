@@ -665,6 +665,20 @@ const PlayerDetailModal = ({ player, onClose }) => {
                 player.trustScore >= 80 ? 'text-green-500' : player.trustScore >= 70 ? 'text-amber-500' : player.trustScore >= 60 ? 'text-yellow-500' : 'text-red-500'
               }`}>{player.trustScore}</div>
               <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{getTrustLabel(player.trustScore)}</div>
+              {(() => {
+                const overOdds = player.bookmakerLines?.[0]?.over_odds;
+                const edgeData = computeEdge(player.trustScore, overOdds);
+                if (!edgeData) return null;
+                const isPositive = edgeData.edgeRaw >= 0;
+                return (
+                  <div className="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-700">
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500">Book: {edgeData.impliedDisplay}</div>
+                    <div className={`text-[11px] font-bold tabular-nums ${isPositive ? 'text-green-500' : 'text-red-400'}`}>
+                      Edge {edgeData.edgeDisplay}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -2775,6 +2789,30 @@ const getTrustBadgeClass = (score) => {
   return 'bg-red-500/10 text-red-400 border-red-400/30';
 };
 
+/**
+ * Compute implied break-even probability and edge from American odds + trust score.
+ * For negative odds (e.g. -150): implied = 150 / (150 + 100)
+ * For positive odds (e.g. +130): implied = 100 / (130 + 100)
+ * Edge = (trustScore / 100) - impliedProb
+ * Returns null when odds are missing or invalid.
+ */
+const computeEdge = (trustScore, americanOdds) => {
+  if (trustScore == null || americanOdds == null) return null;
+  const odds = parseInt(americanOdds, 10);
+  if (isNaN(odds) || odds === 0) return null;
+  const impliedProb = odds < 0
+    ? Math.abs(odds) / (Math.abs(odds) + 100)
+    : 100 / (odds + 100);
+  const edge = (trustScore / 100) - impliedProb;
+  return {
+    impliedProb: Math.round(impliedProb * 1000) / 10,   // e.g. 61.5
+    edgeRaw: edge,
+    edgePct: Math.round(edge * 1000) / 10,              // e.g. +6.5
+    edgeDisplay: (edge >= 0 ? '+' : '') + (Math.round(edge * 1000) / 10).toFixed(1) + '%',
+    impliedDisplay: Math.round(impliedProb * 1000) / 10 + '%',
+  };
+};
+
 // Blend prior season (2025) and current season (2026) arrays for MLB trust.
 // Weight shifts toward current season as sample size grows.
 const blendMlbArrays = (arr2025, arr2026) => {
@@ -3170,6 +3208,23 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
             style={{ width: `${player.trustScore}%` }}
           />
         </div>
+        {/* Edge display — only when live over_odds are available */}
+        {(() => {
+          const overOdds = player.bookmakerLines?.[0]?.over_odds;
+          const edgeData = computeEdge(player.trustScore, overOdds);
+          if (!edgeData) return null;
+          const isPositive = edgeData.edgeRaw >= 0;
+          return (
+            <div className="mt-1.5 flex items-center justify-between text-[10px] tabular-nums">
+              <span className="text-gray-400 dark:text-gray-500">
+                Trust {player.trustScore}% · Book {edgeData.impliedDisplay}
+              </span>
+              <span className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-400'}`}>
+                Edge {edgeData.edgeDisplay}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       <div>

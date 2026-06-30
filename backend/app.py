@@ -1408,10 +1408,29 @@ def _compute_mlb_players(home_team_odds, away_team_odds):
         session.close()
 
 
+def _era_to_batter_difficulty(era):
+    """
+    Convert a pitcher's ERA to a batter matchup difficulty score (0-100).
+    Higher score = easier matchup for the batter (worse pitcher to face).
+
+    Anchor points via linear interpolation:
+      2.50 ERA -> 10  (elite starter, very hard for batters)
+      6.50 ERA -> 95  (poor starter, very easy for batters)
+    Clamped to [0, 100]. Returns None when ERA is unavailable.
+
+    Slope: (95 - 10) / (6.50 - 2.50) = 21.25 pts per ERA unit.
+    """
+    if era is None:
+        return None
+    score = 10.0 + (era - 2.50) * (85.0 / 4.0)
+    return round(max(0.0, min(100.0, score)), 1)
+
+
 def _compute_all_mlb_players():
     """
     Build props arrays for every MLB player in the DB regardless of today's schedule.
-    No opponent/teamSide context — h2hGames omitted. Used for the all-players view.
+    Batter cards include opponent difficulty derived from today's probable starter ERA
+    (primary) with team season ERA as fallback when no starter is announced.
     """
     from models import get_engine, get_session, MLBPlayer, MLBPlayerGame
     from mlb_fetcher import ODDS_TO_MLB
@@ -1455,6 +1474,24 @@ def _compute_all_mlb_players():
 
     # Build MLB-name keyed lookup for quick access
     # probable_pitchers is keyed by MLB full team name already
+
+    # Build today's opponent map: MLB team name -> MLB opponent name.
+    # Derived from mlb_cache game cards (Odds API team names converted via ODDS_TO_MLB).
+    # Used to resolve each batter's opposing starter from probable_pitchers.
+    opponent_map = {}
+    try:
+        games = (mlb_cache.get("data") or {}).get("games") or []
+        for game in games:
+            home_mlb = ODDS_TO_MLB.get(game.get("homeTeam", ""), game.get("homeTeam", ""))
+            away_mlb = ODDS_TO_MLB.get(game.get("awayTeam", ""), game.get("awayTeam", ""))
+            if home_mlb and away_mlb:
+                opponent_map[home_mlb] = away_mlb
+                opponent_map[away_mlb] = home_mlb
+    except Exception as e:
+        print(f"[MLB ALL] Opponent map build failed: {e}")
+
+    # Team season ERA for fallback when no probable starter is available
+    team_season_stats_all = _get_mlb_team_stats()
 
     try:
         all_players = session.query(MLBPlayer).all()
@@ -1571,6 +1608,16 @@ def _compute_all_mlb_players():
                 home_g = [g for g in all_games if g.is_home and g.hits is not None]
                 away_g = [g for g in all_games if not g.is_home and g.hits is not None]
 
+                # Opponent difficulty: probable starter ERA (primary) -> team ERA (fallback)
+                opp_mlb        = opponent_map.get(p.team)
+                opp_starter    = probable_pitchers.get(opp_mlb) if opp_mlb else None
+                opp_starter_era  = opp_starter.get("era")  if opp_starter else None
+                opp_starter_name = opp_starter.get("name") if opp_starter else None
+                opp_starter_hand = opp_starter.get("pitchHand") if opp_starter else None
+                opp_team_era   = team_season_stats_all.get(opp_mlb, {}).get("era") if opp_mlb else None
+                difficulty_era = opp_starter_era if opp_starter_era is not None else opp_team_era
+                opp_difficulty = _era_to_batter_difficulty(difficulty_era)
+
                 game_log = [
                     {
                         "date":       g.game_date.isoformat(),
@@ -1625,6 +1672,14 @@ def _compute_all_mlb_players():
                     "bats":              p.bats,
                     "injuryStatus":      mlb_injuries_all.get(p.name, {}).get("status", "ACTIVE"),
                     "injuryDetail":      mlb_injuries_all.get(p.name, {}).get("injury"),
+                    # Opponent difficulty — starter ERA preferred, team ERA as fallback.
+                    # oppDifficultyScore uses _era_to_batter_difficulty: 2.50 ERA -> 10,
+                    # 6.50 ERA -> 95 (higher = easier matchup for the batter).
+                    "oppStarterName":    opp_starter_name,
+                    "oppStarterEra":     opp_starter_era,
+                    "oppStarterHand":    opp_starter_hand,
+                    "oppTeamEra":        opp_team_era,
+                    "oppDifficultyScore": opp_difficulty,
                     # MLB Stats API advanced metrics (K%, BABIP)
                     "kPct":              adv_stats.get(p.id, {}).get("kPct"),
                     "bbPct":             adv_stats.get(p.id, {}).get("bbPct"),
@@ -2252,7 +2307,9 @@ def calculate_custom():
             opponent = data.get('opponent', "OPP")
             opponent_rank = data.get('opponent_rank', random.randint(5, 25))
             is_home = data.get('is_home', random.choice([True, False]))
-            
+            american_odds = data.get('american_odds')  # optional; enables edge calculation
+            park_factor = float(data.get('park_factor', 1.0))  # optional; baseball park adjustment
+
             # Calculate with custom line
             analysis = calc.analyze_player_prop(
                 player_name=player_name,
@@ -2263,7 +2320,9 @@ def calculate_custom():
                 opponent=opponent,
                 opponent_rank=opponent_rank,
                 is_home=is_home,
-                db_loader=loader
+                db_loader=loader,
+                american_odds=american_odds,
+                park_factor=park_factor
             )
             
             # Generate game info
@@ -2279,6 +2338,9 @@ def calculate_custom():
                 "line": custom_line,  # Use the custom line
                 "hitRate": analysis["hit_rate"],
                 "trustScore": analysis["trust_score"],
+                "impliedProb": analysis.get("implied_prob"),
+                "edge": analysis.get("edge"),
+                "parkFactor": analysis.get("park_factor"),
                 "lastGames": analysis["last_games"],
                 "last5Games": analysis["last_5_games"],
                 "last15Games": analysis["last_15_games"],
@@ -2329,9 +2391,11 @@ def calculate_custom():
             opponent=data.get('opponent', 'N/A'),
             opponent_rank=data['opponent_rank'],
             is_home=data.get('is_home', True),
-            db_loader=loader
+            db_loader=loader,
+            american_odds=data.get('american_odds'),
+            park_factor=float(data.get('park_factor', 1.0))
         )
-        
+
         return jsonify({
             "success": True,
             "analysis": analysis
