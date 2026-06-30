@@ -53,8 +53,12 @@ ODDS_TO_MLB = {
     "Texas Rangers": "Texas Rangers",
     "Toronto Blue Jays": "Toronto Blue Jays",
     "Washington Nationals": "Washington Nationals",
-    # Athletics relocated to Sacramento in 2025
-    "Sacramento Athletics": "Oakland Athletics",
+    # Athletics dropped their city name after relocating to Sacramento in 2025;
+    # both MLB Stats API and the Odds API now use the bare "Athletics" name.
+    "Athletics": "Athletics",
+    # Older/alternate name variants some sportsbook feeds may still send
+    "Oakland Athletics": "Athletics",
+    "Sacramento Athletics": "Athletics",
 }
 
 
@@ -122,6 +126,45 @@ class MLBFetcher:
             stats[away]["away_totals"].append(hs + as_)
 
         return stats
+
+    def get_todays_opponent_map(self, date_str=None):
+        """
+        Fetch today's MLB schedule directly (not via mlb_cache/Odds API) and return
+        team -> opponent team name mapping, keyed by MLB Stats API full team names.
+
+        Used so opponent identification doesn't depend on the Odds-API-backed game
+        card cache being warm — it survives a cold start on the game data side.
+
+        Returns dict: { "New York Yankees": "Detroit Tigers", "Detroit Tigers": "New York Yankees", ... }
+        """
+        if date_str is None:
+            date_str = _date.today().isoformat()
+
+        try:
+            r = requests.get(
+                f"{MLB_STATS_BASE}/schedule",
+                params={
+                    "sportId": 1,
+                    "date": date_str,
+                    "gameType": "R,F,D,L,W",
+                    "fields": "dates,games,teams,home,away,team,name",
+                },
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            print(f"[MLB] Opponent map schedule fetch failed: {e}")
+            return {}
+
+        opponent_map = {}
+        for date_entry in data.get("dates", []):
+            for game in date_entry.get("games", []):
+                home_name = game["teams"]["home"]["team"]["name"]
+                away_name = game["teams"]["away"]["team"]["name"]
+                opponent_map[home_name] = away_name
+                opponent_map[away_name] = home_name
+        return opponent_map
 
     def get_probable_pitchers_with_stats(self, date_str=None):
         """
