@@ -2072,15 +2072,33 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
         </div>
       </div>
 
-      {/* Trust Score */}
+      {/* Trust Score + Edge */}
       {trust != null && (
-        <div className={`flex items-center justify-between rounded-lg border px-3 py-1.5 ${getTrustBadgeClass(trust)}`}>
-          <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Trust</span>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold tabular-nums">{trust}</span>
-            <span className="text-[10px] font-medium opacity-80">{getTrustLabel(trust)}</span>
+        <>
+          <div className={`flex items-center justify-between rounded-lg border px-3 py-1.5 ${getTrustBadgeClass(trust)}`}>
+            <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Trust</span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold tabular-nums">{trust}</span>
+              <span className="text-[10px] font-medium opacity-80">{getTrustLabel(trust)}</span>
+            </div>
           </div>
-        </div>
+          {(() => {
+            const liveOdds = player.bookmakerLines?.[0]?.over_odds;
+            const edgeData = computeEdge(trust, liveOdds ?? -110);
+            if (!edgeData) return null;
+            const isPositive = edgeData.edgeRaw >= 0;
+            return (
+              <div className="flex items-center justify-between text-[10px] tabular-nums -mt-1">
+                <span className="text-gray-400 dark:text-gray-500">
+                  Book {liveOdds ? edgeData.impliedDisplay : 'est. -110'}
+                </span>
+                <span className={`font-bold ${isPositive ? 'text-green-500' : 'text-red-400'}`}>
+                  Edge {edgeData.edgeDisplay}
+                </span>
+              </div>
+            );
+          })()}
+        </>
       )}
 
       {/* Low-reliability market warning for RBI and Runs */}
