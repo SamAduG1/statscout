@@ -80,6 +80,25 @@ soccer_fetcher_instance = SoccerFetcher()
 from scheduler import init_scheduler
 scheduler = init_scheduler()
 
+# NBA team defensive ranks (1 = best defense / fewest points allowed, 30 = worst)
+# Computed from real TeamGame results; refreshed every 6h.
+_nba_def_ranks = {"data": {}, "last_updated": None}
+
+def _get_nba_def_ranks():
+    """Return cached NBA defensive ranks, refreshing if older than 6 hours."""
+    now = datetime.now()
+    if (_nba_def_ranks["last_updated"] is None or
+            (now - _nba_def_ranks["last_updated"]).total_seconds() > 6 * 3600):
+        try:
+            data = loader.get_team_defensive_ranks()
+            if data:
+                _nba_def_ranks["data"] = data
+                _nba_def_ranks["last_updated"] = now
+                print(f"[NBA] Defensive ranks refreshed ({len(data)} teams)")
+        except Exception as e:
+            print(f"[NBA] Defensive ranks refresh failed: {e}")
+    return _nba_def_ranks["data"]
+
 # Cache for odds data (optimized to conserve API quota)
 ODDS_CACHE_FILE = "/tmp/statscout_odds_cache.json"
 _odds_disk = _load_specific_cache(ODDS_CACHE_FILE)
@@ -188,6 +207,7 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
     Returns the response dict (not a Flask response object).
     """
     local_loader = _loader if _loader is not None else loader
+    def_ranks = _get_nba_def_ranks()  # {team_abbrev: rank 1-30}
     players_list = []
     player_id = 1
 
@@ -254,10 +274,10 @@ def _compute_players_data(team_filter='all', stat_filter='all', skip_injuries=Fa
                 is_home = next_game['is_home']
                 game_date = next_game['game_date']
                 game_time = next_game['game_time']
-                opponent_rank = random.randint(5, 25)
+                opponent_rank = def_ranks.get(opponent, 15)
             else:
                 opponent = "TBD"
-                opponent_rank = random.randint(5, 25)
+                opponent_rank = 15  # neutral fallback — no scheduled game found
                 is_home = True
                 game_date = "TBD"
                 game_time = "TBD"
@@ -2279,8 +2299,8 @@ def calculate_custom():
             
             # Get opponent info from request (frontend always sends these)
             opponent = data.get('opponent', "OPP")
-            opponent_rank = data.get('opponent_rank', random.randint(5, 25))
-            is_home = data.get('is_home', random.choice([True, False]))
+            opponent_rank = data.get('opponent_rank') or _get_nba_def_ranks().get(opponent, 15)
+            is_home = data.get('is_home', True)
             american_odds = data.get('american_odds')  # optional; enables edge calculation
             park_factor = float(data.get('park_factor', 1.0))  # optional; baseball park adjustment
 

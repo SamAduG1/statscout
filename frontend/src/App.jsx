@@ -2127,7 +2127,7 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
             </span>
           )}
           {parkInfo && (
-            <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average)`}>
+            <span className={`text-[10px] font-medium ${parkInfo.color}`} title={`Park factor: ${parkInfo.factor} (${parkInfo.label} vs average). Red = hitter-friendly park (stats may be inflated), blue = pitcher-friendly park (stats may be suppressed)`}>
               Park {parkInfo.label}
             </span>
           )}
@@ -2151,7 +2151,7 @@ const MLBPlayerCard = ({ player, market, onClick }) => {
           )}
           {player.kPct != null && (
             <span className={`text-[10px] ${player.kPct <= 16 ? 'text-green-400' : player.kPct >= 28 ? 'text-red-400' : 'text-gray-400'}`}
-              title="Strikeout rate this season">
+              title="K%: strikeout rate this season. Green = low whiff rate (good contact), red = high strikeout rate">
               K% {player.kPct}%
             </span>
           )}

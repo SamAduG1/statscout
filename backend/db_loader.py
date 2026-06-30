@@ -649,6 +649,30 @@ class DatabaseLoader:
             "games_analyzed": len(opp_rows)
         }
 
+    def get_team_defensive_ranks(self, season: str = "2025-26") -> Dict[str, int]:
+        """
+        Compute each team's defensive rank from actual TeamGame results this season.
+        Rank 1 = fewest points allowed (best defense), 30 = most points allowed (worst).
+        Matches the opponent_rank scale expected by calculate_opponent_difficulty().
+        Returns empty dict if insufficient data (caller should fall back to neutral 15).
+        """
+        self._ensure_session()
+        try:
+            rows = (
+                self.session.query(TeamGame.team, func.avg(TeamGame.opponent_points))
+                .filter(TeamGame.season == season)
+                .group_by(TeamGame.team)
+                .having(func.count(TeamGame.id) >= 5)
+                .all()
+            )
+            if not rows:
+                return {}
+            sorted_teams = sorted(rows, key=lambda r: r[1])
+            return {team: rank + 1 for rank, (team, _) in enumerate(sorted_teams)}
+        except Exception as e:
+            print(f"[WARNING] get_team_defensive_ranks failed: {e}")
+            return {}
+
     def get_half_tendency(self, player_name: str, stat_type: str = 'points', min_games: int = 10) -> Dict[str, Any]:
         """
         Analyze player's first half vs second half tendencies
