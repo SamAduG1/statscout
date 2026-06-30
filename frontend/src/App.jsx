@@ -2794,7 +2794,6 @@ const getTrustLabel = (score) => {
   if (score == null) return '';
   if (score >= 80) return 'Strong lean';
   if (score >= 70) return 'Leaning over';
-  if (score >= 60) return 'I like these odds';
   if (score >= 50) return 'Slight edge';
   if (score >= 40) return 'Proceed with caution';
   return 'Taking a longshot';
