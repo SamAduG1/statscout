@@ -2869,10 +2869,18 @@ const computePlayerTrust = (arr, hitFn, avgMinutes) => {
 
   const hr = arr.filter(hitFn).length / arr.length;
 
-  // Base score: power curve on hit rate (0-100).
-  // 30% hr → 16, 50% → 35, 65% → 52, 75% → 65, 80% → 72, 85% → 78, 90% → 85.
-  // Monotonically increases with hr — raising the line always lowers trust.
-  let score = Math.pow(hr, 1.5) * 100;
+  // Base score: piecewise curve on hit rate (0-100).
+  // Below 65%: hr^1.5 * 100 (same as before). 65-75%: steep slope (~245/pt) to spread
+  // the key betting zone. Above 75%: gentle slope (80/pt) to preserve top-end headroom.
+  // 50% -> 35, 60% -> 47, 65% -> 52, 70% -> 65, 75% -> 77, 80% -> 81, 85% -> 85.
+  const _base65 = Math.pow(0.65, 1.5) * 100;
+  const _base75 = 77.0;
+  const _slopeMid = (_base75 - _base65) / (0.75 - 0.65);
+  let score = hr < 0.65
+    ? Math.pow(hr, 1.5) * 100
+    : hr < 0.75
+      ? _base65 + (hr - 0.65) * _slopeMid
+      : _base75 + (hr - 0.75) * 80;
 
   // Modifier 1: Consistency — low variance adds up to +5 pts.
   const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
