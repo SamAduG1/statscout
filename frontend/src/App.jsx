@@ -3208,18 +3208,19 @@ const PlayerCard = ({ player, timeRange, onLineAdjust, onClick, onAddToParlay })
             style={{ width: `${player.trustScore}%` }}
           />
         </div>
-        {/* Edge display — only when live over_odds are available */}
+        {/* Edge display — live odds when available, estimated -110 otherwise */}
         {(() => {
-          const overOdds = player.bookmakerLines?.[0]?.over_odds;
-          const edgeData = computeEdge(player.trustScore, overOdds);
+          const liveOdds = player.bookmakerLines?.[0]?.over_odds;
+          const odds = liveOdds ?? -110;
+          const edgeData = computeEdge(player.trustScore, odds);
           if (!edgeData) return null;
           const isPositive = edgeData.edgeRaw >= 0;
           return (
             <div className="mt-1.5 flex items-center justify-between text-[10px] tabular-nums">
               <span className="text-gray-400 dark:text-gray-500">
-                Trust {player.trustScore}% · Book {edgeData.impliedDisplay}
+                Book {liveOdds ? edgeData.impliedDisplay : 'est. -110'}
               </span>
-              <span className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-400'}`}>
+              <span className={`font-bold ${isPositive ? 'text-green-500' : 'text-red-400'}`}>
                 Edge {edgeData.edgeDisplay}
               </span>
             </div>
