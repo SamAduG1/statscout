@@ -188,6 +188,7 @@ SOCCER_CACHE_FILES = {
     "bundesliga": "/tmp/statscout_soccer_bundesliga_v2_cache.json",
     "seriea":     "/tmp/statscout_soccer_seriea_v2_cache.json",
     "ligue1":     "/tmp/statscout_soccer_ligue1_v2_cache.json",
+    "ucl":        "/tmp/statscout_soccer_ucl_v2_cache.json",
 }
 def _init_soccer_cache(league):
     disk = _load_specific_cache(SOCCER_CACHE_FILES[league])
@@ -424,6 +425,13 @@ def _build_soccer_cache_background(league='pl'):
                 cache["last_updated"] = datetime.now()
                 _save_specific_cache(SOCCER_CACHE_FILES[league], data)
                 print(f"[SOCCER] {league} cache built ({data['count']} matches)")
+                if league == "ucl":
+                    # UCL player props label clubs by these fixtures' team names
+                    _soccer_all_players_caches["ucl"] = None
+                    try:
+                        os.remove(SOCCER_ALL_PLAYERS_CACHE_FILES["ucl"])
+                    except OSError:
+                        pass
                 break
             except Exception as e:
                 print(f"[SOCCER] {league} build attempt {attempt} failed: {e}")
@@ -740,6 +748,51 @@ LEAGUE_MAPPINGS = {
     "ligue1":     UNDERSTAT_TO_ODDS_LIGUE1,
 }
 
+# Champions League player props (rows from update_ucl_stats.py). Clubs are stored
+# under their Understat name (big 5) or ESPN name (everyone else).
+UCL_ODDS_TO_ESPN = {
+    "Inter Milan":     "Internazionale",
+    "Sporting Lisbon": "Sporting CP",
+    "Slavia Praha":    "Slavia Prague",
+    "Bodø/Glimt":      "Bodo/Glimt",
+}
+
+
+def _match_soccer_team(odds_name, candidates):
+    """Odds API team name -> its spelling among candidates (Understat or ESPN names), or None."""
+    from soccer_fetcher import _norm, _fuzzy_team_match
+    cands = set(candidates)
+    if odds_name in cands:
+        return odds_name
+    key = _norm(odds_name).lower()
+    for mapping in LEAGUE_MAPPINGS.values():
+        for us_name, od_name in mapping.items():
+            if _norm(od_name).lower() == key and us_name in cands:
+                return us_name
+    if UCL_ODDS_TO_ESPN.get(odds_name) in cands:
+        return UCL_ODDS_TO_ESPN[odds_name]
+    by_norm = {_norm(c).lower(): c for c in cands}
+    return by_norm.get(key) or _fuzzy_team_match(odds_name, cands)
+
+
+def _ucl_team_names(session, season='2026'):
+    """Clubs (as stored in team_name) with Champions League games this season."""
+    from models import SoccerPlayer, SoccerPlayerGame
+    rows = (session.query(SoccerPlayer.team_name)
+            .join(SoccerPlayerGame, SoccerPlayerGame.player_id == SoccerPlayer.id)
+            .filter(SoccerPlayerGame.competition == 'ucl', SoccerPlayerGame.season == season)
+            .distinct().all())
+    return {r[0] for r in rows}
+
+
+def _ucl_opponent_names(session, season='2026'):
+    """Opponent spellings used on UCL rows (ESPN names)."""
+    from models import SoccerPlayerGame
+    rows = (session.query(SoccerPlayerGame.opponent)
+            .filter(SoccerPlayerGame.competition == 'ucl', SoccerPlayerGame.season == season)
+            .distinct().all())
+    return {r[0] for r in rows}
+
 
 def _compute_soccer_players(league, home_team_odds, away_team_odds):
     """
@@ -750,18 +803,25 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
     from models import get_engine, get_session, SoccerPlayer, SoccerPlayerGame
     from soccer_fetcher import _norm
 
-    mapping = LEAGUE_MAPPINGS.get(league, UNDERSTAT_TO_ODDS_PL)
-    # Reverse the mapping: Odds API name -> Understat name
-    odds_to_understat = {v.lower(): k for k, v in mapping.items()}
+    engine = get_engine()
+    session = get_session(engine)
 
-    def resolve(odds_name):
-        return odds_to_understat.get(_norm(odds_name).lower(), odds_name)
+    if league == "ucl":
+        ucl_teams = _ucl_team_names(session)
+        ucl_opps = _ucl_opponent_names(session)
+
+        def resolve(odds_name):
+            return _match_soccer_team(odds_name, ucl_teams) or odds_name
+    else:
+        mapping = LEAGUE_MAPPINGS.get(league, UNDERSTAT_TO_ODDS_PL)
+        # Reverse the mapping: Odds API name -> Understat name
+        odds_to_understat = {v.lower(): k for k, v in mapping.items()}
+
+        def resolve(odds_name):
+            return odds_to_understat.get(_norm(odds_name).lower(), odds_name)
 
     home_us = resolve(home_team_odds)
     away_us = resolve(away_team_odds)
-
-    engine = get_engine()
-    session = get_session(engine)
 
     def hit_rate(values, line):
         if not values:
@@ -789,17 +849,21 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
         Returns dict {avg_goals, avg_shots, sample_size} or None if <5 games found.
         """
         try:
-            rows = (
+            q = (
                 session.query(SoccerPlayerGame)
                 .join(SoccerPlayer, SoccerPlayer.id == SoccerPlayerGame.player_id)
                 .filter(
-                    SoccerPlayer.league == league_code,
                     SoccerPlayer.position == position,
                     SoccerPlayerGame.opponent.ilike(f"%{opp_team_us}%"),
                     SoccerPlayerGame.minutes_played > 0,
                 )
-                .all()
             )
+            if league_code == "ucl":
+                q = q.filter(SoccerPlayerGame.competition == "ucl")
+            else:
+                q = q.filter(SoccerPlayer.league == league_code,
+                             SoccerPlayerGame.competition.is_(None))
+            rows = q.all()
             if len(rows) < 5:
                 return None
             avg_g = round(sum(r.goals for r in rows) / len(rows), 2)
@@ -816,15 +880,22 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
         ]:
             opp_us   = away_us   if side == "home" else home_us
             opp_odds = away_team_odds if side == "home" else home_team_odds
+            # Names the opponent may appear under in game rows (Understat / ESPN spelling)
+            opp_names = [opp_us]
+            if league == "ucl":
+                opp_espn = _match_soccer_team(opp_odds, ucl_opps)
+                if opp_espn and opp_espn not in opp_names:
+                    opp_names.append(opp_espn)
 
-            # Try exact match, then case-insensitive fallback
+            # Try exact match, then case-insensitive fallback (UCL: club in any league)
+            league_filter = [] if league == "ucl" else [SoccerPlayer.league == league]
             players = session.query(SoccerPlayer).filter(
-                SoccerPlayer.league == league,
+                *league_filter,
                 SoccerPlayer.team_name == team_us,
             ).all()
             if not players:
                 players = session.query(SoccerPlayer).filter(
-                    SoccerPlayer.league == league,
+                    *league_filter,
                     SoccerPlayer.team_name.ilike(team_us),
                 ).all()
 
@@ -835,8 +906,11 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                     .order_by(SoccerPlayerGame.match_date.asc())
                     .all()
                 )
-                games_prev = [g for g in all_games if g.season == '2024' and g.minutes_played > 0]
-                games_curr = [g for g in all_games if g.season == '2025' and g.minutes_played > 0]
+                if league != "ucl":
+                    # Domestic props: Understat league rows only (no ESPN UCL rows)
+                    all_games = [g for g in all_games if g.competition is None]
+                games_prev = [g for g in all_games if g.season == '2025' and g.minutes_played > 0]
+                games_curr = [g for g in all_games if g.season == '2026' and g.minutes_played > 0]
                 active = games_curr  # current season for display/splits
                 if len(active) < 3 and len(games_prev) < 3:
                     continue
@@ -856,7 +930,8 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                 xa_prev  = [g.xA for g in games_prev if g.xA is not None]
 
                 # H2H: games against tonight's opponent
-                h2h = [g for g in active if opp_us.lower() in (g.opponent or "").lower()]
+                h2h = [g for g in active
+                       if any(n.lower() in (g.opponent or "").lower() for n in opp_names)]
 
                 game_log = [
                     {
@@ -931,7 +1006,7 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
                 }
 
                 # Opponent defense vs this player's position
-                player_dict["oppDefense"] = opp_def_vs_position(opp_us, p.position, league)
+                player_dict["oppDefense"] = opp_def_vs_position(opp_names[-1], p.position, league)
 
                 # GK: clean sheet % + goals conceded array
                 if p.position == "GK":
@@ -958,11 +1033,11 @@ def _compute_soccer_players(league, home_team_odds, away_team_odds):
 
 
 SOCCER_ALL_PLAYERS_CACHE_FILES = {
-    lg: f"/tmp/ssp_all_{lg}_v1.json" for lg in LEAGUE_MAPPINGS
+    lg: f"/tmp/ssp_all_{lg}_v1.json" for lg in [*LEAGUE_MAPPINGS, "ucl"]
 }
 SOCCER_ALL_PLAYERS_CACHE_DURATION = 12 * 60 * 60  # 12 hours
 
-_soccer_all_players_caches = {lg: None for lg in LEAGUE_MAPPINGS}
+_soccer_all_players_caches = {lg: None for lg in SOCCER_ALL_PLAYERS_CACHE_FILES}
 
 
 def _compute_soccer_players_all(league):
@@ -977,9 +1052,10 @@ def _compute_soccer_players_all(league):
     engine = get_engine()
     session = get_session(engine)
 
-    mapping = LEAGUE_MAPPINGS.get(league, UNDERSTAT_TO_ODDS_PL)
-    # understat_name -> odds_name
-    us_to_odds = {k: v for k, v in mapping.items()}
+    if league != "ucl":
+        mapping = LEAGUE_MAPPINGS.get(league, UNDERSTAT_TO_ODDS_PL)
+        # understat_name -> odds_name
+        us_to_odds = {k: v for k, v in mapping.items()}
 
     def hit_rate(values, line):
         if not values:
@@ -1001,7 +1077,19 @@ def _compute_soccer_players_all(league):
         }
 
     try:
-        all_players = session.query(SoccerPlayer).filter_by(league=league).all()
+        if league == "ucl":
+            ucl_teams = _ucl_team_names(session)
+            all_players = (session.query(SoccerPlayer)
+                           .filter(SoccerPlayer.team_name.in_(ucl_teams)).all()) if ucl_teams else []
+            # Show Odds API names so team filters / "playing today" line up with fixtures
+            us_to_odds = {}
+            for m in ((soccer_caches["ucl"]["data"] or {}).get("matches") or []):
+                for odds_name in (m["homeTeam"], m["awayTeam"]):
+                    t = _match_soccer_team(odds_name, ucl_teams)
+                    if t:
+                        us_to_odds[t] = odds_name
+        else:
+            all_players = session.query(SoccerPlayer).filter_by(league=league).all()
         players_out = []
 
         for p in all_players:
@@ -1011,8 +1099,10 @@ def _compute_soccer_players_all(league):
                 .order_by(SoccerPlayerGame.match_date.asc())
                 .all()
             )
-            games_prev = [g for g in all_games if g.season == '2024' and g.minutes_played > 0]
-            games_curr = [g for g in all_games if g.season == '2025' and g.minutes_played > 0]
+            if league != "ucl":
+                all_games = [g for g in all_games if g.competition is None]
+            games_prev = [g for g in all_games if g.season == '2025' and g.minutes_played > 0]
+            games_curr = [g for g in all_games if g.season == '2026' and g.minutes_played > 0]
             active = games_curr
             if len(active) < 3 and len(games_prev) < 3:
                 continue
@@ -1127,10 +1217,10 @@ def _build_soccer_all_players_cache_background(league):
 def get_soccer_players_all():
     """
     Return props for ALL players in a league — no fixture required. Cached 12h.
-    Query params: league=pl|laliga|bundesliga|seriea|ligue1
+    Query params: league=pl|laliga|bundesliga|seriea|ligue1|ucl
     """
     league = request.args.get('league', 'pl')
-    if league not in LEAGUE_MAPPINGS:
+    if league not in SOCCER_ALL_PLAYERS_CACHE_FILES:
         return jsonify({"error": "Unknown league"}), 400
 
     # In-memory first
@@ -1161,7 +1251,7 @@ def get_soccer_players_all():
 def get_soccer_players():
     """
     Get player props for an upcoming fixture.
-    Query params: league=pl|laliga, home_team=..., away_team=...
+    Query params: league=pl|laliga|bundesliga|seriea|ligue1|ucl, home_team=..., away_team=...
     (home_team / away_team must match Odds API team names from /api/soccer/matches)
     """
     league     = request.args.get('league', 'pl')
@@ -1986,7 +2076,7 @@ def get_mlb_games():
 
 @app.route('/api/soccer/matches', methods=['GET'])
 def get_soccer_matches():
-    """Get upcoming soccer matches with over/under odds and hit rates. ?league=pl|laliga"""
+    """Get upcoming soccer matches with over/under odds and hit rates. ?league=pl|laliga|bundesliga|seriea|ligue1|ucl"""
     league = request.args.get('league', 'pl')
     if league not in soccer_caches:
         return jsonify({"error": "Unknown league"}), 400
@@ -2469,7 +2559,7 @@ def add_player():
 
         # Fetch player game data
         fetcher = NBAStatsFetcher()
-        games = fetcher.fetch_player_season(full_name, team_abbrev, position, season="2025-26")
+        games = fetcher.fetch_player_season(full_name, team_abbrev, position, season="2026-27")
 
         if not games:
             session.close()
@@ -2962,7 +3052,7 @@ def _build_all_soccer_caches():
     import threading, time as _time
     def _run():
         _time.sleep(10)  # let NBA/MLB builds start first
-        for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1']:
+        for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1', 'ucl']:
             cache = soccer_caches[league]
             if cache["data"] is not None and cache["data"].get("count", 0) > 0:
                 print(f"[SOCCER] {league} already cached, skipping startup build")
@@ -3078,7 +3168,7 @@ def _schedule_daily_soccer_cache_refresh():
                   f"{next_run.strftime('%Y-%m-%d %H:%M UTC')} ({sleep_secs/3600:.1f}h from now)")
             _time.sleep(sleep_secs)
             print("[SOCCER] Starting scheduled daily cache refresh for all leagues...")
-            for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1']:
+            for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1', 'ucl']:
                 try:
                     # Force expire the in-memory cache so _build triggers a fresh fetch
                     soccer_caches[league]["last_updated"] = None
@@ -3126,10 +3216,12 @@ def _schedule_weekly_soccer_stats_update():
                 print("[SOCCER STATS] Starting weekly soccer stats update (all leagues)...")
                 from update_soccer_stats import main as soccer_update_main
                 soccer_update_main()
+                from update_ucl_stats import main as ucl_update_main
+                ucl_update_main()
                 print("[SOCCER STATS] Weekly update complete - invalidating player caches")
                 # Clear soccer all-players caches so fresh stats are served
                 import os as _os
-                for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1']:
+                for league in ['pl', 'laliga', 'bundesliga', 'seriea', 'ligue1', 'ucl']:
                     _soccer_all_players_caches[league] = None
                     cache_file = SOCCER_ALL_PLAYERS_CACHE_FILES.get(league, '')
                     if cache_file and _os.path.exists(cache_file):

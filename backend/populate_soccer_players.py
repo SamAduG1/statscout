@@ -30,7 +30,7 @@ load_dotenv()
 
 from models import get_engine, get_session, SoccerPlayer, SoccerPlayerGame
 
-SEASON = 2025
+SEASON = 2026
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
 
 LEAGUES = {
@@ -54,6 +54,23 @@ def _current_team(team_title):
     """Return most recent team (last in comma-separated list)."""
     parts = [t.strip() for t in team_title.split(",") if t.strip()]
     return parts[-1] if parts else team_title
+
+
+def _team_from_matches(team_title, matches):
+    """
+    Current team for a player whose team_title lists several clubs. Understat's
+    order isn't chronological, and one PSG-Rennes match can tag both squads with
+    'Paris Saint Germain,Rennes' — so use the newest match that involves exactly
+    one of the listed clubs.
+    """
+    teams = [t.strip() for t in team_title.split(",") if t.strip()]
+    if len(teams) <= 1:
+        return _current_team(team_title)
+    for m in sorted(matches, key=lambda m: m.get("date") or "", reverse=True):
+        playing = [t for t in teams if t in (m.get("h_team"), m.get("a_team"))]
+        if len(playing) == 1:
+            return playing[0]
+    return _current_team(team_title)
 
 
 def _all_teams(team_title):
@@ -141,6 +158,9 @@ def insert_matches(session, player, matches, all_teams=None):
         # Determine venue: check h_team against all teams the player has played for
         h_team = m.get("h_team", "")
         is_home = h_team.strip().lower() in all_teams
+        if is_home and m.get("a_team", "").strip().lower() in all_teams:
+            # Both clubs are in the player's team list (e.g. PSG v Rennes): use current team
+            is_home = h_team.strip().lower() == player.team_name.lower()
         venue = "home" if is_home else "away"
         opponent = m.get("a_team", "") if is_home else h_team
 
@@ -202,7 +222,6 @@ def populate_league(session, league_key):
     for i, p in enumerate(players_raw, 1):
         understat_id = int(p.get("id", 0))
         name = p.get("player_name", "")
-        team_name = _current_team(p.get("team_title", ""))
         all_teams = _all_teams(p.get("team_title", ""))
         position = _norm_position(p.get("position", "M"))
 
@@ -210,10 +229,10 @@ def populate_league(session, league_key):
             continue
 
         try:
-            player, is_new = upsert_player(session, understat_id, name, team_name, league_key, position)
-
             player_page = f"https://understat.com/player/{understat_id}"
             matches = fetch_player_matches(s, understat_id, player_page)
+            team_name = _team_from_matches(p.get("team_title", ""), matches)
+            player, is_new = upsert_player(session, understat_id, name, team_name, league_key, position)
             n = insert_matches(session, player, matches, all_teams)
             total_games += n
 

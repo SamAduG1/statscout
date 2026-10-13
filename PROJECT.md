@@ -34,6 +34,7 @@ Sports analytics and player props tool. Aggregates historical performance data a
 - `odds_api.py` — The Odds API client (NBA + soccer)
 - `populate_soccer_players.py` — One-off bulk seed script (local only, never deployed)
 - `update_soccer_stats.py` — Weekly incremental update script (local only)
+- `update_ucl_stats.py` — Champions League player stats from ESPN (UCL games for all 36 clubs + domestic games for clubs outside the big 5); runs after `update_soccer_stats` in the Monday job
 
 ### Frontend (`frontend/src/App.jsx`)
 Single-file React monolith (~3500 lines). No component split yet (planned when a 3rd sport is added and route-based nav is introduced).
@@ -144,6 +145,7 @@ soccer_player_games  id, player_id, match_date, opponent, venue, goals, shots,
 ### Soccer Player Props (manual — local only)
 - **One-off seed:** `python populate_soccer_players.py --league pl` (~13 min, 518 players, 9075 game rows)
 - **Weekly update:** `python update_soccer_stats.py --league pl` (run after each gameweek, typically Monday)
+- **UCL players:** `python update_ucl_stats.py` (first run loads the whole season + last season's domestic games for non-big-5 clubs; later runs re-scan the last 3 weeks; `--full` re-scans the season)
 - Both scripts read `DATABASE_URL` from `backend/.env`
 - Neither is deployed to Render — DB is updated locally, Render reads from Neon
 

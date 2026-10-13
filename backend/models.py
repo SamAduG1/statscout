@@ -158,10 +158,11 @@ class SoccerPlayer(Base):
     __tablename__ = 'soccer_players'
 
     id           = Column(Integer, primary_key=True)
-    understat_id = Column(Integer, unique=True, nullable=False, index=True)
+    understat_id = Column(Integer, unique=True, nullable=False, index=True)  # -espn_id for ESPN-only players
+    espn_id      = Column(Integer, nullable=True, index=True)   # set for players seen in UCL games
     name         = Column(String, nullable=False)
     team_name    = Column(String, nullable=False, index=True)
-    league       = Column(String, nullable=False, index=True)  # 'pl' or 'laliga'
+    league       = Column(String, nullable=False, index=True)  # 'pl', 'laliga', ... or 'ucl' (club outside big 5)
     position     = Column(String, nullable=False)              # 'GK', 'DF', 'MF', 'FW'
     last_updated = Column(Date, nullable=False)
 
@@ -190,6 +191,9 @@ class SoccerPlayerGame(Base):
     xA              = Column(Float, nullable=True)     # expected assists from Understat
     goals_conceded  = Column(Integer, nullable=True)   # GK only: goals conceded in that match
     season          = Column(String, nullable=False)   # e.g. '2025'
+    # None = domestic league game from Understat; 'ucl' = Champions League (ESPN);
+    # 'domestic' = domestic league game from ESPN (UCL clubs outside the big 5)
+    competition     = Column(String, nullable=True, index=True)
 
     __table_args__ = (
         UniqueConstraint('player_id', 'match_date', name='uq_soccer_player_game'),
@@ -301,7 +305,25 @@ def get_session(engine):
 def init_db(engine):
     """Initialize database - create all tables"""
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
     print(" Database tables created successfully")
+
+
+def _add_missing_columns(engine):
+    """create_all doesn't alter existing tables; add columns introduced after launch."""
+    from sqlalchemy import inspect, text
+    added = [
+        ("soccer_players", "espn_id", "INTEGER"),
+        ("soccer_player_games", "competition", "VARCHAR"),
+    ]
+    insp = inspect(engine)
+    for table, col, coltype in added:
+        if col in {c["name"] for c in insp.get_columns(table)}:
+            continue
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}"))
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{col} ON {table} ({col})"))
+        print(f"[DB] Added column {table}.{col}")
 
 
 def drop_all_tables(engine):
