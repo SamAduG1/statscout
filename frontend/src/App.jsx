@@ -3787,7 +3787,7 @@ export default function StatScoutDashboard() {
     () => !localStorage.getItem('statscout_tour_mlb')
   );
 
-  const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null });
+  const [soccerData, setSoccerData] = useState({ pl: null, laliga: null, bundesliga: null, seriea: null, ligue1: null, ucl: null });
   const [mlbData, setMlbData] = useState(null);
   const [mlbLoading, setMlbLoading] = useState(false);
   const [mlbError, setMlbError] = useState(null);
@@ -4992,7 +4992,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
 
               {/* League + View selectors */}
               <div id="tour-soccer-nav" className="flex flex-wrap items-center gap-3 mb-5">
-                {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1']].map(([key, label]) => (
+                {[['pl', 'Premier League'], ['laliga', 'La Liga'], ['bundesliga', 'Bundesliga'], ['seriea', 'Serie A'], ['ligue1', 'Ligue 1'], ['ucl', 'Champions League']].map(([key, label]) => (
                   <button key={key} onClick={() => { setSelectedSoccerFixture(null); setSoccerPropsSearch(''); setSoccerPropsTeamFilters([]); setSoccerPropsPosition(null); setSoccerPropsPlayingToday(false); navigate(`/soccer/${key}/${soccerView === 'playerProps' ? 'players' : 'matches'}`); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       soccerLeague === key
@@ -5018,7 +5018,7 @@ const handleLineAdjust = (playerId, playerName, statType, newData) => {
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-5 bg-blue-500 rounded-full" />
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                  {{'pl':'Premier League','laliga':'La Liga','bundesliga':'Bundesliga','seriea':'Serie A','ligue1':'Ligue 1'}[soccerLeague]}: {soccerView === 'matchTotals' ? 'Match Totals' : 'Player Props'}
+                  {{'pl':'Premier League','laliga':'La Liga','bundesliga':'Bundesliga','seriea':'Serie A','ligue1':'Ligue 1','ucl':'Champions League'}[soccerLeague]}: {soccerView === 'matchTotals' ? 'Match Totals' : 'Player Props'}
                 </h2>
               </div>
 

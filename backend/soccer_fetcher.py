@@ -1,14 +1,16 @@
 """
 StatScout Soccer Fetcher
 - Upcoming fixtures + over/under odds: The Odds API
-- Historical hit rates + team goal averages: football-data.org (season 2025, free tier)
-- Supported competitions: Premier League (pl), La Liga (laliga)
+- Historical hit rates + team goal averages: football-data.org (season 2026, free tier)
+- Supported competitions: Premier League (pl), La Liga (laliga), Bundesliga (bundesliga),
+  Serie A (seriea), Ligue 1 (ligue1), Champions League (ucl)
 """
 
 import requests
 import os
 import statistics
 import threading
+import time
 import unicodedata
 from dotenv import load_dotenv
 
@@ -16,9 +18,14 @@ from dotenv import load_dotenv
 # league caches build simultaneously (free tier: 10 req/min)
 _fd_semaphore = threading.Semaphore(1)
 
+# Short-lived cache of raw football-data.org match lists so the UCL build can reuse
+# the domestic league fetches that run just before it: {fd_code: (fetched_at, matches)}
+_fd_cache = {}
+_FD_CACHE_TTL = 30 * 60
+
 load_dotenv()
 
-SEASON = 2025  # 2025-26 season
+SEASON = 2026  # 2026-27 season
 
 
 def _norm(name):
@@ -28,6 +35,7 @@ def _norm(name):
 # Maps Odds API team name variants to football-data.org full names.
 # Used to cross-reference upcoming fixture names with historical stats.
 # 2025-26 PL: Burnley, Sunderland, Leeds promoted; Ipswich, Leicester, Southampton relegated.
+# 2026-27 PL: Coventry, Hull, Ipswich promoted.
 ODDS_TO_FD = {
     "Arsenal": "Arsenal FC",
     "Aston Villa": "Aston Villa FC",
@@ -37,9 +45,15 @@ ODDS_TO_FD = {
     "Brighton and Hove Albion": "Brighton & Hove Albion FC",
     "Burnley": "Burnley FC",
     "Chelsea": "Chelsea FC",
+    "Coventry City": "Coventry City FC",
+    "Coventry": "Coventry City FC",
     "Crystal Palace": "Crystal Palace FC",
     "Everton": "Everton FC",
     "Fulham": "Fulham FC",
+    "Hull City": "Hull City AFC",
+    "Hull": "Hull City AFC",
+    "Ipswich Town": "Ipswich Town FC",
+    "Ipswich": "Ipswich Town FC",
     "Leeds": "Leeds United FC",
     "Leeds United": "Leeds United FC",
     "Liverpool": "Liverpool FC",
@@ -60,6 +74,7 @@ ODDS_TO_FD = {
 # La Liga 2025-26 team name mappings (Odds API -> football-data.org).
 # All keys are pre-normalized (no accents) — the lookup normalizes before checking.
 # 2025-26 promoted: Real Oviedo, Levante UD, Elche CF
+# 2026-27 promoted: Deportivo La Coruna, Malaga CF
 LALIGA_ODDS_TO_FD = {
     "Athletic Club": "Athletic Club",
     "Athletic Bilbao": "Athletic Club",
@@ -68,6 +83,8 @@ LALIGA_ODDS_TO_FD = {
     "Barcelona": "FC Barcelona",
     "Celta Vigo": "RC Celta de Vigo",
     "Deportivo Alaves": "Deportivo Alaves",
+    "Deportivo La Coruna": "RC Deportivo La Coruna",
+    "Deportivo": "RC Deportivo La Coruna",
     "Alaves": "Deportivo Alaves",
     "Elche CF": "Elche CF",
     "Elche": "Elche CF",
@@ -77,6 +94,7 @@ LALIGA_ODDS_TO_FD = {
     "Las Palmas": "UD Las Palmas",
     "Leganes": "CD Leganes",
     "Levante": "Levante UD",
+    "Malaga": "Malaga CF",
     "Mallorca": "RCD Mallorca",
     "Osasuna": "CA Osasuna",
     "Oviedo": "Real Oviedo",
@@ -93,6 +111,7 @@ LALIGA_ODDS_TO_FD = {
 }
 
 # Bundesliga 2025-26 (Hamburger SV promoted, Koln/Heidenheim relegated then promoted varies)
+# Bundesliga 2026-27 (Elversberg, Paderborn promoted)
 BUNDESLIGA_ODDS_TO_FD = {
     "1. FC Heidenheim":           "1. FC Heidenheim 1846",
     "Augsburg":                   "FC Augsburg",
@@ -101,11 +120,13 @@ BUNDESLIGA_ODDS_TO_FD = {
     "Borussia Dortmund":          "Borussia Dortmund",
     "Borussia Monchengladbach":   "Borussia Mönchengladbach",
     "Eintracht Frankfurt":        "Eintracht Frankfurt",
+    "Elversberg":                 "SV 07 Elversberg",
     "FC St. Pauli":               "FC St. Pauli 1910",
     "FSV Mainz 05":               "1. FSV Mainz 05",
     "Hamburger SV":               "Hamburger SV",
     "RB Leipzig":                 "RB Leipzig",
     "SC Freiburg":                "SC Freiburg",
+    "SC Paderborn":               "SC Paderborn 07",
     "TSG Hoffenheim":             "TSG 1899 Hoffenheim",
     "Union Berlin":               "1. FC Union Berlin",
     "VfB Stuttgart":              "VfB Stuttgart",
@@ -115,6 +136,7 @@ BUNDESLIGA_ODDS_TO_FD = {
 }
 
 # Serie A 2025-26 (Pisa, Cremonese, Sassuolo promoted)
+# Serie A 2026-27 (Venezia, Frosinone, Monza promoted)
 SERIEA_ODDS_TO_FD = {
     "AC Milan":                   "AC Milan",
     "AS Roma":                    "AS Roma",
@@ -124,21 +146,25 @@ SERIEA_ODDS_TO_FD = {
     "Como":                       "Como 1907",
     "Cremonese":                  "US Cremonese",
     "Fiorentina":                 "ACF Fiorentina",
+    "Frosinone":                  "Frosinone Calcio",
     "Genoa":                      "Genoa CFC",
     "Hellas Verona":              "Hellas Verona FC",
     "Inter Milan":                "FC Internazionale Milano",
     "Juventus":                   "Juventus FC",
     "Lazio":                      "SS Lazio",
     "Lecce":                      "US Lecce",
+    "Monza":                      "AC Monza",
     "Napoli":                     "SSC Napoli",
     "Parma":                      "Parma Calcio 1913",
     "Pisa":                       "AC Pisa 1909",
     "Sassuolo":                   "US Sassuolo Calcio",
     "Torino":                     "Torino FC",
     "Udinese":                    "Udinese Calcio",
+    "Venezia":                    "Venezia FC",
 }
 
 # Ligue 1 2025-26 (Paris FC, Angers, Auxerre promoted)
+# Ligue 1 2026-27 (Troyes promoted)
 LIGUE1_ODDS_TO_FD = {
     "AS Monaco":                  "AS Monaco FC",
     "Angers":                     "Angers SCO",
@@ -158,6 +184,43 @@ LIGUE1_ODDS_TO_FD = {
     "Rennes":                     "Stade Rennais FC 1901",
     "Strasbourg":                 "RC Strasbourg Alsace",
     "Toulouse":                   "Toulouse FC",
+    "Troyes":                     "ES Troyes AC",
+}
+
+# UEFA Champions League clubs from outside the big 5 leagues (Odds API -> football-data.org).
+# Big-5 clubs resolve through the domestic maps above; anything still unmatched
+# falls back to _fuzzy_team_match.
+UCL_EXTRA_ODDS_TO_FD = {
+    "Benfica":                    "Sport Lisboa e Benfica",
+    "Sporting Lisbon":            "Sporting Clube de Portugal",
+    "Sporting CP":                "Sporting Clube de Portugal",
+    "FC Porto":                   "FC Porto",
+    "PSV Eindhoven":              "PSV",
+    "Ajax":                       "AFC Ajax",
+    "Feyenoord":                  "Feyenoord Rotterdam",
+    "Club Brugge":                "Club Brugge KV",
+    "Union Saint-Gilloise":       "Royale Union Saint-Gilloise",
+    "Celtic":                     "Celtic FC",
+    "Galatasaray":                "Galatasaray SK",
+    "AEK Athens":                 "PAE AEK",
+    "Olympiakos":                 "PAE Olympiakos SFP",
+    "Olympiacos":                 "PAE Olympiakos SFP",
+    "FC Copenhagen":              "FC København",
+    "Bodø/Glimt":                 "FK Bodø/Glimt",
+    "Slavia Praha":               "SK Slavia Praha",
+    "Slavia Prague":              "SK Slavia Praha",
+    "Red Bull Salzburg":          "FC Red Bull Salzburg",
+    "Qarabag FK":                 "Qarabağ Ağdam FK",
+    "Kairat Almaty":              "FC Kairat",
+    "Pafos FC":                   "Pafos FC",
+}
+
+# Accent-free keys so the _norm'd Odds API name always hits.
+UCL_ODDS_TO_FD = {
+    _norm(k): v
+    for m in (ODDS_TO_FD, LALIGA_ODDS_TO_FD, BUNDESLIGA_ODDS_TO_FD,
+              SERIEA_ODDS_TO_FD, LIGUE1_ODDS_TO_FD, UCL_EXTRA_ODDS_TO_FD)
+    for k, v in m.items()
 }
 
 COMPETITIONS = {
@@ -196,7 +259,36 @@ COMPETITIONS = {
         "odds_to_fd": LIGUE1_ODDS_TO_FD,
         "regions": "us,uk,eu",
     },
+    "ucl": {
+        "odds_sport": "soccer_uefa_champs_league",
+        "fd_code": "CL",
+        "name": "Champions League",
+        "odds_to_fd": UCL_ODDS_TO_FD,
+        "regions": "us,uk,eu",
+        # Only ~4 home / 4 away UCL games per club in the league phase, so team form
+        # also draws on domestic matches (needed to reach the 5-venue-game trust floor).
+        # DED/PPL are the other free-tier leagues that send clubs to the UCL.
+        "form_fd_codes": ["PL", "PD", "BL1", "SA", "FL1", "DED", "PPL"],
+    },
 }
+
+_TEAM_NOISE = {"fc", "afc", "cf", "sc", "sk", "fk", "ac", "as", "ssc", "club", "de", "e", "the"}
+
+
+def _team_tokens(name):
+    return {t for t in "".join(c if c.isalnum() else " " for c in _norm(name).lower()).split()
+            if t not in _TEAM_NOISE}
+
+
+def _fuzzy_team_match(name, candidates):
+    """Return the single candidate whose name tokens contain (or are contained by)
+    `name`'s tokens, e.g. 'Benfica' -> 'Sport Lisboa e Benfica'. None if 0 or >1 match."""
+    want = _team_tokens(name)
+    if not want:
+        return None
+    hits = [c for c in candidates
+            if (toks := _team_tokens(c)) and (want <= toks or toks <= want)]
+    return hits[0] if len(hits) == 1 else None
 
 
 class SoccerFetcher:
@@ -216,20 +308,23 @@ class SoccerFetcher:
 
     def get_all_fixtures(self, fd_code='PL'):
         """
-        Get all 2025-26 matches for a competition in one call — both finished and upcoming.
+        Get all 2026-27 matches for a competition in one call — both finished and upcoming.
         Upcoming fixtures may include the assigned referee (typically 24-48h before kickoff).
         Returns full list; caller splits by status.
         """
         with _fd_semaphore:
+            hit = _fd_cache.get(fd_code)
+            if hit and time.time() - hit[0] < _FD_CACHE_TTL:
+                return hit[1]
             r = requests.get(
                 f"{self.FD_BASE}/competitions/{fd_code}/matches",
                 headers=self.fd_headers,
                 params={"season": SEASON},
                 timeout=15,
             )
-        r.raise_for_status()
-        data = r.json()
-        all_matches = data.get("matches", [])
+            r.raise_for_status()
+            all_matches = r.json().get("matches", [])
+            _fd_cache[fd_code] = (time.time(), all_matches)
         finished = [m for m in all_matches if m.get("status") == "FINISHED"]
         print(f"[SOCCER] football-data.org — {len(finished)} finished / {len(all_matches)} total {fd_code} matches")
         return all_matches
@@ -460,22 +555,37 @@ class SoccerFetcher:
         return round(score, 1)
 
     def _parse_odds_event(self, event):
-        """Extract totals line and best odds from an Odds API event."""
-        line = over_o = under_o = bookmaker = None
+        """
+        Extract the consensus totals line from an Odds API event.
+        Line = the half-goal line (x.5) offered by the most bookmakers — whole/quarter
+        Asian lines are skipped since hit rates don't model pushes. Ties go to the
+        line priced closest to even. Odds come from the book with the median Over
+        price at that line, so one outlier book can't skew the market-lean factor.
+        """
+        by_line = {}  # line -> [(over_price, under_price, title)]
         for bm in event.get("bookmakers", []):
             for market in bm.get("markets", []):
                 if market["key"] != "totals":
                     continue
-                for outcome in market.get("outcomes", []):
-                    if outcome["name"] == "Over":
-                        line = outcome.get("point")
-                        over_o = outcome.get("price")
-                    elif outcome["name"] == "Under":
-                        under_o = outcome.get("price")
-                if line is not None:
-                    bookmaker = bm.get("title", "")
-                    return line, over_o, under_o, bookmaker
-        return 2.5, None, None, None
+                over = next((o for o in market.get("outcomes", []) if o["name"] == "Over"), None)
+                under = next((o for o in market.get("outcomes", []) if o["name"] == "Under"), None)
+                if not over or over.get("point") is None or over.get("price") is None:
+                    continue
+                if (over["point"] * 2) % 2 != 1:  # keep only x.5 lines
+                    continue
+                by_line.setdefault(over["point"], []).append(
+                    (over["price"], under.get("price") if under else None, bm.get("title", "")))
+        if not by_line:
+            return 2.5, None, None, None
+
+        def balance(line):
+            probs = [self._american_to_implied(o) for o, _, _ in by_line[line]]
+            return abs(statistics.median(probs) - 0.5)
+
+        line = max(by_line, key=lambda l: (len(by_line[l]), -balance(l)))
+        quotes = sorted(by_line[line], key=lambda q: self._american_to_implied(q[0]))
+        over_o, under_o, bookmaker = quotes[len(quotes) // 2]
+        return line, over_o, under_o, bookmaker
 
     def _build_match_card(self, event, team_stats, odds_to_fd=None,
                           referee_stats=None, referee_lookup=None, league_avg_goals=None):
@@ -491,6 +601,11 @@ class SoccerFetcher:
         # match the normalized keys in team_stats.
         home_fd = _norm(odds_to_fd.get(_norm(home_name), _norm(home_name)))
         away_fd = _norm(odds_to_fd.get(_norm(away_name), _norm(away_name)))
+        # Unmapped club (mostly UCL sides from smaller leagues): try a token match
+        if home_fd not in team_stats:
+            home_fd = _fuzzy_team_match(home_fd, team_stats) or home_fd
+        if away_fd not in team_stats:
+            away_fd = _fuzzy_team_match(away_fd, team_stats) or away_fd
 
         home_h = team_stats.get(home_fd, {}).get("home", [])
         away_a = team_stats.get(away_fd, {}).get("away", [])
@@ -606,19 +721,28 @@ class SoccerFetcher:
     def fetch_all(self, competition='pl'):
         """
         Fetch everything and return structured match data.
-        competition: 'pl' | 'laliga' (default 'pl')
-        API calls: 1 football-data.org (historical) + 1 Odds API (fixtures + odds)
+        competition: 'pl' | 'laliga' | 'bundesliga' | 'seriea' | 'ligue1' | 'ucl' (default 'pl')
+        API calls: 1 football-data.org (historical; ucl also reads the 5 domestic leagues,
+        usually from _fd_cache) + 1 Odds API (fixtures + odds)
         """
         conf = COMPETITIONS.get(competition, COMPETITIONS["pl"])
         label = conf["name"]
 
-        print(f"[SOCCER] Fetching 2025-26 {label} fixtures (historical + upcoming)...")
+        print(f"[SOCCER] Fetching 2026-27 {label} fixtures (historical + upcoming)...")
         referee_stats = {}
         referee_lookup = {}
         league_avg_goals = None
         try:
             all_matches = self.get_all_fixtures(fd_code=conf["fd_code"])
             finished = [m for m in all_matches if m.get("status") == "FINISHED"]
+            for code in conf.get("form_fd_codes", []):
+                try:
+                    finished += [m for m in self.get_all_fixtures(fd_code=code)
+                                 if m.get("status") == "FINISHED"]
+                except Exception as e:
+                    print(f"[SOCCER] {code} form matches unavailable for {label} ({e})")
+            # Chronological order so _form_avg weights the latest games most
+            finished.sort(key=lambda m: m.get("utcDate", ""))
             team_stats = self._build_team_stats(finished)
             referee_stats, league_avg_goals = self._build_referee_stats(all_matches)
             referee_lookup = self._build_referee_lookup(all_matches)

@@ -28,7 +28,7 @@ load_dotenv()
 from models import get_engine, get_session, SoccerPlayer, SoccerPlayerGame
 from populate_soccer_players import (
     UA, SEASON, LEAGUES,
-    _norm_position, _current_team, _all_teams,
+    _norm_position, _current_team, _all_teams, _team_from_matches,
     upsert_player, insert_matches,
 )
 
@@ -45,9 +45,11 @@ def _make_session():
 
 
 def get_last_game_date(session, player_id):
+    # Understat rows only — ESPN UCL rows (competition set) can be newer than
+    # domestic games Understat hasn't been asked for yet
     last = (
         session.query(SoccerPlayerGame)
-        .filter_by(player_id=player_id)
+        .filter_by(player_id=player_id, competition=None)
         .order_by(SoccerPlayerGame.match_date.desc())
         .first()
     )
@@ -90,7 +92,18 @@ def refresh_league_teams(session, s, league_key):
             continue
         existing = session.query(SoccerPlayer).filter_by(understat_id=uid).first()
         if existing:
-            new_team = _current_team(p.get("team_title", existing.team_name))
+            title = p.get("team_title", existing.team_name)
+            if "," in title:
+                # Several clubs listed (transfer, or Understat's shared-match glitch):
+                # decide from the player's own match history
+                try:
+                    new_team = _team_from_matches(title, fetch_player_matches_since(s, uid))
+                except Exception as e:
+                    print(f"  [WARN] {existing.name}: team check failed ({e})")
+                    continue
+                time.sleep(0.5)
+            else:
+                new_team = title
             if existing.team_name != new_team:
                 print(f"  Transfer: {existing.name} {existing.team_name} -> {new_team}")
                 existing.team_name = new_team
